@@ -86,6 +86,71 @@ func TestMCPGetContextStructuredAndPrompt(t *testing.T) {
 	}
 }
 
+func TestMCPInitialContext(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	seedMemory(t, "decision", "Decision summary")
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("config error: %v", err)
+	}
+	repoInfo, err := resolveRepo(cfg, "")
+	if err != nil {
+		t.Fatalf("repo detection error: %v", err)
+	}
+	st, err := openStore(cfg, repoInfo.ID)
+	if err != nil {
+		t.Fatalf("store open error: %v", err)
+	}
+	if err := st.EnsureRepo(repoInfo); err != nil {
+		t.Fatalf("store repo error: %v", err)
+	}
+	if err := st.SetStateCurrent(repoInfo.ID, "default", `{"goal":"ship"}`, 2, time.Now().UTC()); err != nil {
+		t.Fatalf("set state: %v", err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatalf("store close error: %v", err)
+	}
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "mempack.get_initial_context",
+			Arguments: map[string]any{},
+		},
+	}
+	res, err := handleGetInitialContext(context.Background(), req)
+	if err != nil {
+		t.Fatalf("get_initial_context error: %v", err)
+	}
+	if res.StructuredContent == nil {
+		t.Fatalf("expected structured content")
+	}
+	payload, ok := res.StructuredContent.(InitialContext)
+	if !ok {
+		t.Fatalf("expected InitialContext, got %T", res.StructuredContent)
+	}
+	if payload.RepoID == "" {
+		t.Fatalf("expected repo_id")
+	}
+	if !payload.HasState {
+		t.Fatalf("expected has_state true")
+	}
+	if payload.MemoryCount < 1 {
+		t.Fatalf("expected memory_count >= 1")
+	}
+	if len(payload.RecentThreads) == 0 {
+		t.Fatalf("expected recent threads")
+	}
+	if payload.Suggestion == "" {
+		t.Fatalf("expected suggestion")
+	}
+}
+
 func TestMCPExplainDeterministic(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)

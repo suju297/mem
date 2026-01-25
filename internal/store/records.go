@@ -299,6 +299,75 @@ func (s *Store) GetChunksByIDs(repoID, workspace string, ids []string) ([]Chunk,
 	return chunks, nil
 }
 
+func (s *Store) ListRecentActiveThreads(repoID, workspace string, limit int) ([]Thread, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	workspace = normalizeWorkspace(workspace)
+	rows, err := s.db.Query(`
+		SELECT t.thread_id, t.repo_id, t.workspace, t.title, t.tags_json, MAX(m.created_at) as last_activity
+		FROM threads t
+		JOIN memories m
+			ON t.thread_id = m.thread_id
+			AND t.repo_id = m.repo_id
+			AND t.workspace = m.workspace
+			AND m.deleted_at IS NULL
+		WHERE t.repo_id = ? AND t.workspace = ?
+		GROUP BY t.thread_id, t.repo_id, t.workspace
+		ORDER BY last_activity DESC
+		LIMIT ?
+	`, repoID, workspace, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var threads []Thread
+	for rows.Next() {
+		var thread Thread
+		var tagsJSON sql.NullString
+		var lastActivity string
+		if err := rows.Scan(&thread.ThreadID, &thread.RepoID, &thread.Workspace, &thread.Title, &tagsJSON, &lastActivity); err != nil {
+			return nil, err
+		}
+		thread.TagsJSON = tagsJSON.String
+		thread.CreatedAt = parseTime(lastActivity)
+		threads = append(threads, thread)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return threads, nil
+}
+
+func (s *Store) CountMemories(repoID, workspace string) (int, error) {
+	workspace = normalizeWorkspace(workspace)
+	row := s.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM memories
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL
+	`, repoID, workspace)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (s *Store) CountChunks(repoID, workspace string) (int, error) {
+	workspace = normalizeWorkspace(workspace)
+	row := s.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM chunks
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL
+	`, repoID, workspace)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
 func (s *Store) ForgetMemory(repoID, workspace, id string, now time.Time) (bool, error) {
 	res, err := s.db.Exec(`
 		UPDATE memories
