@@ -25,7 +25,7 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "  forget          mem forget <id> [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  supersede       mem supersede <id> --title <title> --summary <summary> [--thread <id>] [--tags tag1,tag2] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  checkpoint      mem checkpoint --reason \"<...>\" --state-file <path>|--state-json <json> [--thread <id>] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  ingest-artifact mem ingest-artifact <path> --thread <id> [--workspace <name>] [--repo <id>]\n")
+	io.WriteString(w, "  ingest-artifact mem ingest-artifact <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  embed           mem embed [--kind memory|chunk|all] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "                 mem embed status [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  repos           mem repos\n")

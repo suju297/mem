@@ -567,6 +567,66 @@ func (s *Store) AddArtifactWithChunks(artifact Artifact, chunks []Chunk) (int, [
 	return inserted, insertedIDs, nil
 }
 
+func (s *Store) DeleteChunksBySource(repoID, workspace, source string) (int, error) {
+	workspace = normalizeWorkspace(workspace)
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+
+	rows, err := s.db.Query(`
+		SELECT artifact_id FROM artifacts
+		WHERE repo_id = ? AND workspace = ? AND source = ?
+	`, repoID, workspace, source)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var artifactIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return 0, err
+		}
+		artifactIDs = append(artifactIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if len(artifactIDs) == 0 {
+		return 0, nil
+	}
+
+	placeholders := strings.Repeat("?,", len(artifactIDs))
+	placeholders = strings.TrimSuffix(placeholders, ",")
+
+	args := make([]any, 0, len(artifactIDs)+3)
+	args = append(args, now, repoID, workspace)
+	for _, id := range artifactIDs {
+		args = append(args, id)
+	}
+
+	result, err := s.db.Exec(fmt.Sprintf(`
+		UPDATE chunks SET deleted_at = ?
+		WHERE repo_id = ? AND workspace = ? AND artifact_id IN (%s) AND deleted_at IS NULL
+	`, placeholders), args...)
+	if err != nil {
+		return 0, err
+	}
+	affected, _ := result.RowsAffected()
+	return int(affected), nil
+}
+
+func (s *Store) DeleteArtifactsBySource(repoID, workspace, source string) (int, error) {
+	workspace = normalizeWorkspace(workspace)
+	result, err := s.db.Exec(`
+		DELETE FROM artifacts WHERE repo_id = ? AND workspace = ? AND source = ?
+	`, repoID, workspace, source)
+	if err != nil {
+		return 0, err
+	}
+	affected, _ := result.RowsAffected()
+	return int(affected), nil
+}
+
 func nullIfEmpty(value string) interface{} {
 	if value == "" {
 		return nil

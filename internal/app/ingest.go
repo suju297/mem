@@ -7,13 +7,16 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"mempack/internal/repo"
 	"mempack/internal/store"
 	"mempack/internal/token"
+	"mempack/internal/watcher"
 
 	ignore "github.com/sabhiram/go-gitignore"
 )
@@ -46,6 +49,7 @@ func runIngest(args []string, out, errOut io.Writer) int {
 	maxFileMB := fs.Int("max-file-mb", 2, "Max file size (MB)")
 	chunkTokens := fs.Int("chunk-tokens", 320, "Chunk size (tokens)")
 	overlapTokens := fs.Int("overlap-tokens", 40, "Chunk overlap (tokens)")
+	watch := fs.Bool("watch", false, "Watch for file changes and auto-ingest")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
 		"thread":         {RequiresValue: true},
 		"repo":           {RequiresValue: true},
@@ -53,6 +57,7 @@ func runIngest(args []string, out, errOut io.Writer) int {
 		"max-file-mb":    {RequiresValue: true},
 		"chunk-tokens":   {RequiresValue: true},
 		"overlap-tokens": {RequiresValue: true},
+		"watch":          {RequiresValue: false},
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
@@ -112,31 +117,125 @@ func runIngest(args []string, out, errOut io.Writer) int {
 			root = filepath.Dir(pathArg)
 		}
 	}
+	if absRoot, err := filepath.Abs(root); err == nil {
+		root = absRoot
+	}
+	if absPath, err := filepath.Abs(pathArg); err == nil {
+		pathArg = absPath
+	}
+
 	matcher := loadIgnoreMatcher(root)
 	maxBytes := int64(*maxFileMB) * 1024 * 1024
 
-	var resp IngestResponse
-	processFile := func(path string) error {
-		info, err := os.Stat(path)
+	ingestParams := ingestPathParams{
+		path:          pathArg,
+		root:          root,
+		matcher:       matcher,
+		repoInfo:      repoInfo,
+		workspace:     workspaceName,
+		threadID:      strings.TrimSpace(*threadID),
+		maxBytes:      maxBytes,
+		chunkTokens:   *chunkTokens,
+		overlapTokens: *overlapTokens,
+		st:            st,
+		counter:       counter,
+	}
+
+	if *watch {
+		resp, err := ingestPath(ingestParams)
 		if err != nil {
-			return err
+			fmt.Fprintf(errOut, "ingest error: %v\n", err)
+			return 1
 		}
-		if info.IsDir() {
-			return nil
-		}
-		if info.Size() > maxBytes {
-			resp.FilesSkipped++
-			return nil
+		if resp.FilesIngested > 0 || resp.ChunksAdded > 0 || resp.FilesSkipped > 0 {
+			fmt.Fprintf(out, "Initial ingest: files=%d chunks=%d skipped=%d\n",
+				resp.FilesIngested, resp.ChunksAdded, resp.FilesSkipped)
 		}
 
-		relPath := path
-		if root != "" {
-			if rel, err := filepath.Rel(root, path); err == nil {
-				relPath = rel
-			}
+		watchFile := ""
+		if !info.IsDir() {
+			watchFile = relPathFor(root, pathArg)
 		}
-		relPath = filepath.ToSlash(relPath)
-		if matcher.Matches(relPath) {
+		return runIngestWatch(runIngestWatchParams{
+			root:          root,
+			watchFile:     watchFile,
+			repoInfo:      repoInfo,
+			workspace:     workspaceName,
+			threadID:      strings.TrimSpace(*threadID),
+			maxBytes:      maxBytes,
+			chunkTokens:   *chunkTokens,
+			overlapTokens: *overlapTokens,
+			st:            st,
+			counter:       counter,
+			matcher:       matcher,
+			out:           out,
+			errOut:        errOut,
+		})
+	}
+
+	resp, err := ingestPath(ingestParams)
+	if err != nil {
+		fmt.Fprintf(errOut, "ingest error: %v\n", err)
+		return 1
+	}
+	return writeJSON(out, errOut, resp)
+}
+
+type ingestPathParams struct {
+	path           string
+	root           string
+	matcher        ignoreMatcher
+	repoInfo       repo.Info
+	workspace      string
+	threadID       string
+	maxBytes       int64
+	chunkTokens    int
+	overlapTokens  int
+	st             *store.Store
+	counter        *token.Counter
+	deleteExisting bool
+}
+
+type ingestSingleFileParams struct {
+	path           string
+	relPath        string
+	repoInfo       repo.Info
+	workspace      string
+	threadID       string
+	maxBytes       int64
+	chunkTokens    int
+	overlapTokens  int
+	st             *store.Store
+	counter        *token.Counter
+	deleteExisting bool
+}
+
+type runIngestWatchParams struct {
+	root          string
+	watchFile     string
+	repoInfo      repo.Info
+	workspace     string
+	threadID      string
+	maxBytes      int64
+	chunkTokens   int
+	overlapTokens int
+	st            *store.Store
+	counter       *token.Counter
+	matcher       ignoreMatcher
+	out           io.Writer
+	errOut        io.Writer
+}
+
+func ingestPath(p ingestPathParams) (IngestResponse, error) {
+	info, err := os.Stat(p.path)
+	if err != nil {
+		return IngestResponse{}, err
+	}
+	var resp IngestResponse
+
+	processFile := func(path string) error {
+		relPath := relPathFor(p.root, path)
+		if p.matcher.Matches(relPath) {
 			resp.FilesSkipped++
 			return nil
 		}
@@ -145,96 +244,241 @@ func runIngest(args []string, out, errOut io.Writer) int {
 			return nil
 		}
 
-		data, err := os.ReadFile(path)
+		fileResp, err := ingestSingleFile(ingestSingleFileParams{
+			path:           path,
+			relPath:        relPath,
+			repoInfo:       p.repoInfo,
+			workspace:      p.workspace,
+			threadID:       p.threadID,
+			maxBytes:       p.maxBytes,
+			chunkTokens:    p.chunkTokens,
+			overlapTokens:  p.overlapTokens,
+			st:             p.st,
+			counter:        p.counter,
+			deleteExisting: p.deleteExisting,
+		})
 		if err != nil {
 			return err
 		}
-
-		semanticChunks, err := chunkFile(path, data, *chunkTokens, *overlapTokens, counter)
-		if err != nil {
-			return err
-		}
-		if len(semanticChunks) == 0 {
-			resp.FilesSkipped++
-			return nil
-		}
-
-		hash := sha256.Sum256(data)
-		artifact := store.Artifact{
-			ID:          store.NewID("A"),
-			RepoID:      repoInfo.ID,
-			Workspace:   workspaceName,
-			Kind:        "file",
-			Source:      relPath,
-			ContentHash: hex.EncodeToString(hash[:]),
-			CreatedAt:   time.Now().UTC(),
-		}
-
-		chunks := make([]store.Chunk, 0, len(semanticChunks))
-		for _, sc := range semanticChunks {
-			chunkHash := sha256.Sum256([]byte(sc.Text))
-			locator := formatLocator(repoInfo, relPath, sc.StartLine, sc.EndLine)
-			chunks = append(chunks, store.Chunk{
-				ID:         store.NewID("C"),
-				RepoID:     repoInfo.ID,
-				Workspace:  workspaceName,
-				ArtifactID: artifact.ID,
-				ThreadID:   strings.TrimSpace(*threadID),
-				Locator:    locator,
-				Text:       sc.Text,
-				TextHash:   hex.EncodeToString(chunkHash[:]),
-				TextTokens: counter.Count(sc.Text),
-				ChunkType:  sc.ChunkType,
-				SymbolName: sc.SymbolName,
-				SymbolKind: sc.SymbolKind,
-				TagsJSON:   "[]",
-				TagsText:   "",
-				CreatedAt:  time.Now().UTC(),
-			})
-		}
-
-		inserted, _, err := st.AddArtifactWithChunks(artifact, chunks)
-		if err != nil {
-			return err
-		}
-
-		resp.FilesIngested++
-		resp.ChunksAdded += inserted
+		resp.FilesIngested += fileResp.FilesIngested
+		resp.ChunksAdded += fileResp.ChunksAdded
+		resp.FilesSkipped += fileResp.FilesSkipped
 		return nil
 	}
 
 	if info.IsDir() {
-		err := filepath.WalkDir(pathArg, func(path string, d os.DirEntry, err error) error {
+		if err := filepath.WalkDir(p.path, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
 			if d.IsDir() {
-				relPath := path
-				if root != "" {
-					if rel, err := filepath.Rel(root, path); err == nil {
-						relPath = rel
-					}
-				}
-				relPath = filepath.ToSlash(relPath)
-				if d.Name() == ".git" || matcher.Matches(relPath) {
+				relPath := relPathFor(p.root, path)
+				if d.Name() == ".git" || p.matcher.Matches(relPath) {
 					return filepath.SkipDir
 				}
 				return nil
 			}
 			return processFile(path)
-		})
-		if err != nil {
-			fmt.Fprintf(errOut, "ingest error: %v\n", err)
-			return 1
+		}); err != nil {
+			return resp, err
 		}
 	} else {
-		if err := processFile(pathArg); err != nil {
-			fmt.Fprintf(errOut, "ingest error: %v\n", err)
-			return 1
+		if err := processFile(p.path); err != nil {
+			return resp, err
 		}
 	}
 
-	return writeJSON(out, errOut, resp)
+	return resp, nil
+}
+
+func ingestSingleFile(p ingestSingleFileParams) (IngestResponse, error) {
+	var resp IngestResponse
+
+	info, err := os.Stat(p.path)
+	if err != nil {
+		return resp, err
+	}
+	if info.IsDir() {
+		return resp, nil
+	}
+	if info.Size() > p.maxBytes {
+		resp.FilesSkipped++
+		return resp, nil
+	}
+
+	data, err := os.ReadFile(p.path)
+	if err != nil {
+		return resp, err
+	}
+
+	semanticChunks, err := chunkFile(p.path, data, p.chunkTokens, p.overlapTokens, p.counter)
+	if err != nil {
+		return resp, err
+	}
+	if len(semanticChunks) == 0 {
+		resp.FilesSkipped++
+		return resp, nil
+	}
+
+	if p.deleteExisting {
+		if _, err := p.st.DeleteChunksBySource(p.repoInfo.ID, p.workspace, p.relPath); err != nil {
+			return resp, err
+		}
+		if _, err := p.st.DeleteArtifactsBySource(p.repoInfo.ID, p.workspace, p.relPath); err != nil {
+			return resp, err
+		}
+	}
+
+	hash := sha256.Sum256(data)
+	artifact := store.Artifact{
+		ID:          store.NewID("A"),
+		RepoID:      p.repoInfo.ID,
+		Workspace:   p.workspace,
+		Kind:        "file",
+		Source:      p.relPath,
+		ContentHash: hex.EncodeToString(hash[:]),
+		CreatedAt:   time.Now().UTC(),
+	}
+
+	chunks := make([]store.Chunk, 0, len(semanticChunks))
+	for _, sc := range semanticChunks {
+		chunkHash := sha256.Sum256([]byte(sc.Text))
+		locator := formatLocator(p.repoInfo, p.relPath, sc.StartLine, sc.EndLine)
+		chunks = append(chunks, store.Chunk{
+			ID:         store.NewID("C"),
+			RepoID:     p.repoInfo.ID,
+			Workspace:  p.workspace,
+			ArtifactID: artifact.ID,
+			ThreadID:   p.threadID,
+			Locator:    locator,
+			Text:       sc.Text,
+			TextHash:   hex.EncodeToString(chunkHash[:]),
+			TextTokens: p.counter.Count(sc.Text),
+			ChunkType:  sc.ChunkType,
+			SymbolName: sc.SymbolName,
+			SymbolKind: sc.SymbolKind,
+			TagsJSON:   "[]",
+			TagsText:   "",
+			CreatedAt:  time.Now().UTC(),
+		})
+	}
+
+	inserted, _, err := p.st.AddArtifactWithChunks(artifact, chunks)
+	if err != nil {
+		return resp, err
+	}
+
+	resp.FilesIngested++
+	resp.ChunksAdded += inserted
+	return resp, nil
+}
+
+func runIngestWatch(p runIngestWatchParams) int {
+	ignorer := func(relPath string) bool {
+		if relPath == ".git" || strings.HasPrefix(relPath, ".git/") {
+			return true
+		}
+		return p.matcher.Matches(relPath)
+	}
+
+	w, err := watcher.New(p.root, ignorer)
+	if err != nil {
+		fmt.Fprintf(p.errOut, "watcher error: %v\n", err)
+		return 1
+	}
+	if err := w.Start(); err != nil {
+		fmt.Fprintf(p.errOut, "watcher start error: %v\n", err)
+		return 1
+	}
+	defer w.Stop()
+
+	fmt.Fprintf(p.out, "Watching %s for changes (Ctrl+C to stop)...\n", p.root)
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	defer signal.Stop(sigCh)
+
+	for {
+		select {
+		case <-sigCh:
+			fmt.Fprintln(p.out, "\nStopping watcher...")
+			return 0
+		case event, ok := <-w.Events():
+			if !ok {
+				return 0
+			}
+			if p.watchFile != "" && event.RelPath != p.watchFile {
+				continue
+			}
+			if p.matcher.Matches(event.RelPath) {
+				continue
+			}
+
+			switch event.Op {
+			case watcher.OpCreate, watcher.OpModify:
+				if !allowedExtension(event.Path) {
+					continue
+				}
+				resp, err := ingestSingleFile(ingestSingleFileParams{
+					path:           event.Path,
+					relPath:        event.RelPath,
+					repoInfo:       p.repoInfo,
+					workspace:      p.workspace,
+					threadID:       p.threadID,
+					maxBytes:       p.maxBytes,
+					chunkTokens:    p.chunkTokens,
+					overlapTokens:  p.overlapTokens,
+					st:             p.st,
+					counter:        p.counter,
+					deleteExisting: true,
+				})
+				if err != nil {
+					if os.IsNotExist(err) {
+						continue
+					}
+					fmt.Fprintf(p.errOut, "[%s] %s: error: %v\n", event.Op, event.RelPath, err)
+					continue
+				}
+				if resp.ChunksAdded > 0 || resp.FilesIngested > 0 {
+					fmt.Fprintf(p.out, "[%s] %s: %d chunks\n", event.Op, event.RelPath, resp.ChunksAdded)
+				}
+			case watcher.OpDelete:
+				deleted, err := p.st.DeleteChunksBySource(p.repoInfo.ID, p.workspace, event.RelPath)
+				if err != nil {
+					fmt.Fprintf(p.errOut, "[delete] %s: error: %v\n", event.RelPath, err)
+					continue
+				}
+				if deleted > 0 {
+					fmt.Fprintf(p.out, "[delete] %s: removed %d chunks\n", event.RelPath, deleted)
+				}
+				_, _ = p.st.DeleteArtifactsBySource(p.repoInfo.ID, p.workspace, event.RelPath)
+			}
+		}
+	}
+}
+
+func relPathFor(root, path string) string {
+	if root == "" {
+		return filepath.ToSlash(path)
+	}
+	rootPath := root
+	target := path
+	if filepath.IsAbs(rootPath) && !filepath.IsAbs(target) {
+		if abs, err := filepath.Abs(target); err == nil {
+			target = abs
+		}
+	}
+	if !filepath.IsAbs(rootPath) && filepath.IsAbs(target) {
+		if abs, err := filepath.Abs(rootPath); err == nil {
+			rootPath = abs
+		}
+	}
+	if rel, err := filepath.Rel(rootPath, target); err == nil {
+		if rel != "." && !strings.HasPrefix(rel, "..") {
+			return filepath.ToSlash(rel)
+		}
+	}
+	return filepath.ToSlash(path)
 }
 
 type chunkRange struct {
