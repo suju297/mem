@@ -59,6 +59,8 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	}
 	t.StateLoad = time.Since(stateStart)
 
+	parsed := store.ParseQuery(query)
+
 	memResults, memStats, err := st.SearchMemories(repoInfo.ID, workspace, query, cfg.MemoriesK*5)
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("memory search error: %v", err)
@@ -94,10 +96,15 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 		return pack.ContextPack{}, fmt.Errorf("vector memory load error: %v", err)
 	}
 
-	rankedMemories, matchedThreads, matchedThreadIDs, rankStats, err := rankMemories(query, memResults, vectorMemOnly, repoInfo, RankOptions{
-		IncludeOrphans: opts.IncludeOrphans,
-		VectorResults:  vectorMemResults,
-	})
+	rankOpts := RankOptions{
+		IncludeOrphans:    opts.IncludeOrphans,
+		VectorResults:     vectorMemResults,
+		RecencyMultiplier: parsed.BoostRecency,
+	}
+	if parsed.TimeHint != nil {
+		rankOpts.TimeFilter = &parsed.TimeHint.After
+	}
+	rankedMemories, matchedThreads, matchedThreadIDs, rankStats, err := rankMemories(query, memResults, vectorMemOnly, repoInfo, rankOpts)
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("ranking error: %v", err)
 	}
@@ -111,9 +118,14 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("vector chunk load error: %v", err)
 	}
-	rankedChunks := rankChunks(chunkResults, vectorChunkOnly, vectorChunkResults, matchedThreadIDs, RankOptions{
-		VectorResults: vectorChunkResults,
-	})
+	chunkRankOpts := RankOptions{
+		VectorResults:     vectorChunkResults,
+		RecencyMultiplier: parsed.BoostRecency,
+	}
+	if parsed.TimeHint != nil {
+		chunkRankOpts.TimeFilter = &parsed.TimeHint.After
+	}
+	rankedChunks := rankChunks(chunkResults, vectorChunkOnly, vectorChunkResults, matchedThreadIDs, chunkRankOpts)
 
 	var counter TokenCounter
 	budgetStart := time.Now()
@@ -192,12 +204,22 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	rawChunks := budget.Chunks
 	dedupedChunks := dedupeChunksWithSources(rawChunks, rankedChunks)
 
+	searchMeta := buildSearchMeta(len(memResults)+len(chunkResults), len(vectorMemResults)+len(vectorChunkResults), memStats, chunkStats, vectorMemStatus, vectorChunkStatus)
+	searchMeta.Query = query
+	searchMeta.SanitizedQuery = selectSanitizedQuery(memStats, chunkStats)
+	searchMeta.Intent = string(parsed.Intent)
+	searchMeta.EntitiesFound = len(parsed.Entities)
+	searchMeta.RecencyBoost = parsed.BoostRecency
+	if parsed.TimeHint != nil {
+		searchMeta.TimeHint = parsed.TimeHint.Relative
+	}
+
 	result := pack.ContextPack{
 		Version:        "1.0",
 		Tool:           "mempack",
 		Repo:           pack.RepoInfo{RepoID: repoInfo.ID, GitRoot: repoInfo.GitRoot, Head: repoInfo.Head, Branch: repoInfo.Branch},
 		Workspace:      workspace,
-		SearchMeta:     buildSearchMeta(len(memResults)+len(chunkResults), len(vectorMemResults)+len(vectorChunkResults), memStats, chunkStats, vectorMemStatus, vectorChunkStatus),
+		SearchMeta:     searchMeta,
 		State:          budget.State,
 		MatchedThreads: matchedThreads,
 		TopMemories:    budget.Memories,
@@ -280,6 +302,13 @@ func buildSearchMeta(bm25Count, vectorCount int, memStats, chunkStats store.Sear
 		FallbackReason:  fallbackReason,
 		Warnings:        warnings,
 	}
+}
+
+func selectSanitizedQuery(memStats, chunkStats store.SearchStats) string {
+	if memStats.SanitizedQuery != "" {
+		return memStats.SanitizedQuery
+	}
+	return chunkStats.SanitizedQuery
 }
 
 func dedupeChunksWithSources(chunks []pack.ChunkItem, ranked []RankedChunk) []pack.ChunkItem {

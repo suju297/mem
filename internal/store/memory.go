@@ -109,7 +109,8 @@ func (s *Store) SearchMemories(repoID, workspace, query string, limit int) ([]Me
 		return nil, SearchStats{}, nil
 	}
 	workspace = normalizeWorkspace(workspace)
-	baseQuery, _ := sanitizeQueryWithMeta(query, false)
+	parsed := ParseQuery(query)
+	baseQuery, _ := buildQueryFromParsed(parsed, false)
 	baseResults, baseStats, err := s.searchMemoriesWithQuery(repoID, workspace, baseQuery, limit)
 	if err != nil {
 		return nil, SearchStats{}, err
@@ -118,7 +119,7 @@ func (s *Store) SearchMemories(repoID, workspace, query string, limit int) ([]Me
 		return baseResults, baseStats, nil
 	}
 
-	expandedQuery, rewriteMeta := sanitizeQueryWithMeta(query, true)
+	expandedQuery, rewriteMeta := buildQueryFromParsed(parsed, true)
 	if !rewriteMeta.Rewritten || expandedQuery == baseQuery {
 		return baseResults, baseStats, nil
 	}
@@ -251,7 +252,8 @@ func (s *Store) SearchChunks(repoID, workspace, query string, limit int) ([]Chun
 		return nil, SearchStats{}, nil
 	}
 	workspace = normalizeWorkspace(workspace)
-	baseQuery, _ := sanitizeQueryWithMeta(query, false)
+	parsed := ParseQuery(query)
+	baseQuery, _ := buildQueryFromParsed(parsed, false)
 	baseResults, baseStats, err := s.searchChunksWithQuery(repoID, workspace, baseQuery, limit)
 	if err != nil {
 		return nil, SearchStats{}, err
@@ -260,7 +262,7 @@ func (s *Store) SearchChunks(repoID, workspace, query string, limit int) ([]Chun
 		return baseResults, baseStats, nil
 	}
 
-	expandedQuery, rewriteMeta := sanitizeQueryWithMeta(query, true)
+	expandedQuery, rewriteMeta := buildQueryFromParsed(parsed, true)
 	if !rewriteMeta.Rewritten || expandedQuery == baseQuery {
 		return baseResults, baseStats, nil
 	}

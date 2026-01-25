@@ -57,6 +57,8 @@ type RankOptions struct {
 	VectorMinSimilarity float64
 	RRFK                int
 	RRFWeight           float64
+	RecencyMultiplier   float64
+	TimeFilter          *time.Time
 }
 
 func rankMemories(query string, results []store.MemoryResult, vectorOnly []store.Memory, repoInfo repo.Info, opts RankOptions) ([]RankedMemory, []pack.MatchedThread, map[string]struct{}, RankStats, error) {
@@ -140,6 +142,10 @@ func rankMemories(query string, results []store.MemoryResult, vectorOnly []store
 	}
 
 	now := time.Now().UTC()
+	recencyMult := opts.RecencyMultiplier
+	if recencyMult <= 0 {
+		recencyMult = 1.0
+	}
 	for i := range candidates {
 		mem := &candidates[i]
 		mem.FTSScore = -mem.BM25
@@ -147,7 +153,7 @@ func rankMemories(query string, results []store.MemoryResult, vectorOnly []store
 		mem.VectorRank = vectorRanks[mem.Memory.ID]
 		mem.VectorScore = vectorScores[mem.Memory.ID]
 		mem.RRFScore = (rrfScore(mem.FTSRank, opts.RRFK) + rrfScore(mem.VectorRank, opts.RRFK)) * opts.RRFWeight
-		mem.RecencyBonus = recencyBonus(now, mem.Memory.CreatedAt)
+		mem.RecencyBonus = recencyBonus(now, mem.Memory.CreatedAt) * recencyMult
 		if _, ok := matchedThreadIDs[mem.Memory.ThreadID]; ok {
 			mem.ThreadBonus = 0.10
 		}
@@ -155,6 +161,9 @@ func rankMemories(query string, results []store.MemoryResult, vectorOnly []store
 			mem.Superseded = true
 		}
 		mem.FinalScore = mem.RRFScore + mem.RecencyBonus + mem.ThreadBonus
+		if opts.TimeFilter != nil && mem.Memory.CreatedAt.Before(*opts.TimeFilter) {
+			mem.FinalScore -= 2.0
+		}
 		if mem.Superseded {
 			mem.FinalScore -= 5.0
 		}
@@ -177,6 +186,10 @@ func rankChunks(results []store.ChunkResult, vectorOnly []store.Chunk, vectorRes
 	opts = normalizeRankOptions(opts)
 	vectorResults = prepareVectorResults(vectorResults, opts.VectorMinSimilarity)
 	now := time.Now().UTC()
+	recencyMult := opts.RecencyMultiplier
+	if recencyMult <= 0 {
+		recencyMult = 1.0
+	}
 	candidates := make([]RankedChunk, 0, len(results))
 	ftsOrder := make([]string, 0, len(results))
 	seenIDs := make(map[string]struct{})
@@ -184,7 +197,7 @@ func rankChunks(results []store.ChunkResult, vectorOnly []store.Chunk, vectorRes
 	for _, res := range results {
 		chunk := RankedChunk{Chunk: res.Chunk, BM25: res.BM25}
 		chunk.FTSScore = -chunk.BM25
-		chunk.RecencyBonus = recencyBonus(now, chunk.Chunk.CreatedAt)
+		chunk.RecencyBonus = recencyBonus(now, chunk.Chunk.CreatedAt) * recencyMult
 		if _, ok := matchedThreadIDs[chunk.Chunk.ThreadID]; ok {
 			chunk.ThreadBonus = 0.10
 		}
@@ -244,6 +257,9 @@ func rankChunks(results []store.ChunkResult, vectorOnly []store.Chunk, vectorRes
 		chunk.VectorScore = vectorScores[chunk.Chunk.ID]
 		chunk.RRFScore = (rrfScore(chunk.FTSRank, opts.RRFK) + rrfScore(chunk.VectorRank, opts.RRFK)) * opts.RRFWeight
 		chunk.FinalScore = chunk.RRFScore + chunk.RecencyBonus + chunk.ThreadBonus + chunk.SafetyPenalty
+		if opts.TimeFilter != nil && chunk.Chunk.CreatedAt.Before(*opts.TimeFilter) {
+			chunk.FinalScore -= 2.0
+		}
 	}
 
 	sort.SliceStable(candidates, func(i, j int) bool {

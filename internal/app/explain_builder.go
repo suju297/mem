@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"mempack/internal/pack"
+	"mempack/internal/store"
 	"mempack/internal/token"
 )
 
@@ -43,6 +44,8 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 		return ExplainReport{}, fmt.Errorf("state error: %v", err)
 	}
 
+	parsed := store.ParseQuery(query)
+
 	memResults, _, err := st.SearchMemories(repoInfo.ID, workspace, query, cfg.MemoriesK*5)
 	if err != nil {
 		return ExplainReport{}, fmt.Errorf("memory search error: %v", err)
@@ -70,10 +73,15 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 		return ExplainReport{}, fmt.Errorf("vector memory load error: %v", err)
 	}
 
-	rankedMemories, matchedThreads, matchedThreadIDs, _, err := rankMemories(query, memResults, vectorMemOnly, repoInfo, RankOptions{
-		IncludeOrphans: opts.IncludeOrphans,
-		VectorResults:  vectorMemResults,
-	})
+	rankOpts := RankOptions{
+		IncludeOrphans:    opts.IncludeOrphans,
+		VectorResults:     vectorMemResults,
+		RecencyMultiplier: parsed.BoostRecency,
+	}
+	if parsed.TimeHint != nil {
+		rankOpts.TimeFilter = &parsed.TimeHint.After
+	}
+	rankedMemories, matchedThreads, matchedThreadIDs, _, err := rankMemories(query, memResults, vectorMemOnly, repoInfo, rankOpts)
 	if err != nil {
 		return ExplainReport{}, fmt.Errorf("ranking error: %v", err)
 	}
@@ -83,9 +91,14 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 	if err != nil {
 		return ExplainReport{}, fmt.Errorf("vector chunk load error: %v", err)
 	}
-	rankedChunks := rankChunks(chunkResults, vectorChunkOnly, vectorChunkResults, matchedThreadIDs, RankOptions{
-		VectorResults: vectorChunkResults,
-	})
+	chunkRankOpts := RankOptions{
+		VectorResults:     vectorChunkResults,
+		RecencyMultiplier: parsed.BoostRecency,
+	}
+	if parsed.TimeHint != nil {
+		chunkRankOpts.TimeFilter = &parsed.TimeHint.After
+	}
+	rankedChunks := rankChunks(chunkResults, vectorChunkOnly, vectorChunkResults, matchedThreadIDs, chunkRankOpts)
 
 	var counter TokenCounter
 	budget, err := applyBudget(cfg, counter, stateRaw, stateTokens, rankedMemories, rankedChunks)

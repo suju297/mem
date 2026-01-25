@@ -69,6 +69,8 @@ type BudgetInfo struct {
 }
 
 type SearchMeta struct {
+	Query           string   `json:"query,omitempty"`
+	SanitizedQuery  string   `json:"sanitized_query,omitempty"`
 	Mode            string   `json:"mode"`
 	ModeUsed        string   `json:"mode_used"`
 	VectorUsed      bool     `json:"vector_used"`
@@ -76,4 +78,8 @@ type SearchMeta struct {
 	RewritesApplied []string `json:"rewrites_applied,omitempty"`
 	FallbackReason  string   `json:"fallback_reason,omitempty"`
 	Warnings        []string `json:"warnings,omitempty"`
+	Intent          string   `json:"intent,omitempty"`
+	EntitiesFound   int      `json:"entities_found,omitempty"`
+	TimeHint        string   `json:"time_hint,omitempty"`
+	RecencyBoost    float64  `json:"recency_boost,omitempty"`
 }
