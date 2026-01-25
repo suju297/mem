@@ -37,6 +37,10 @@ type MemoryItem struct {
 	Summary      string   `json:"summary"`
 	AnchorCommit string   `json:"anchor_commit,omitempty"`
 	Links        []string `json:"links,omitempty"`
+	IsCluster    bool     `json:"is_cluster,omitempty"`
+	ClusterSize  int      `json:"cluster_size,omitempty"`
+	ClusterIDs   []string `json:"cluster_ids,omitempty"`
+	Similarity   float64  `json:"similarity,omitempty"`
 }
 
 type ChunkItem struct {
@@ -82,4 +86,5 @@ type SearchMeta struct {
 	EntitiesFound   int      `json:"entities_found,omitempty"`
 	TimeHint        string   `json:"time_hint,omitempty"`
 	RecencyBoost    float64  `json:"recency_boost,omitempty"`
+	ClustersFormed  int      `json:"clusters_formed,omitempty"`
 }

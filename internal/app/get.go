@@ -44,12 +44,14 @@ func runGet(args []string, out, errOut io.Writer) int {
 	repoOverride := fs.String("repo", "", "Override repo id")
 	workspace := fs.String("workspace", "", "Workspace name")
 	includeOrphans := fs.Bool("include-orphans", false, "Include orphaned memories")
+	cluster := fs.Bool("cluster", false, "Group similar memories into clusters")
 	debug := fs.Bool("debug", false, "Print timing breakdown to stderr")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
 		"format":          {RequiresValue: true},
 		"repo":            {RequiresValue: true},
 		"workspace":       {RequiresValue: true},
 		"include-orphans": {RequiresValue: false},
+		"cluster":         {RequiresValue: false},
 		"debug":           {RequiresValue: false},
 	})
 	if err != nil {
@@ -77,6 +79,7 @@ func runGet(args []string, out, errOut io.Writer) int {
 		Workspace:        *workspace,
 		IncludeOrphans:   *includeOrphans,
 		IncludeRawChunks: includeRawChunks,
+		ClusterMemories:  *cluster,
 	}, &timings)
 	if err != nil {
 		fmt.Fprintf(errOut, "%v\n", err)

@@ -18,6 +18,7 @@ type ContextOptions struct {
 	IncludeOrphans   bool
 	BudgetOverride   int
 	IncludeRawChunks bool
+	ClusterMemories  bool
 }
 
 func buildContextPack(query string, opts ContextOptions, timings *getTimings) (pack.ContextPack, error) {
@@ -201,6 +202,25 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 		}
 	}
 
+	topMemories := budget.Memories
+	clusterWarnings := []string{}
+	clustersFormed := 0
+	if opts.ClusterMemories && len(budget.Memories) > 0 {
+		model := effectiveEmbeddingModel(cfg)
+		if model != "" {
+			embeddings, err := loadMemoryEmbeddings(st, repoInfo.ID, workspace, model, budget.Memories)
+			if err != nil {
+				clusterWarnings = append(clusterWarnings, "cluster_embedding_lookup_failed")
+			} else if len(embeddings) > 0 {
+				clusters, unclustered := ClusterMemories(budget.Memories, embeddings)
+				if len(clusters) > 0 {
+					topMemories = buildClusteredMemories(clusters, unclustered)
+					clustersFormed = len(clusters)
+				}
+			}
+		}
+	}
+
 	rawChunks := budget.Chunks
 	dedupedChunks := dedupeChunksWithSources(rawChunks, rankedChunks)
 
@@ -213,6 +233,10 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	if parsed.TimeHint != nil {
 		searchMeta.TimeHint = parsed.TimeHint.Relative
 	}
+	searchMeta.ClustersFormed = clustersFormed
+	if len(clusterWarnings) > 0 {
+		searchMeta.Warnings = uniqueStrings(append(searchMeta.Warnings, clusterWarnings...))
+	}
 
 	result := pack.ContextPack{
 		Version:        "1.0",
@@ -222,7 +246,7 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 		SearchMeta:     searchMeta,
 		State:          budget.State,
 		MatchedThreads: matchedThreads,
-		TopMemories:    budget.Memories,
+		TopMemories:    topMemories,
 		TopChunks:      dedupedChunks,
 		LinkTrail:      linkTrail,
 		Rules: []string{
@@ -361,6 +385,65 @@ func dedupeChunksWithSources(chunks []pack.ChunkItem, ranked []RankedChunk) []pa
 		indexByHash[textHash] = len(grouped) - 1
 	}
 	return grouped
+}
+
+func loadMemoryEmbeddings(st *store.Store, repoID, workspace, model string, items []pack.MemoryItem) (map[string][]float64, error) {
+	if len(items) == 0 {
+		return map[string][]float64{}, nil
+	}
+	ids := make([]string, 0, len(items))
+	seen := make(map[string]struct{}, len(items))
+	for _, item := range items {
+		id := strings.TrimSpace(item.ID)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	return st.ListMemoryEmbeddingsByIDs(repoID, workspace, model, ids)
+}
+
+func buildClusteredMemories(clusters []MemoryCluster, unclustered []pack.MemoryItem) []pack.MemoryItem {
+	total := len(clusters) + len(unclustered)
+	if total == 0 {
+		return nil
+	}
+	out := make([]pack.MemoryItem, 0, total)
+	for _, cluster := range clusters {
+		rep := cluster.Representative
+		related := len(cluster.Members) - 1
+		summary := strings.TrimSpace(rep.Summary)
+		if related > 0 {
+			if summary == "" {
+				summary = fmt.Sprintf("[+%d related]", related)
+			} else {
+				summary = fmt.Sprintf("%s [+%d related]", summary, related)
+			}
+		}
+		rep.Summary = summary
+		rep.IsCluster = true
+		rep.ClusterSize = len(cluster.Members)
+		rep.ClusterIDs = extractClusterIDs(cluster.Members)
+		rep.Similarity = cluster.Similarity
+		out = append(out, rep)
+	}
+	out = append(out, unclustered...)
+	return out
+}
+
+func extractClusterIDs(items []pack.MemoryItem) []string {
+	ids := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.ID == "" {
+			continue
+		}
+		ids = append(ids, item.ID)
+	}
+	return ids
 }
 
 func uniqueStrings(input []string) []string {

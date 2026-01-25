@@ -14,16 +14,16 @@ const (
 )
 
 type Embedding struct {
-	RepoID    string
-	Workspace string
-	Kind      string
-	ItemID    string
-	Model     string
+	RepoID      string
+	Workspace   string
+	Kind        string
+	ItemID      string
+	Model       string
 	ContentHash string
-	Vector    []float64
-	VectorDim int
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Vector      []float64
+	VectorDim   int
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
 
 func (s *Store) UpsertEmbedding(embedding Embedding) error {
@@ -153,22 +153,89 @@ func (s *Store) ListEmbeddingsForSearch(repoID, workspace, kind, model string) (
 			return nil, 0, err
 		}
 		embeddings = append(embeddings, Embedding{
-			RepoID:    repoID,
-			Workspace: workspace,
-			Kind:      kind,
-			ItemID:    itemID,
-			Model:     model,
+			RepoID:      repoID,
+			Workspace:   workspace,
+			Kind:        kind,
+			ItemID:      itemID,
+			Model:       model,
 			ContentHash: contentHash,
-			Vector:    vector,
-			VectorDim: vectorDim,
-			CreatedAt: parseTime(createdAt),
-			UpdatedAt: parseTime(updatedAt),
+			Vector:      vector,
+			VectorDim:   vectorDim,
+			CreatedAt:   parseTime(createdAt),
+			UpdatedAt:   parseTime(updatedAt),
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return nil, 0, err
 	}
 	return embeddings, stale, nil
+}
+
+func (s *Store) ListMemoryEmbeddingsByIDs(repoID, workspace, model string, ids []string) (map[string][]float64, error) {
+	if repoID == "" || strings.TrimSpace(model) == "" {
+		return nil, fmt.Errorf("embedding lookup requires repo_id and model")
+	}
+	if len(ids) == 0 {
+		return map[string][]float64{}, nil
+	}
+	workspace = normalizeWorkspace(workspace)
+	model = strings.TrimSpace(model)
+
+	placeholders := strings.Repeat("?,", len(ids))
+	placeholders = strings.TrimSuffix(placeholders, ",")
+	args := make([]any, 0, len(ids)+4)
+	args = append(args, repoID, workspace, EmbeddingKindMemory, model)
+	for _, id := range ids {
+		args = append(args, strings.TrimSpace(id))
+	}
+
+	rows, err := s.db.Query(fmt.Sprintf(`
+		SELECT e.item_id, e.content_hash, e.vector_json, e.vector_dim,
+			m.title, m.summary, m.tags_text, m.entities_text
+		FROM embeddings e
+		JOIN memories m
+			ON m.id = e.item_id
+			AND m.repo_id = e.repo_id
+			AND m.workspace = e.workspace
+			AND m.deleted_at IS NULL
+		WHERE e.repo_id = ? AND e.workspace = ? AND e.kind = ? AND e.model = ?
+			AND e.item_id IN (%s)
+	`, placeholders), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	embeddings := make(map[string][]float64, len(ids))
+	for rows.Next() {
+		var itemID string
+		var contentHash string
+		var vectorJSON string
+		var vectorDim int
+		var title sql.NullString
+		var summary sql.NullString
+		var tagsText sql.NullString
+		var entitiesText sql.NullString
+		if err := rows.Scan(&itemID, &contentHash, &vectorJSON, &vectorDim, &title, &summary, &tagsText, &entitiesText); err != nil {
+			return nil, err
+		}
+		expected := embeddingContentHash(EmbeddingKindMemory, title.String, summary.String, tagsText.String, entitiesText.String, "", "")
+		if contentHash == "" || expected != contentHash {
+			continue
+		}
+		var vector []float64
+		if err := json.Unmarshal([]byte(vectorJSON), &vector); err != nil {
+			return nil, err
+		}
+		if len(vector) == 0 || (vectorDim > 0 && len(vector) != vectorDim) {
+			continue
+		}
+		embeddings[itemID] = vector
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return embeddings, nil
 }
 
 func (s *Store) ListMemoriesMissingEmbedding(repoID, workspace, model string, limit int) ([]Memory, error) {

@@ -111,6 +111,7 @@ func registerMCPTools(srv *server.MCPServer, writeCfg mcpWriteConfig) {
 		mcp.WithString("workspace", mcp.Description("Workspace name")),
 		mcp.WithString("format", mcp.Description("Output format: json|prompt"), mcp.Enum("json", "prompt"), mcp.DefaultString("json")),
 		mcp.WithNumber("budget", mcp.Description("Token budget override")),
+		mcp.WithBoolean("cluster", mcp.Description("Group similar memories into clusters")),
 	)
 	srv.AddTool(getTool, handleGetContext)
 
@@ -225,6 +226,7 @@ func handleGetContext(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 	if budget < 0 {
 		return mcp.NewToolResultError("budget must be >= 0"), nil
 	}
+	cluster := request.GetBool("cluster", false)
 
 	includeRawChunks := format == "prompt"
 	packJSON, err := buildContextPack(query, ContextOptions{
@@ -233,6 +235,7 @@ func handleGetContext(ctx context.Context, request mcp.CallToolRequest) (*mcp.Ca
 		IncludeOrphans:   false,
 		BudgetOverride:   budget,
 		IncludeRawChunks: includeRawChunks,
+		ClusterMemories:  cluster,
 	}, nil)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil

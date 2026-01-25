@@ -18,7 +18,7 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "  --data-dir <path>  Override data dir (MEMPACK_DATA_DIR)\n\n")
 	io.WriteString(w, commands+"\n")
 	io.WriteString(w, "  init            mem init [--no-agents]\n")
-	io.WriteString(w, "  get             mem get \"<query>\" [--workspace <name>] [--include-orphans] [--repo <id>] [--debug]\n")
+	io.WriteString(w, "  get             mem get \"<query>\" [--workspace <name>] [--include-orphans] [--cluster] [--repo <id>] [--debug]\n")
 	io.WriteString(w, "  add             mem add --thread <id> --title <title> --summary <summary> [--tags tag1,tag2] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  explain         mem explain \"<query>\" [--workspace <name>] [--include-orphans] [--repo <id>]\n")
 	io.WriteString(w, "  show            mem show <id> [--workspace <name>] [--repo <id>]\n")
