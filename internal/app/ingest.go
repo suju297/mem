@@ -149,15 +149,12 @@ func runIngest(args []string, out, errOut io.Writer) int {
 		if err != nil {
 			return err
 		}
-		text := string(data)
-		lines := strings.Split(text, "\n")
-		lineTokens := make([]int, len(lines))
-		for i, line := range lines {
-			lineTokens[i] = counter.Count(line)
-		}
 
-		ranges := chunkRanges(lines, lineTokens, *chunkTokens, *overlapTokens)
-		if len(ranges) == 0 {
+		semanticChunks, err := chunkFile(path, data, *chunkTokens, *overlapTokens, counter)
+		if err != nil {
+			return err
+		}
+		if len(semanticChunks) == 0 {
 			resp.FilesSkipped++
 			return nil
 		}
@@ -173,12 +170,10 @@ func runIngest(args []string, out, errOut io.Writer) int {
 			CreatedAt:   time.Now().UTC(),
 		}
 
-		chunks := make([]store.Chunk, 0, len(ranges))
-		for _, r := range ranges {
-			chunkText := strings.Join(lines[r.Start:r.End], "\n")
-			chunkTokens := counter.Count(chunkText)
-			chunkHash := sha256.Sum256([]byte(chunkText))
-			locator := formatLocator(repoInfo, relPath, r.Start+1, r.End)
+		chunks := make([]store.Chunk, 0, len(semanticChunks))
+		for _, sc := range semanticChunks {
+			chunkHash := sha256.Sum256([]byte(sc.Text))
+			locator := formatLocator(repoInfo, relPath, sc.StartLine, sc.EndLine)
 			chunks = append(chunks, store.Chunk{
 				ID:         store.NewID("C"),
 				RepoID:     repoInfo.ID,
@@ -186,9 +181,12 @@ func runIngest(args []string, out, errOut io.Writer) int {
 				ArtifactID: artifact.ID,
 				ThreadID:   strings.TrimSpace(*threadID),
 				Locator:    locator,
-				Text:       chunkText,
+				Text:       sc.Text,
 				TextHash:   hex.EncodeToString(chunkHash[:]),
-				TextTokens: chunkTokens,
+				TextTokens: counter.Count(sc.Text),
+				ChunkType:  sc.ChunkType,
+				SymbolName: sc.SymbolName,
+				SymbolKind: sc.SymbolKind,
 				TagsJSON:   "[]",
 				TagsText:   "",
 				CreatedAt:  time.Now().UTC(),

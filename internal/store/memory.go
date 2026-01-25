@@ -333,7 +333,9 @@ func (s *Store) searchChunksWithQuery(repoID, workspace, query string, limit int
 
 	fetchStart := time.Now()
 	querySQL := fmt.Sprintf(`
-		SELECT rowid, chunk_id, repo_id, workspace, artifact_id, thread_id, locator, text, text_hash, text_tokens, created_at
+		SELECT rowid, chunk_id, repo_id, workspace, artifact_id, thread_id, locator,
+			text, text_hash, text_tokens, tags_json, tags_text,
+			chunk_type, symbol_name, symbol_kind, created_at
 		FROM chunks
 		WHERE rowid IN (%s)
 		AND repo_id = ?
@@ -357,7 +359,14 @@ func (s *Store) searchChunksWithQuery(repoID, workspace, query string, limit int
 		var text sql.NullString
 		var textHash sql.NullString
 		var textTokens sql.NullInt64
-		if err := fetchRows.Scan(&rowid, &chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator, &text, &textHash, &textTokens, &createdAt); err != nil {
+		var tagsJSON sql.NullString
+		var tagsText sql.NullString
+		var chunkType sql.NullString
+		var symbolName sql.NullString
+		var symbolKind sql.NullString
+		if err := fetchRows.Scan(&rowid, &chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator,
+			&text, &textHash, &textTokens, &tagsJSON, &tagsText,
+			&chunkType, &symbolName, &symbolKind, &createdAt); err != nil {
 			return nil, stats, err
 		}
 		chunk.ArtifactID = artifactID.String
@@ -368,6 +377,11 @@ func (s *Store) searchChunksWithQuery(repoID, workspace, query string, limit int
 		if textTokens.Valid {
 			chunk.TextTokens = int(textTokens.Int64)
 		}
+		chunk.TagsJSON = tagsJSON.String
+		chunk.TagsText = tagsText.String
+		chunk.ChunkType = chunkType.String
+		chunk.SymbolName = symbolName.String
+		chunk.SymbolKind = symbolKind.String
 		chunk.CreatedAt = parseTime(createdAt)
 		details[rowid] = chunk
 	}
@@ -403,6 +417,9 @@ type Chunk struct {
 	TextTokens int
 	TagsJSON   string
 	TagsText   string
+	ChunkType  string
+	SymbolName string
+	SymbolKind string
 	CreatedAt  time.Time
 	DeletedAt  time.Time
 }

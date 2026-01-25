@@ -119,7 +119,9 @@ func (s *Store) GetMemory(repoID, workspace, id string) (Memory, error) {
 
 func (s *Store) GetChunk(repoID, workspace, id string) (Chunk, error) {
 	row := s.db.QueryRow(`
-		SELECT chunk_id, repo_id, workspace, artifact_id, thread_id, locator, text, text_hash, text_tokens, tags_json, tags_text, created_at, deleted_at
+		SELECT chunk_id, repo_id, workspace, artifact_id, thread_id, locator,
+			text, text_hash, text_tokens, tags_json, tags_text,
+			chunk_type, symbol_name, symbol_kind, created_at, deleted_at
 		FROM chunks
 		WHERE repo_id = ? AND workspace = ? AND chunk_id = ?
 	`, repoID, normalizeWorkspace(workspace), id)
@@ -135,7 +137,12 @@ func (s *Store) GetChunk(repoID, workspace, id string) (Chunk, error) {
 	var textTokens sql.NullInt64
 	var tagsJSON sql.NullString
 	var tagsText sql.NullString
-	if err := row.Scan(&chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator, &text, &textHash, &textTokens, &tagsJSON, &tagsText, &createdAt, &deletedAt); err != nil {
+	var chunkType sql.NullString
+	var symbolName sql.NullString
+	var symbolKind sql.NullString
+	if err := row.Scan(&chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator,
+		&text, &textHash, &textTokens, &tagsJSON, &tagsText,
+		&chunkType, &symbolName, &symbolKind, &createdAt, &deletedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Chunk{}, ErrNotFound
 		}
@@ -151,6 +158,9 @@ func (s *Store) GetChunk(repoID, workspace, id string) (Chunk, error) {
 	}
 	chunk.TagsJSON = tagsJSON.String
 	chunk.TagsText = tagsText.String
+	chunk.ChunkType = chunkType.String
+	chunk.SymbolName = symbolName.String
+	chunk.SymbolKind = symbolKind.String
 	chunk.CreatedAt = parseTime(createdAt)
 	if deletedAt.Valid {
 		chunk.DeletedAt = parseTime(deletedAt.String)
@@ -232,7 +242,9 @@ func (s *Store) GetChunksByIDs(repoID, workspace string, ids []string) ([]Chunk,
 	}
 
 	rows, err := s.db.Query(fmt.Sprintf(`
-		SELECT chunk_id, repo_id, workspace, artifact_id, thread_id, locator, text, text_hash, text_tokens, tags_json, tags_text, created_at, deleted_at
+		SELECT chunk_id, repo_id, workspace, artifact_id, thread_id, locator,
+			text, text_hash, text_tokens, tags_json, tags_text,
+			chunk_type, symbol_name, symbol_kind, created_at, deleted_at
 		FROM chunks
 		WHERE repo_id = ? AND workspace = ? AND chunk_id IN (%s) AND deleted_at IS NULL
 	`, placeholders), args...)
@@ -253,18 +265,28 @@ func (s *Store) GetChunksByIDs(repoID, workspace string, ids []string) ([]Chunk,
 		var artifactID sql.NullString
 		var threadID sql.NullString
 		var locator sql.NullString
-		if err := rows.Scan(&chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator, &chunk.Text, &textHash, &textTokens, &tagsJSON, &tagsText, &createdAt, &deletedAt); err != nil {
+		var text sql.NullString
+		var chunkType sql.NullString
+		var symbolName sql.NullString
+		var symbolKind sql.NullString
+		if err := rows.Scan(&chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator,
+			&text, &textHash, &textTokens, &tagsJSON, &tagsText,
+			&chunkType, &symbolName, &symbolKind, &createdAt, &deletedAt); err != nil {
 			return nil, err
 		}
 		chunk.ArtifactID = artifactID.String
 		chunk.ThreadID = threadID.String
 		chunk.Locator = locator.String
+		chunk.Text = text.String
 		chunk.TextHash = textHash.String
 		if textTokens.Valid {
 			chunk.TextTokens = int(textTokens.Int64)
 		}
 		chunk.TagsJSON = tagsJSON.String
 		chunk.TagsText = tagsText.String
+		chunk.ChunkType = chunkType.String
+		chunk.SymbolName = symbolName.String
+		chunk.SymbolKind = symbolKind.String
 		chunk.CreatedAt = parseTime(createdAt)
 		if deletedAt.Valid {
 			chunk.DeletedAt = parseTime(deletedAt.String)
@@ -439,15 +461,24 @@ func (s *Store) AddArtifactWithChunks(artifact Artifact, chunks []Chunk) (int, [
 		if strings.TrimSpace(chunk.Workspace) != "" {
 			chunkWorkspace = normalizeWorkspace(chunk.Workspace)
 		}
+		chunkType := chunk.ChunkType
+		if chunkType == "" {
+			chunkType = "line"
+		}
 		textHash := chunk.TextHash
 		if textHash == "" {
 			textHash = sha256Hex(chunk.Text)
 		}
 		res, err := tx.Exec(`
 			INSERT OR IGNORE INTO chunks (
-				chunk_id, repo_id, workspace, artifact_id, thread_id, locator, text, text_hash, text_tokens, tags_json, tags_text, created_at, deleted_at
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
-		`, chunk.ID, chunk.RepoID, chunkWorkspace, chunk.ArtifactID, chunk.ThreadID, chunk.Locator, chunk.Text, textHash, chunk.TextTokens, chunk.TagsJSON, chunk.TagsText, chunk.CreatedAt.UTC().Format(time.RFC3339Nano))
+				chunk_id, repo_id, workspace, artifact_id, thread_id, locator,
+				text, text_hash, text_tokens, tags_json, tags_text,
+				chunk_type, symbol_name, symbol_kind, created_at, deleted_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)
+		`, chunk.ID, chunk.RepoID, chunkWorkspace, chunk.ArtifactID, chunk.ThreadID, chunk.Locator,
+			chunk.Text, textHash, chunk.TextTokens, chunk.TagsJSON, chunk.TagsText,
+			chunkType, nullIfEmpty(chunk.SymbolName), nullIfEmpty(chunk.SymbolKind),
+			chunk.CreatedAt.UTC().Format(time.RFC3339Nano))
 		if err != nil {
 			return 0, nil, err
 		}
@@ -465,6 +496,13 @@ func (s *Store) AddArtifactWithChunks(artifact Artifact, chunks []Chunk) (int, [
 		return 0, nil, err
 	}
 	return inserted, insertedIDs, nil
+}
+
+func nullIfEmpty(value string) interface{} {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func (s *Store) SetStateCurrent(repoID, workspace, stateJSON string, stateTokens int, updatedAt time.Time) error {

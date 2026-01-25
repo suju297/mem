@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 8
+const schemaVersion = 9
 
 func migrate(db *sql.DB) error {
 	version, err := getUserVersion(db)
@@ -39,6 +39,9 @@ func migrate(db *sql.DB) error {
 	if err := ensureLinksIndexes(db); err != nil {
 		return err
 	}
+	if err := ensureChunkSymbolIndex(db); err != nil {
+		return err
+	}
 
 	if version < 5 {
 		if err := rebuildThreadsTable(db); err != nil {
@@ -61,6 +64,11 @@ func migrate(db *sql.DB) error {
 		}
 	}
 
+	if version < 9 {
+		if err := backfillChunkType(db); err != nil {
+			return err
+		}
+	}
 	if version < schemaVersion {
 		if err := rebuildFTS(db); err != nil {
 			return err
@@ -189,6 +197,15 @@ func ensureLinksIndexes(db *sql.DB) error {
 	return nil
 }
 
+func ensureChunkSymbolIndex(db *sql.DB) error {
+	_, err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_chunks_symbol
+		ON chunks (repo_id, workspace, symbol_name)
+		WHERE symbol_name IS NOT NULL AND symbol_name != ''
+	`)
+	return err
+}
+
 func ensureColumns(db *sql.DB) error {
 	if err := ensureColumn(db, "memories", "tags_text", "TEXT"); err != nil {
 		return err
@@ -212,6 +229,15 @@ func ensureColumns(db *sql.DB) error {
 		return err
 	}
 	if err := ensureColumn(db, "chunks", "deleted_at", "TEXT"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "chunks", "chunk_type", "TEXT DEFAULT 'line'"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "chunks", "symbol_name", "TEXT"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "chunks", "symbol_kind", "TEXT"); err != nil {
 		return err
 	}
 	if err := ensureColumn(db, "state_current", "state_tokens", "INTEGER"); err != nil {
@@ -239,6 +265,11 @@ func ensureColumns(db *sql.DB) error {
 		return err
 	}
 	return nil
+}
+
+func backfillChunkType(db *sql.DB) error {
+	_, err := db.Exec(`UPDATE chunks SET chunk_type = 'line' WHERE chunk_type IS NULL OR chunk_type = ''`)
+	return err
 }
 
 func ensureColumn(db *sql.DB, table, column, columnType string) error {

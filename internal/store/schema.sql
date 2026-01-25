@@ -79,6 +79,9 @@ CREATE TABLE IF NOT EXISTS chunks (
     text_tokens INTEGER,
     tags_json TEXT,
     tags_text TEXT,
+    chunk_type TEXT DEFAULT 'line',
+    symbol_name TEXT,
+    symbol_kind TEXT,
     created_at TEXT NOT NULL,
     deleted_at TEXT
 );
