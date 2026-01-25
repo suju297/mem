@@ -1,0 +1,5 @@
+.cache/
+.ollama_home/
+output.txt
+mem
+.DS_Store
