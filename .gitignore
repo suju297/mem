@@ -6,6 +6,10 @@ output.txt
 bench_output.txt
 mem
 improvements.md
+Architecture.md
+Bugs.md
+implementation.md
+implementation_plan.md
 
 # Build/test artifacts
 *.out
