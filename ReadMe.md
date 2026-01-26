@@ -1,7 +1,12 @@
 # Mempack: Repo-Scoped Memory for Coding Agents
 
 **Mempack** is a fast, local-first CLI that gives coding agents persistent, **repo-scoped memory**.
-It stores **state**, **memories** (decisions/summaries), and **evidence** (indexed code chunks) in an embedded SQLite DB, retrievable via FTS5 (BM25) and git reachability filtering.
+It stores:
+- **State**: current status or context you want the agent to remember
+- **Memories**: short decisions or summaries
+- **Evidence**: indexed code chunks from your repo
+
+All data stays in a local SQLite database. Search is keyword-based by default, with optional vector search if embeddings are enabled.
 
 ## Setup (first time)
 
@@ -13,7 +18,7 @@ mem init
 ```
 
 If `AGENTS.md` already exists, `mem init` writes `.mempack/AGENTS.md` instead
-and prints the two lines to add manually.
+and prints two lines to add to your existing `AGENTS.md`.
 
 3) Connect Codex to the local MCP server (recommended):
 
@@ -35,6 +40,7 @@ mem mcp
 ```
 
 That is it. The agent will call `mempack.get_context("<task>")` at task start.
+For session startup, call `mempack.get_initial_context` once to get a short summary (state, recent threads, counts).
 
 If you want the agent to save memories via MCP, enable writes (ask mode requires user approval):
 
@@ -60,12 +66,23 @@ mem add --thread T-auth --title "Auth refactor plan" --summary "Move auth logic 
 mem get "auth middleware" --format prompt
 ```
 
+## Ingest (watch mode)
+
+Use watch mode to keep artifacts indexed as you edit files:
+
+```bash
+mem ingest-artifact ./internal --thread T-dev --watch
+```
+
+The watcher logs create/modify/delete events and stops cleanly on Ctrl+C.
+
 ## Retrieval tips
 
-- Default search is lexical AND + NEAR boost; top results are order-insensitive.
-- Rewrites (for example `delta99 -> delta 99`) only apply when the base query has zero hits and are reported in `search_meta`.
-- Use `mem explain "<query>"` to debug mode, ranking, and fallbacks.
-- Prefer exact tokens from titles/summaries; avoid misspellings when possible.
+- Search is keyword-based; for top results, word order usually doesn't matter.
+- Rewrites (for example `delta99 -> delta 99`) only run when the base query has zero hits and are reported in `search_meta`.
+- Use `mem explain "<query>"` when results look wrong.
+- Use exact words from titles/summaries when possible; avoid misspellings.
+- Intent/time hints (recent, today, file paths, thread IDs, symbols) are detected and shown in `search_meta`.
 
 ## Workspaces
 
@@ -75,28 +92,55 @@ mem get "auth middleware" --format prompt
 
 ## Embeddings (default: auto)
 
-- `embedding_provider = "auto"` tries Ollama locally; if unavailable or the model is missing, Mempack falls back to BM25-only with warnings in `search_meta`.
-- Vectors are configured by default; availability depends on Ollama + the model being present.
-- If vectors are unavailable, `mem embed status` shows the reason and fix steps.
-- Mempack never auto-downloads models; to enable vectors, run `ollama pull <model>` yourself.
-- Default model for Ollama is `nomic-embed-text` (override with `embedding_model`).
-- Auto-embeddings are queued for memories and processed in the MCP server background.
-- Backfill embeddings for existing data with `mem embed --kind all` (or `--kind chunk` for chunks).
+- `embedding_provider = "auto"` tries Ollama locally. If it's not available, Mempack falls back to keyword-only search and reports a warning in `search_meta`.
+- Mempack never downloads models for you. To enable vectors, run `ollama pull <model>`.
+- Default model is `nomic-embed-text` (override with `embedding_model`).
+- `mem embed status` shows whether embeddings are working and how to fix issues.
+- Backfill existing data with `mem embed --kind all` (or `--kind chunk` for chunks).
+
+## Memory clustering (optional)
+
+- Use `mem get "<query>" --cluster` or MCP `cluster=true` to group similar memories.
+- Requires embeddings; if embeddings are unavailable, results stay unclustered.
+- Clustered entries include `is_cluster`, `cluster_size`, `cluster_ids`, and `similarity`.
 
 ## MCP output contract (current)
 
-- `mempack.get_context` returns a prompt string plus structured `ContextPack`; `format=json` also includes a JSON text fallback.
-- `search_meta` reports `mode_used`, `fallback_reason`, `rewrites_applied`, and `warnings`.
+- `mempack.get_initial_context` returns a short startup summary (state, recent threads, counts).
+- `mempack.get_context` returns a readable prompt string plus structured JSON (`ContextPack`).
+- For MCP calls, the structured JSON is always present; `format=prompt` only changes the human-readable text content.
+- `search_meta` includes `mode_used`, `fallback_reason`, `rewrites_applied`, and `warnings`.
 - Ordering is deterministic; ties are broken by recency (newer first).
 - Duplicate chunks collapse into one entry with `sources[]` populated.
 - Workspace isolation applies to memories, threads, artifacts, chunks, and state.
+- When clustering is enabled, `search_meta.clusters_formed` is populated and `top_memories` may include cluster metadata.
 
 ## Retrieval behavior (current)
 
-- Lexical AND + NEAR boost is the default; top results are order-insensitive.
-- Conditional rewrites apply only when the base query returns zero hits.
-- Vector fallback is used when BM25 is empty (see `fallback_reason=bm25_empty` and warnings).
+- Keyword search is the default; word order usually does not change top results.
+- Rewrites only apply when the base query returns zero hits.
+- Vector fallback is used when keyword search returns nothing (see `fallback_reason=bm25_empty` and warnings).
 - Empty retrievals still return state.
+- Recency hints boost scores and populate `intent`, `time_hint`, and `recency_boost`.
+
+## Test sweep summary (Jan 25, 2026)
+
+Plain-language takeaways from a full end-to-end test:
+
+- MCP returns a readable prompt plus structured JSON; search metadata lives in `search_meta`.
+- Results are deterministic; if two items match equally, the newer one is listed first.
+- Search is case-insensitive and handles common separators (space/dash/underscore). If a query returns no hits, Mempack can retry with a rewritten query (and tells you when it does).
+- Workspaces are isolated: memories, chunks, and state stay in the workspace you query.
+- Ingest respects the root `.gitignore` and `.mempackignore`; re-ingesting the same files does not create duplicate chunks.
+- Git orphan filtering hides memories from unreachable commits unless you pass `--include-orphans`.
+- Embeddings and clustering are optional; without an embedding provider, search is keyword-only and clustering is disabled.
+
+## If something looks missing
+
+- If `mempack.get_initial_context` or `--cluster` is missing, you are likely running an older `mem` binary. Use the repo `mem` build or reinstall.
+- `search_meta` only shows up in JSON. Use `mem get "<query>" --format json` or `mem explain "<query>"` to inspect rewrites and fallbacks.
+- MCP always returns structured JSON; some clients only display that. If you expect a prompt string, check the tool's text content.
+- Rewrites only run when the base query has zero hits. If you already got results, no rewrite will appear.
 
 ## CLI parsing note
 
@@ -116,6 +160,7 @@ mem mcp
 ```
 
 Tools exposed (read-only by default):
+- `mempack.get_initial_context`: startup summary (state, recent threads, counts)
 - `mempack.get_context`: returns a prompt-friendly Context Pack + JSON
 - `mempack.explain`: explains ranking and filtering decisions
 
