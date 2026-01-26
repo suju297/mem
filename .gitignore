@@ -1,5 +1,28 @@
 .cache/
 .ollama_home/
+
+# Local outputs
 output.txt
+bench_output.txt
 mem
+improvements.md
+
+# Build/test artifacts
+*.out
+*.test
+*.prof
+*.pprof
+*.trace
+coverage/
+tmp/
+
+# Env files
+.env
+.env.*
+
+# Editor/OS
 .DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
