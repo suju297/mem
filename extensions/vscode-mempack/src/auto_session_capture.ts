@@ -151,7 +151,6 @@ export class AutoSessionCaptureEngine {
   private readonly burstByWorkspace = new Map<string, BurstState>();
   private readonly ignoreCacheByWorkspace = new Map<string, IgnoreCacheEntry>();
   private readonly flushInFlight = new Set<string>();
-  private readonly lastAutoSessionAtByRoot = new Map<string, number>();
 
   constructor(
     private readonly persistence: AutoSessionPersistence,
@@ -561,7 +560,6 @@ export class AutoSessionCaptureEngine {
       latestIsAuto: latest ? isAutoSessionTitle(latest.title) : false,
       latestCreatedAtMs: latest ? parseTimeMs(latest.created_at) : 0,
       mergeWindowMs: config.mergeWindowMs,
-      lastAutoSessionAtMs: this.lastAutoSessionAtByRoot.get(workspaceRoot) || 0,
       minGapMs: config.newSessionMinGapMs
     });
 
@@ -591,7 +589,6 @@ export class AutoSessionCaptureEngine {
       savedAction = "created";
     }
 
-    this.lastAutoSessionAtByRoot.set(workspaceRoot, now);
     if (sessionID && this.persistence.onSessionSaved) {
       await this.persistence.onSessionSaved({
         workspaceRoot,

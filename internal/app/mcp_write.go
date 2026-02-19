@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -246,11 +247,11 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 	}
 
 	result := map[string]any{
-		"id":         mem.ID,
-		"thread_id":  mem.ThreadID,
-		"title":      mem.Title,
-		"summary":    mem.Summary,
-		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
+		"id":           mem.ID,
+		"thread_id":    mem.ThreadID,
+		"title":        mem.Title,
+		"summary":      mem.Summary,
+		"operation_at": time.Now().UTC().Format(time.RFC3339Nano),
 	}
 
 	return &mcp.CallToolResult{
@@ -478,6 +479,20 @@ func requestHasArg(request mcp.CallToolRequest, key string) bool {
 	return ok
 }
 
+var sensitiveAssignmentPatterns = []struct {
+	label string
+	re    *regexp.Regexp
+}{
+	{
+		label: "secret_key",
+		re:    regexp.MustCompile(`(?i)\bsecret[_-]?key\b["']?\s*[:=]\s*["']?[A-Za-z0-9_\-]{8,}`),
+	},
+	{
+		label: "api_key",
+		re:    regexp.MustCompile(`(?i)\bapi[_-]?key\b["']?\s*[:=]\s*["']?[A-Za-z0-9_\-]{8,}`),
+	},
+}
+
 func detectSensitive(text string) (string, bool) {
 	lower := strings.ToLower(text)
 	for _, pattern := range []string{
@@ -492,11 +507,14 @@ func detectSensitive(text string) (string, bool) {
 		"xoxp-",
 		"sk_live_",
 		"sk_test_",
-		"secret_key",
-		"api_key",
 	} {
 		if strings.Contains(lower, pattern) {
 			return pattern, true
+		}
+	}
+	for _, pattern := range sensitiveAssignmentPatterns {
+		if pattern.re.MatchString(text) {
+			return pattern.label, true
 		}
 	}
 	return "", false

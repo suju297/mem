@@ -25,6 +25,7 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 	title := fs.String("title", "", "New memory title")
 	summary := fs.String("summary", "", "New memory summary")
 	tags := fs.String("tags", "", "Comma-separated tags")
+	entities := fs.String("entities", "", "Comma-separated entities")
 	workspace := fs.String("workspace", "", "Workspace name")
 	repoOverride := fs.String("repo", "", "Override repo id")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
@@ -32,6 +33,7 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		"title":     {RequiresValue: true},
 		"summary":   {RequiresValue: true},
 		"tags":      {RequiresValue: true},
+		"entities":  {RequiresValue: true},
 		"workspace": {RequiresValue: true},
 		"repo":      {RequiresValue: true},
 	})
@@ -100,12 +102,19 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		tagList = parseTagsJSON(oldMem.TagsJSON)
 	}
 	tagList = store.NormalizeTags(tagList)
+	entityList := store.NormalizeEntities(store.ParseEntities(*entities))
+	if len(entityList) == 0 {
+		entityList = parseEntitiesJSON(oldMem.EntitiesJSON)
+	}
+	entityList = store.NormalizeEntities(entityList)
 	if summaryText == "" && !hasSessionTag(tagList) {
 		fmt.Fprintln(errOut, "missing --summary")
 		return 2
 	}
 	tagsJSON := store.TagsToJSON(tagList)
 	tagsText := store.TagsText(tagList)
+	entitiesJSON := store.EntitiesToJSON(entityList)
+	entitiesText := store.EntitiesText(entityList)
 
 	createdAt := time.Now().UTC()
 	anchorCommit := strings.TrimSpace(oldMem.AnchorCommit)
@@ -123,8 +132,8 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		SummaryTokens: summaryTokens,
 		TagsJSON:      tagsJSON,
 		TagsText:      tagsText,
-		EntitiesJSON:  "[]",
-		EntitiesText:  "",
+		EntitiesJSON:  entitiesJSON,
+		EntitiesText:  entitiesText,
 		AnchorCommit:  anchorCommit,
 		CreatedAt:     createdAt,
 	})
@@ -172,4 +181,15 @@ func parseTagsJSON(raw string) []string {
 		return nil
 	}
 	return tags
+}
+
+func parseEntitiesJSON(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var entities []string
+	if err := json.Unmarshal([]byte(raw), &entities); err != nil {
+		return nil
+	}
+	return entities
 }

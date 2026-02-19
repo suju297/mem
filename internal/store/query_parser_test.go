@@ -19,6 +19,7 @@ func TestQueryIntentDetection(t *testing.T) {
 		{"new architecture proposal", IntentSearch, 1.0},
 		{"thread T-AUTH", IntentThread, 1.0},
 		{"Store.AddMemory function", IntentSymbol, 1.0},
+		{"store.Open function", IntentSymbol, 1.0},
 		{"changes in auth.go", IntentFile, 1.0},
 	}
 
@@ -68,6 +69,7 @@ func TestEntityExtraction(t *testing.T) {
 	}{
 		{"update T-AUTH thread", 1},
 		{"Store.AddMemory implementation", 1},
+		{"call ctx.Done safely", 1},
 		{"changes in auth.go and user.go", 2},
 		{"T-AUTH Store.Get auth.go", 3},
 	}

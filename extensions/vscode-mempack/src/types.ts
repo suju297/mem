@@ -89,6 +89,7 @@ export interface UpdateMemoryResponse {
   thread_id: string;
   title: string;
   summary: string;
+  operation_at?: string;
   updated_at?: string;
 }
 

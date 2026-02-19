@@ -34,6 +34,8 @@ export type McpSessionOptions = {
   onLog?: (line: string) => void;
 };
 
+const MAX_STDERR_BUFFER_CHARS = 32 * 1024;
+
 function isObject(value: unknown): value is Record<string, any> {
   return typeof value === "object" && value !== null;
 }
@@ -42,6 +44,14 @@ function formatJsonRpcError(error: JsonRpcError): string {
   const msg = error.message || "Unknown error";
   const code = typeof error.code === "number" ? ` (code ${error.code})` : "";
   return `${msg}${code}`.trim();
+}
+
+function appendStderr(current: string, line: string): string {
+  const joined = current ? `${current}\n${line}` : line;
+  if (joined.length <= MAX_STDERR_BUFFER_CHARS) {
+    return joined;
+  }
+  return joined.slice(joined.length - MAX_STDERR_BUFFER_CHARS);
 }
 
 export class McpStdioSession {
@@ -107,7 +117,7 @@ export class McpStdioSession {
 
     const rlErr = readline.createInterface({ input: child.stderr });
     rlErr.on("line", (line) => {
-      this.stderr = `${this.stderr}${this.stderr ? "\n" : ""}${line}`;
+      this.stderr = appendStderr(this.stderr, line);
       log(`[mcp stderr] ${line}`);
     });
     rlErr.on("close", () => {
@@ -264,4 +274,3 @@ export class McpStdioSession {
     });
   }
 }
-

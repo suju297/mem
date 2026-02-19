@@ -212,7 +212,7 @@ function readTomlNumber(content: string, key: string): number | undefined {
     if (!match) {
       continue;
     }
-    const raw = match[1].trim().replace(/#,.*$/, "").replace(/;.*$/, "").trim();
+    const raw = match[1].trim().replace(/#.*$/, "").replace(/;.*$/, "").trim();
     const value = Number(raw);
     if (Number.isFinite(value)) {
       return value;

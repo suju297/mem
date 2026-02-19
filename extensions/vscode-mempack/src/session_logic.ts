@@ -17,7 +17,6 @@ export interface SessionUpsertDecisionInput {
   latestIsAuto: boolean;
   latestCreatedAtMs: number;
   mergeWindowMs: number;
-  lastAutoSessionAtMs: number;
   minGapMs: number;
 }
 
@@ -312,7 +311,7 @@ export function decideSessionUpsertAction(input: SessionUpsertDecisionInput): Se
   const withinMergeWindow =
     input.latestCreatedAtMs > 0 && input.nowMs - input.latestCreatedAtMs <= input.mergeWindowMs;
   const withinGap =
-    input.lastAutoSessionAtMs > 0 && input.nowMs - input.lastAutoSessionAtMs <= input.minGapMs;
+    input.latestCreatedAtMs > 0 && input.nowMs - input.latestCreatedAtMs <= input.minGapMs;
   if (withinMergeWindow || withinGap) {
     return "update_latest";
   }

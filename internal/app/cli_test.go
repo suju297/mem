@@ -53,6 +53,11 @@ type checkpointResp struct {
 	MemoryID string `json:"memory_id"`
 }
 
+type updateResp struct {
+	ID          string `json:"id"`
+	OperationAt string `json:"operation_at"`
+}
+
 type linkResp struct {
 	FromID string `json:"from_id"`
 	Rel    string `json:"rel"`
@@ -94,7 +99,7 @@ func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	repoDir := setupRepo(t, base)
 	withCwd(t, repoDir)
 
-	addOut := runCLI(t, "add", "--thread", "T1", "--title", "First", "--summary", "Initial decision")
+	addOut := runCLI(t, "add", "--thread", "T1", "--title", "First", "--summary", "Initial decision", "--entities", "file_src_old_ts")
 	var add addResp
 	if err := json.Unmarshal(addOut, &add); err != nil {
 		t.Fatalf("decode add response: %v", err)
@@ -152,6 +157,13 @@ func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	if newShow.Memory.AnchorCommit != add.AnchorCommit {
 		t.Fatalf("expected anchor_commit %s, got %s", add.AnchorCommit, newShow.Memory.AnchorCommit)
 	}
+	var inheritedEntities []string
+	if err := json.Unmarshal([]byte(newShow.Memory.EntitiesJSON), &inheritedEntities); err != nil {
+		t.Fatalf("decode inherited entities: %v", err)
+	}
+	if !sliceContains(inheritedEntities, "file_src_old_ts") {
+		t.Fatalf("expected supersede to inherit entities, got %v", inheritedEntities)
+	}
 
 	forgetOut := runCLI(t, "forget", sup.NewID)
 	var forget forgetResp
@@ -203,7 +215,14 @@ func TestCLIUpdateMemory(t *testing.T) {
 		t.Fatalf("decode add response: %v", err)
 	}
 
-	_ = runCLI(t, "update", add.ID, "--summary", "Updated decision", "--tags-add", "needs_summary")
+	updateOut := runCLI(t, "update", add.ID, "--summary", "Updated decision", "--tags-add", "needs_summary")
+	var update updateResp
+	if err := json.Unmarshal(updateOut, &update); err != nil {
+		t.Fatalf("decode update response: %v", err)
+	}
+	if strings.TrimSpace(update.OperationAt) == "" {
+		t.Fatalf("expected operation_at in update response")
+	}
 
 	showOut := runCLI(t, "show", add.ID)
 	var show showResp
@@ -310,6 +329,42 @@ func TestCLIAddEntities(t *testing.T) {
 	}
 	if !sliceContains(entities, "ext_ts") {
 		t.Fatalf("expected ext_ts entity, got %v", entities)
+	}
+}
+
+func TestCLISupersedeOverridesEntities(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	addOut := runCLI(t, "add", "--title", "First", "--summary", "Initial decision", "--entities", "file_src_old_ts,ext_ts")
+	var add addResp
+	if err := json.Unmarshal(addOut, &add); err != nil {
+		t.Fatalf("decode add response: %v", err)
+	}
+
+	supOut := runCLI(t, "supersede", "--title", "Second", "--summary", "Updated decision", "--entities", "file_src_new_ts,ext_go", add.ID)
+	var sup supersedeResp
+	if err := json.Unmarshal(supOut, &sup); err != nil {
+		t.Fatalf("decode supersede response: %v", err)
+	}
+
+	showOut := runCLI(t, "show", sup.NewID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode show response: %v", err)
+	}
+	var entities []string
+	if err := json.Unmarshal([]byte(show.Memory.EntitiesJSON), &entities); err != nil {
+		t.Fatalf("decode entities: %v", err)
+	}
+	if !sliceContains(entities, "file_src_new_ts") || !sliceContains(entities, "ext_go") {
+		t.Fatalf("expected superseded memory to use explicit entities, got %v", entities)
+	}
+	if sliceContains(entities, "file_src_old_ts") {
+		t.Fatalf("expected explicit entities to replace inherited entities, got %v", entities)
 	}
 }
 

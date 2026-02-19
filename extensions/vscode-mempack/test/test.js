@@ -36,6 +36,7 @@ const {
 } = require("../dist/session_logic");
 
 const { AutoSessionCaptureEngine } = require("../dist/auto_session_capture");
+const { parseTokenBudgetConfig } = require("../dist/config");
 
 function testStubHelpers() {
   const empty = "";
@@ -211,7 +212,6 @@ function testSessionMergeDecision() {
     latestIsAuto: true,
     latestCreatedAtMs: 1_700_000_000_000 - 30_000,
     mergeWindowMs: 300_000,
-    lastAutoSessionAtMs: 1_700_000_000_000 - 200_000,
     minGapMs: 300_000
   };
 
@@ -231,25 +231,26 @@ function testSessionMergeDecision() {
     decideSessionUpsertAction({
       ...base,
       latestCreatedAtMs: base.nowMs - 600_000,
-      lastAutoSessionAtMs: base.nowMs - 120_000
-    }),
-    "update_latest"
-  );
-  assert.strictEqual(
-    decideSessionUpsertAction({
-      ...base,
-      latestCreatedAtMs: base.nowMs - 600_000,
-      lastAutoSessionAtMs: base.nowMs - 600_000
     }),
     "create_new"
   );
   assert.strictEqual(
     decideSessionUpsertAction({
       ...base,
-      latestCreatedAtMs: 0,
-      lastAutoSessionAtMs: 0
+      latestCreatedAtMs: 0
     }),
     "create_new"
+  );
+}
+
+function testConfigParsers() {
+  assert.strictEqual(
+    parseTokenBudgetConfig("token_budget = 2500 # keep this inline comment"),
+    2500
+  );
+  assert.strictEqual(
+    parseTokenBudgetConfig("token_budget = 3000 ; semicolon comment"),
+    3000
   );
 }
 
@@ -627,6 +628,7 @@ async function runTests() {
     testFormatHelpers();
     testSessionLogicHelpers();
     testSessionMergeDecision();
+    testConfigParsers();
     await testAutoSessionCaptureIntegration();
     await testAutoSessionFlushPreservesPendingChanges();
     await testAutoSessionLifecycleAndIgnore();

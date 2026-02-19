@@ -10,11 +10,11 @@ import (
 )
 
 type updateResponse struct {
-	ID        string `json:"id"`
-	ThreadID  string `json:"thread_id"`
-	Title     string `json:"title"`
-	Summary   string `json:"summary"`
-	UpdatedAt string `json:"updated_at"`
+	ID          string `json:"id"`
+	ThreadID    string `json:"thread_id"`
+	Title       string `json:"title"`
+	Summary     string `json:"summary"`
+	OperationAt string `json:"operation_at"`
 }
 
 func runUpdate(args []string, out, errOut io.Writer) int {
@@ -116,11 +116,11 @@ func runUpdate(args []string, out, errOut io.Writer) int {
 	}
 
 	resp := updateResponse{
-		ID:        mem.ID,
-		ThreadID:  mem.ThreadID,
-		Title:     mem.Title,
-		Summary:   mem.Summary,
-		UpdatedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		ID:          mem.ID,
+		ThreadID:    mem.ThreadID,
+		Title:       mem.Title,
+		Summary:     mem.Summary,
+		OperationAt: time.Now().UTC().Format(time.RFC3339Nano),
 	}
 	encoded, err := json.MarshalIndent(resp, "", "  ")
 	if err != nil {

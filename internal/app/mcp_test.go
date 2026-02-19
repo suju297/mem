@@ -568,6 +568,17 @@ func TestMCPUpdateMemoryRequiresConfirmation(t *testing.T) {
 	if res == nil || res.IsError {
 		t.Fatalf("expected update_memory to succeed with confirmation")
 	}
+	payload, ok := res.StructuredContent.(map[string]any)
+	if !ok {
+		t.Fatalf("expected structured content map, got %T", res.StructuredContent)
+	}
+	operationAt, _ := payload["operation_at"].(string)
+	if strings.TrimSpace(operationAt) == "" {
+		t.Fatalf("expected operation_at in update response")
+	}
+	if _, exists := payload["updated_at"]; exists {
+		t.Fatalf("did not expect synthetic updated_at in update response")
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {

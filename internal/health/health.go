@@ -283,8 +283,21 @@ func resolveRepo(cfg config.Config, repoRef, cwd string, requireRepo bool) (repo
 		if info, err := detectRepoPathStrict(repoRef); err == nil {
 			return info, "path", nil
 		} else if reporesolve.LooksLikePath(repoRef) {
+			pathErr := err
 			if info, err := repoFromRoot(cfg, repoRef); err == nil {
 				return info, "db_root", nil
+			}
+			if isGitNotFound(pathErr) {
+				return repo.Info{}, "", &CheckError{
+					Message:    "git not found",
+					Suggestion: "Install git or pass --repo <id|path>",
+					Err:        pathErr,
+				}
+			}
+			return repo.Info{}, "", &CheckError{
+				Message:    fmt.Sprintf("repo detection failed for %s", repoRef),
+				Suggestion: "Run: mem use <path> or pass --repo <id>",
+				Err:        pathErr,
 			}
 		} else if pathExists(repoRef) {
 			if isGitNotFound(err) {

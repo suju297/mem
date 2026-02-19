@@ -41,7 +41,7 @@ type TimeHint struct {
 var (
 	threadIDPattern = regexp.MustCompile(`\bT-[A-Za-z0-9_-]+\b`)
 	filePathPattern = regexp.MustCompile(`\b[\w./\\-]+\.(go|py|ts|js|tsx|jsx|md|json|yaml|yml|sql|sh)\b`)
-	symbolPattern   = regexp.MustCompile(`\b[A-Z][a-zA-Z0-9]*\.[A-Z][a-zA-Z0-9]*\b`)
+	symbolPattern   = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\.[A-Z][A-Za-z0-9_]*\b`)
 )
 
 var stopWords = map[string]bool{
