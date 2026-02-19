@@ -84,26 +84,23 @@ func ParseQuery(q string) ParsedQuery {
 func detectTimeHint(lower string) (*TimeHint, float64) {
 	now := time.Now().UTC()
 
-	patterns := []struct {
-		signal   string
-		relative string
-		after    time.Time
-		boost    float64
-	}{
-		{"today", "today", now.Truncate(24 * time.Hour), 3.0},
-		{"yesterday", "yesterday", now.Add(-24 * time.Hour).Truncate(24 * time.Hour), 2.5},
-		{"this week", "this week", now.Add(-7 * 24 * time.Hour), 2.0},
-		{"last week", "last week", now.Add(-14 * 24 * time.Hour), 1.8},
-		{"recent", "recent", now.Add(-7 * 24 * time.Hour), 2.0},
-		{"latest", "recent", now.Add(-3 * 24 * time.Hour), 2.5},
-		{"just", "recent", now.Add(-24 * time.Hour), 2.5},
-		{"new", "recent", now.Add(-7 * 24 * time.Hour), 1.5},
-	}
-
-	for _, p := range patterns {
-		if strings.Contains(lower, p.signal) {
-			return &TimeHint{Relative: p.relative, After: p.after}, p.boost
-		}
+	switch {
+	case containsToken(lower, "today"):
+		return &TimeHint{Relative: "today", After: now.Truncate(24 * time.Hour)}, 3.0
+	case containsToken(lower, "yesterday"):
+		return &TimeHint{Relative: "yesterday", After: now.Add(-24 * time.Hour).Truncate(24 * time.Hour)}, 2.5
+	case strings.Contains(lower, "this week"):
+		return &TimeHint{Relative: "this week", After: now.Add(-7 * 24 * time.Hour)}, 2.0
+	case strings.Contains(lower, "last week"):
+		return &TimeHint{Relative: "last week", After: now.Add(-14 * 24 * time.Hour)}, 1.8
+	case containsToken(lower, "recent"):
+		return &TimeHint{Relative: "recent", After: now.Add(-7 * 24 * time.Hour)}, 2.0
+	case containsToken(lower, "latest"):
+		return &TimeHint{Relative: "recent", After: now.Add(-3 * 24 * time.Hour)}, 2.5
+	case containsToken(lower, "just"):
+		return &TimeHint{Relative: "recent", After: now.Add(-24 * time.Hour)}, 2.5
+	case hasNewRecencyIntent(lower):
+		return &TimeHint{Relative: "recent", After: now.Add(-7 * 24 * time.Hour)}, 1.5
 	}
 	return nil, 1.0
 }
@@ -118,10 +115,70 @@ func detectIntent(lower, original string) QueryIntent {
 	if filePathPattern.MatchString(original) || containsAny(lower, []string{"file", "in file", "from file", ".go", ".py", ".ts", ".js", ".md"}) {
 		return IntentFile
 	}
-	if containsAny(lower, []string{"recent", "latest", "new", "today", "yesterday"}) {
+	if containsToken(lower, "recent") ||
+		containsToken(lower, "latest") ||
+		containsToken(lower, "today") ||
+		containsToken(lower, "yesterday") ||
+		hasNewRecencyIntent(lower) {
 		return IntentRecent
 	}
 	return IntentSearch
+}
+
+func containsToken(lower, token string) bool {
+	for _, part := range queryTokens(lower) {
+		if part == token {
+			return true
+		}
+	}
+	return false
+}
+
+func queryTokens(lower string) []string {
+	return strings.FieldsFunc(lower, func(r rune) bool {
+		return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'))
+	})
+}
+
+func hasNewRecencyIntent(lower string) bool {
+	lower = strings.TrimSpace(lower)
+	if lower == "" {
+		return false
+	}
+	for _, phrase := range []string{
+		"what's new",
+		"whats new",
+		"what is new",
+		"show new",
+		"show me new",
+	} {
+		if strings.Contains(lower, phrase) {
+			return true
+		}
+	}
+	tokens := queryTokens(lower)
+	if len(tokens) == 1 && tokens[0] == "new" {
+		return true
+	}
+	recencyTargets := map[string]struct{}{
+		"change":   {},
+		"changes":  {},
+		"update":   {},
+		"updates":  {},
+		"commit":   {},
+		"commits":  {},
+		"activity": {},
+		"work":     {},
+	}
+	for i, tok := range tokens {
+		if tok != "new" || i+1 >= len(tokens) {
+			continue
+		}
+		if _, ok := recencyTargets[tokens[i+1]]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func extractEntities(q string) []Entity {

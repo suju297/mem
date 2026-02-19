@@ -19,13 +19,14 @@ type RepoRow struct {
 }
 
 type Thread struct {
-	ThreadID    string
-	RepoID      string
-	Workspace   string
-	Title       string
-	TagsJSON    string
-	CreatedAt   time.Time
-	MemoryCount int
+	ThreadID     string
+	RepoID       string
+	Workspace    string
+	Title        string
+	TagsJSON     string
+	CreatedAt    time.Time
+	LastActivity time.Time
+	MemoryCount  int
 }
 
 type MemorySummary struct {
@@ -229,6 +230,83 @@ func (s *Store) GetMemoriesByIDs(repoID, workspace string, ids []string) ([]Memo
 	return memories, nil
 }
 
+func (s *Store) ListActiveMemories(repoID, workspace string) ([]Memory, error) {
+	rows, err := s.db.Query(`
+		SELECT id, repo_id, workspace, thread_id, title, summary, summary_tokens, tags_json, tags_text, entities_json, entities_text,
+			created_at, anchor_commit, superseded_by, deleted_at
+		FROM memories
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL AND (superseded_by IS NULL OR superseded_by = '')
+		ORDER BY created_at ASC, id ASC
+	`, repoID, normalizeWorkspace(workspace))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var memories []Memory
+	for rows.Next() {
+		var mem Memory
+		var createdAt string
+		var deletedAt sql.NullString
+		var threadID sql.NullString
+		var summaryTokens sql.NullInt64
+		var tagsJSON sql.NullString
+		var tagsText sql.NullString
+		var entitiesJSON sql.NullString
+		var entitiesText sql.NullString
+		var anchorCommit sql.NullString
+		var supersededBy sql.NullString
+		if err := rows.Scan(&mem.ID, &mem.RepoID, &mem.Workspace, &threadID, &mem.Title, &mem.Summary, &summaryTokens, &tagsJSON, &tagsText, &entitiesJSON, &entitiesText, &createdAt, &anchorCommit, &supersededBy, &deletedAt); err != nil {
+			return nil, err
+		}
+		mem.ThreadID = threadID.String
+		if summaryTokens.Valid {
+			mem.SummaryTokens = int(summaryTokens.Int64)
+		}
+		mem.TagsJSON = tagsJSON.String
+		mem.TagsText = tagsText.String
+		mem.EntitiesJSON = entitiesJSON.String
+		mem.EntitiesText = entitiesText.String
+		mem.AnchorCommit = anchorCommit.String
+		mem.SupersededBy = supersededBy.String
+		mem.CreatedAt = parseTime(createdAt)
+		if deletedAt.Valid {
+			mem.DeletedAt = parseTime(deletedAt.String)
+		}
+		memories = append(memories, mem)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return memories, nil
+}
+
+func (s *Store) ListActiveMemoryIDsByPrefix(repoID, workspace, prefix string) ([]string, error) {
+	rows, err := s.db.Query(`
+		SELECT id
+		FROM memories
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL AND id LIKE ?
+		ORDER BY id ASC
+	`, repoID, normalizeWorkspace(workspace), prefix+"%")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
 func (s *Store) GetChunksByIDs(repoID, workspace string, ids []string) ([]Chunk, error) {
 	if len(ids) == 0 {
 		return nil, nil
@@ -305,13 +383,14 @@ func (s *Store) ListRecentActiveThreads(repoID, workspace string, limit int) ([]
 	}
 	workspace = normalizeWorkspace(workspace)
 	rows, err := s.db.Query(`
-		SELECT t.thread_id, t.repo_id, t.workspace, t.title, t.tags_json, MAX(m.created_at) as last_activity
+		SELECT t.thread_id, t.repo_id, t.workspace, t.title, t.tags_json, t.created_at, MAX(m.created_at) as last_activity, COUNT(m.id) as memory_count
 		FROM threads t
 		JOIN memories m
 			ON t.thread_id = m.thread_id
 			AND t.repo_id = m.repo_id
 			AND t.workspace = m.workspace
 			AND m.deleted_at IS NULL
+			AND (m.superseded_by IS NULL OR m.superseded_by = '')
 		WHERE t.repo_id = ? AND t.workspace = ?
 		GROUP BY t.thread_id, t.repo_id, t.workspace
 		ORDER BY last_activity DESC
@@ -326,12 +405,14 @@ func (s *Store) ListRecentActiveThreads(repoID, workspace string, limit int) ([]
 	for rows.Next() {
 		var thread Thread
 		var tagsJSON sql.NullString
+		var createdAt string
 		var lastActivity string
-		if err := rows.Scan(&thread.ThreadID, &thread.RepoID, &thread.Workspace, &thread.Title, &tagsJSON, &lastActivity); err != nil {
+		if err := rows.Scan(&thread.ThreadID, &thread.RepoID, &thread.Workspace, &thread.Title, &tagsJSON, &createdAt, &lastActivity, &thread.MemoryCount); err != nil {
 			return nil, err
 		}
 		thread.TagsJSON = tagsJSON.String
-		thread.CreatedAt = parseTime(lastActivity)
+		thread.CreatedAt = parseTime(createdAt)
+		thread.LastActivity = parseTime(lastActivity)
 		threads = append(threads, thread)
 	}
 	if err := rows.Err(); err != nil {
@@ -380,6 +461,31 @@ func (s *Store) ForgetMemory(repoID, workspace, id string, now time.Time) (bool,
 	affected, err := res.RowsAffected()
 	if err != nil {
 		return false, err
+	}
+	if affected > 0 {
+		if err := s.DeleteLinksForMemoryID(id); err != nil {
+			return false, err
+		}
+	}
+	return affected > 0, nil
+}
+
+func (s *Store) PurgeMemory(repoID, workspace, id string) (bool, error) {
+	res, err := s.db.Exec(`
+		DELETE FROM memories
+		WHERE repo_id = ? AND workspace = ? AND id = ?
+	`, repoID, normalizeWorkspace(workspace), id)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if affected > 0 {
+		if err := s.DeleteLinksForMemoryID(id); err != nil {
+			return false, err
+		}
 	}
 	return affected > 0, nil
 }
@@ -490,12 +596,14 @@ func (s *Store) ListMemoriesByThread(repoID, workspace, threadID string, limit i
 	var results []MemorySummary
 	for rows.Next() {
 		var mem MemorySummary
+		var threadID sql.NullString
 		var createdAt string
 		var anchorCommit sql.NullString
 		var supersededBy sql.NullString
-		if err := rows.Scan(&mem.ID, &mem.ThreadID, &mem.Title, &mem.Summary, &createdAt, &anchorCommit, &supersededBy); err != nil {
+		if err := rows.Scan(&mem.ID, &threadID, &mem.Title, &mem.Summary, &createdAt, &anchorCommit, &supersededBy); err != nil {
 			return nil, err
 		}
+		mem.ThreadID = threadID.String
 		mem.CreatedAt = parseTime(createdAt)
 		mem.AnchorCommit = anchorCommit.String
 		mem.SupersededBy = supersededBy.String
@@ -505,6 +613,125 @@ func (s *Store) ListMemoriesByThread(repoID, workspace, threadID string, limit i
 		return nil, err
 	}
 	return results, nil
+}
+
+func (s *Store) ListRecentMemories(repoID, workspace string, limit int) ([]MemorySummary, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	rows, err := s.db.Query(`
+		SELECT id, thread_id, title, summary, created_at, anchor_commit, superseded_by
+		FROM memories
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL
+		ORDER BY created_at DESC
+		LIMIT ?
+	`, repoID, normalizeWorkspace(workspace), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []MemorySummary
+	for rows.Next() {
+		var mem MemorySummary
+		var threadID sql.NullString
+		var createdAt string
+		var anchorCommit sql.NullString
+		var supersededBy sql.NullString
+		if err := rows.Scan(&mem.ID, &threadID, &mem.Title, &mem.Summary, &createdAt, &anchorCommit, &supersededBy); err != nil {
+			return nil, err
+		}
+		mem.ThreadID = threadID.String
+		mem.CreatedAt = parseTime(createdAt)
+		mem.AnchorCommit = anchorCommit.String
+		mem.SupersededBy = supersededBy.String
+		results = append(results, mem)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *Store) ListSessionMemories(repoID, workspace string, limit int, needsSummary bool) ([]MemorySummary, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	workspace = normalizeWorkspace(workspace)
+	tagClause, tagArgs := buildSessionTagClause(needsSummary)
+	querySQL := fmt.Sprintf(`
+		SELECT id, thread_id, title, summary, created_at, anchor_commit, superseded_by
+		FROM memories
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL AND (superseded_by IS NULL OR superseded_by = '')
+		AND %s
+		ORDER BY created_at DESC
+		LIMIT ?
+	`, tagClause)
+	args := make([]any, 0, 2+len(tagArgs)+1)
+	args = append(args, repoID, workspace)
+	for _, arg := range tagArgs {
+		args = append(args, arg)
+	}
+	args = append(args, limit)
+
+	rows, err := s.db.Query(querySQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []MemorySummary
+	for rows.Next() {
+		var mem MemorySummary
+		var threadID sql.NullString
+		var createdAt string
+		var anchorCommit sql.NullString
+		var supersededBy sql.NullString
+		if err := rows.Scan(&mem.ID, &threadID, &mem.Title, &mem.Summary, &createdAt, &anchorCommit, &supersededBy); err != nil {
+			return nil, err
+		}
+		mem.ThreadID = threadID.String
+		mem.CreatedAt = parseTime(createdAt)
+		mem.AnchorCommit = anchorCommit.String
+		mem.SupersededBy = supersededBy.String
+		results = append(results, mem)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (s *Store) CountSessionMemories(repoID, workspace string, needsSummary bool) (int, error) {
+	workspace = normalizeWorkspace(workspace)
+	tagClause, tagArgs := buildSessionTagClause(needsSummary)
+	querySQL := fmt.Sprintf(`
+		SELECT COUNT(1)
+		FROM memories
+		WHERE repo_id = ? AND workspace = ? AND deleted_at IS NULL AND (superseded_by IS NULL OR superseded_by = '')
+		AND %s
+	`, tagClause)
+	args := make([]any, 0, 2+len(tagArgs))
+	args = append(args, repoID, workspace)
+	for _, arg := range tagArgs {
+		args = append(args, arg)
+	}
+	row := s.db.QueryRow(querySQL, args...)
+	var count int
+	if err := row.Scan(&count); err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func buildSessionTagClause(needsSummary bool) (string, []any) {
+	clauses := []string{"tags_json LIKE ?"}
+	args := []any{`%"session"%`}
+	if needsSummary {
+		clauses = append(clauses, "tags_json LIKE ?")
+		args = append(args, `%"needs_summary"%`)
+	}
+	return strings.Join(clauses, " AND "), args
 }
 
 func (s *Store) AddArtifactWithChunks(artifact Artifact, chunks []Chunk) (int, []string, error) {
@@ -635,6 +862,7 @@ func nullIfEmpty(value string) interface{} {
 }
 
 func (s *Store) SetStateCurrent(repoID, workspace, stateJSON string, stateTokens int, updatedAt time.Time) error {
+	workspace = normalizeWorkspace(workspace)
 	_, err := s.db.Exec(`
 		INSERT INTO state_current (repo_id, workspace, state_json, state_tokens, updated_at)
 		VALUES (?, ?, ?, ?, ?)
@@ -645,6 +873,7 @@ func (s *Store) SetStateCurrent(repoID, workspace, stateJSON string, stateTokens
 }
 
 func (s *Store) AddStateHistory(stateID, repoID, workspace, stateJSON, reason string, stateTokens int, createdAt time.Time) error {
+	workspace = normalizeWorkspace(workspace)
 	_, err := s.db.Exec(`
 		INSERT INTO state_history (state_id, repo_id, workspace, state_json, state_tokens, created_at, reason)
 		VALUES (?, ?, ?, ?, ?, ?, ?)

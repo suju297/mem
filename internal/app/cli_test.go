@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"mempack/internal/repo"
 )
@@ -27,6 +29,9 @@ type memoryDetail struct {
 	ThreadID     string `json:"thread_id"`
 	Title        string `json:"title"`
 	Summary      string `json:"summary"`
+	TagsJSON     string `json:"tags_json"`
+	EntitiesJSON string `json:"entities_json"`
+	AnchorCommit string `json:"anchor_commit"`
 	SupersededBy string `json:"superseded_by"`
 	DeletedAt    string `json:"deleted_at"`
 }
@@ -48,6 +53,40 @@ type checkpointResp struct {
 	MemoryID string `json:"memory_id"`
 }
 
+type linkResp struct {
+	FromID string `json:"from_id"`
+	Rel    string `json:"rel"`
+	ToID   string `json:"to_id"`
+	Status string `json:"status"`
+}
+
+type recentResp struct {
+	ID        string `json:"id"`
+	ThreadID  string `json:"thread_id"`
+	Title     string `json:"title"`
+	Summary   string `json:"summary"`
+	CreatedAt string `json:"created_at"`
+}
+
+type sessionResp struct {
+	ID        string `json:"id"`
+	ThreadID  string `json:"thread_id"`
+	Title     string `json:"title"`
+	Summary   string `json:"summary"`
+	CreatedAt string `json:"created_at"`
+}
+
+type sessionCountResp struct {
+	Count int `json:"count"`
+}
+
+type sessionUpsertResp struct {
+	ID      string `json:"id"`
+	Action  string `json:"action"`
+	Created bool   `json:"created"`
+	Updated bool   `json:"updated"`
+}
+
 func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)
@@ -63,6 +102,9 @@ func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	if add.ID == "" {
 		t.Fatalf("expected add id to be set")
 	}
+	if add.AnchorCommit == "" {
+		t.Fatalf("expected anchor_commit to be set")
+	}
 
 	showOut := runCLI(t, "show", add.ID)
 	var show showResp
@@ -75,6 +117,11 @@ func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	if show.Memory.Title != "First" {
 		t.Fatalf("expected title First, got %s", show.Memory.Title)
 	}
+
+	// Move HEAD to a new commit to ensure supersede preserves the original anchor_commit.
+	writeFile(t, repoDir, "file.txt", "content2")
+	runGit(t, repoDir, "add", "file.txt")
+	runGit(t, repoDir, "commit", "-m", "next")
 
 	supOut := runCLI(t, "supersede", "--title", "Second", "--summary", "Updated decision", add.ID)
 	var sup supersedeResp
@@ -101,6 +148,9 @@ func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	}
 	if newShow.Memory.Title != "Second" {
 		t.Fatalf("expected new title Second, got %s", newShow.Memory.Title)
+	}
+	if newShow.Memory.AnchorCommit != add.AnchorCommit {
+		t.Fatalf("expected anchor_commit %s, got %s", add.AnchorCommit, newShow.Memory.AnchorCommit)
 	}
 
 	forgetOut := runCLI(t, "forget", sup.NewID)
@@ -137,6 +187,309 @@ func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
 	}
 	if ckMem.Memory.Summary != "Snapshot" {
 		t.Fatalf("expected checkpoint summary Snapshot, got %s", ckMem.Memory.Summary)
+	}
+}
+
+func TestCLIUpdateMemory(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	addOut := runCLI(t, "add", "--title", "First", "--summary", "Initial decision")
+	var add addResp
+	if err := json.Unmarshal(addOut, &add); err != nil {
+		t.Fatalf("decode add response: %v", err)
+	}
+
+	_ = runCLI(t, "update", add.ID, "--summary", "Updated decision", "--tags-add", "needs_summary")
+
+	showOut := runCLI(t, "show", add.ID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode show response: %v", err)
+	}
+	if show.Memory.Summary != "Updated decision" {
+		t.Fatalf("expected updated summary, got %s", show.Memory.Summary)
+	}
+	var tags []string
+	if err := json.Unmarshal([]byte(show.Memory.TagsJSON), &tags); err != nil {
+		t.Fatalf("decode tags: %v", err)
+	}
+	if !sliceContains(tags, "needs_summary") {
+		t.Fatalf("expected needs_summary tag, got %v", tags)
+	}
+}
+
+func TestCLILinkMemories(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	firstOut := runCLI(t, "add", "--title", "First", "--summary", "First summary")
+	var first addResp
+	if err := json.Unmarshal(firstOut, &first); err != nil {
+		t.Fatalf("decode first add response: %v", err)
+	}
+
+	secondOut := runCLI(t, "add", "--title", "Second", "--summary", "Second summary")
+	var second addResp
+	if err := json.Unmarshal(secondOut, &second); err != nil {
+		t.Fatalf("decode second add response: %v", err)
+	}
+
+	linkOut := runCLI(t, "link", "--from", first.ID, "--rel", "depends_on", "--to", second.ID)
+	var link linkResp
+	if err := json.Unmarshal(linkOut, &link); err != nil {
+		t.Fatalf("decode link response: %v", err)
+	}
+	if link.FromID != first.ID || link.ToID != second.ID || link.Rel != "depends_on" {
+		t.Fatalf("unexpected link response: %+v", link)
+	}
+	if link.Status != "linked" {
+		t.Fatalf("expected linked status, got %s", link.Status)
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("config error: %v", err)
+	}
+	repoInfo, err := resolveRepo(&cfg, "")
+	if err != nil {
+		t.Fatalf("repo detection error: %v", err)
+	}
+	st, err := openStore(cfg, repoInfo.ID)
+	if err != nil {
+		t.Fatalf("store open error: %v", err)
+	}
+	defer st.Close()
+
+	links, err := st.ListLinksForIDs([]string{first.ID, second.ID})
+	if err != nil {
+		t.Fatalf("list links: %v", err)
+	}
+	found := false
+	for _, edge := range links {
+		if edge.FromID == first.ID && edge.Rel == "depends_on" && edge.ToID == second.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected depends_on link from %s to %s", first.ID, second.ID)
+	}
+}
+
+func TestCLIAddEntities(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	addOut := runCLI(t, "add", "--title", "First", "--summary", "Initial decision", "--entities", "file_src_a_ts,ext_ts")
+	var add addResp
+	if err := json.Unmarshal(addOut, &add); err != nil {
+		t.Fatalf("decode add response: %v", err)
+	}
+
+	showOut := runCLI(t, "show", add.ID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode show response: %v", err)
+	}
+	var entities []string
+	if err := json.Unmarshal([]byte(show.Memory.EntitiesJSON), &entities); err != nil {
+		t.Fatalf("decode entities: %v", err)
+	}
+	if !sliceContains(entities, "file_src_a_ts") {
+		t.Fatalf("expected file_src_a_ts entity, got %v", entities)
+	}
+	if !sliceContains(entities, "ext_ts") {
+		t.Fatalf("expected ext_ts entity, got %v", entities)
+	}
+}
+
+func sliceContains(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func TestCLIAddDefaultsThread(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	addOut := runCLI(t, "add", "--title", "First", "--summary", "Initial decision")
+	var add addResp
+	if err := json.Unmarshal(addOut, &add); err != nil {
+		t.Fatalf("decode add response: %v", err)
+	}
+	if add.ThreadID != "T-SESSION" {
+		t.Fatalf("expected default thread T-SESSION, got %s", add.ThreadID)
+	}
+}
+
+func TestCLIRecentAndFormatFlags(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	runCLI(t, "add", "--thread", "T1", "--title", "First", "--summary", "First summary")
+	time.Sleep(10 * time.Millisecond)
+	runCLI(t, "add", "--thread", "T1", "--title", "Second", "--summary", "Second summary")
+
+	recentOut := runCLI(t, "recent", "--limit", "1", "--format", "json")
+	var recent []recentResp
+	if err := json.Unmarshal(recentOut, &recent); err != nil {
+		t.Fatalf("decode recent response: %v", err)
+	}
+	if len(recent) != 1 {
+		t.Fatalf("expected 1 recent item, got %d", len(recent))
+	}
+	if recent[0].Title != "Second" {
+		t.Fatalf("expected most recent title Second, got %s", recent[0].Title)
+	}
+	if recent[0].ThreadID != "T1" {
+		t.Fatalf("expected thread T1, got %s", recent[0].ThreadID)
+	}
+
+	_ = runCLI(t, "threads", "--format", "json")
+	_ = runCLI(t, "thread", "T1", "--format", "json")
+}
+
+func TestCLISessions(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	runCLI(t, "add", "--thread", "T1", "--title", "Session one", "--summary", "Body", "--tags", "session")
+	time.Sleep(10 * time.Millisecond)
+	runCLI(t, "add", "--thread", "T1", "--title", "Session two", "--summary", "Body", "--tags", "session,needs_summary")
+
+	sessionsOut := runCLI(t, "sessions", "--needs-summary", "--limit", "1", "--format", "json")
+	var sessions []sessionResp
+	if err := json.Unmarshal(sessionsOut, &sessions); err != nil {
+		t.Fatalf("decode sessions response: %v", err)
+	}
+	if len(sessions) != 1 {
+		t.Fatalf("expected 1 session item, got %d", len(sessions))
+	}
+	if sessions[0].Title != "Session two" {
+		t.Fatalf("expected most recent needs_summary session, got %s", sessions[0].Title)
+	}
+
+	countOut := runCLI(t, "sessions", "--needs-summary", "--count", "--format", "json")
+	var count sessionCountResp
+	if err := json.Unmarshal(countOut, &count); err != nil {
+		t.Fatalf("decode sessions count response: %v", err)
+	}
+	if count.Count != 1 {
+		t.Fatalf("expected needs_summary count 1, got %d", count.Count)
+	}
+}
+
+func TestCLISessionUpsert(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	firstOut := runCLI(
+		t,
+		"session",
+		"upsert",
+		"--title",
+		"Session: src (+1 files) [ts]",
+		"--tags",
+		"session,needs_summary",
+		"--entities",
+		"dir_src,ext_ts,file_src_app_ts",
+		"--format",
+		"json",
+	)
+	var first sessionUpsertResp
+	if err := json.Unmarshal(firstOut, &first); err != nil {
+		t.Fatalf("decode first session upsert: %v", err)
+	}
+	if !first.Created || first.Action != "created" {
+		t.Fatalf("expected first upsert to create, got %+v", first)
+	}
+
+	secondOut := runCLI(
+		t,
+		"session",
+		"upsert",
+		"--title",
+		"Session: src (+2 files) [ts]",
+		"--entities",
+		"file_src_routes_ts",
+		"--format",
+		"json",
+	)
+	var second sessionUpsertResp
+	if err := json.Unmarshal(secondOut, &second); err != nil {
+		t.Fatalf("decode second session upsert: %v", err)
+	}
+	if !second.Updated || second.Action != "updated" {
+		t.Fatalf("expected second upsert to update, got %+v", second)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("expected second upsert to update first session id %s, got %s", first.ID, second.ID)
+	}
+
+	showOut := runCLI(t, "show", first.ID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode show response: %v", err)
+	}
+	if show.Memory.Title != "Session: src (+2 files) [ts]" {
+		t.Fatalf("expected merged title to update, got %s", show.Memory.Title)
+	}
+	if !strings.Contains(show.Memory.TagsJSON, "needs_summary") {
+		t.Fatalf("expected needs_summary tag to remain, got %s", show.Memory.TagsJSON)
+	}
+
+	manual := runCLI(t, "add", "--title", "Manual note", "--summary", "manual", "--tags", "session")
+	var manualAdd addResp
+	if err := json.Unmarshal(manual, &manualAdd); err != nil {
+		t.Fatalf("decode manual add response: %v", err)
+	}
+	if manualAdd.ID == "" {
+		t.Fatalf("expected manual add id")
+	}
+
+	thirdOut := runCLI(
+		t,
+		"session",
+		"upsert",
+		"--title",
+		"Session: src (+3 files) [ts]",
+		"--entities",
+		"file_src_api_ts",
+		"--format",
+		"json",
+	)
+	var third sessionUpsertResp
+	if err := json.Unmarshal(thirdOut, &third); err != nil {
+		t.Fatalf("decode third session upsert: %v", err)
+	}
+	if !third.Created || third.Action != "created" {
+		t.Fatalf("expected third upsert to create because latest is manual, got %+v", third)
 	}
 }
 

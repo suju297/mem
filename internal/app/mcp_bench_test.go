@@ -17,7 +17,7 @@ func BenchmarkMCPGetContext(b *testing.B) {
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack.get_context",
+			Name:      "mempack_get_context",
 			Arguments: map[string]any{"query": "decision", "format": "json"},
 		},
 	}
@@ -25,7 +25,7 @@ func BenchmarkMCPGetContext(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := handleGetContext(context.Background(), req); err != nil {
+		if _, err := handleGetContext(context.Background(), req, false); err != nil {
 			b.Fatalf("get_context error: %v", err)
 		}
 	}
@@ -41,7 +41,7 @@ func BenchmarkMCPExplain(b *testing.B) {
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack.explain",
+			Name:      "mempack_explain",
 			Arguments: map[string]any{"query": "decision"},
 		},
 	}
@@ -49,7 +49,7 @@ func BenchmarkMCPExplain(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := handleExplain(context.Background(), req); err != nil {
+		if _, err := handleExplain(context.Background(), req, false); err != nil {
 			b.Fatalf("explain error: %v", err)
 		}
 	}

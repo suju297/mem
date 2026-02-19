@@ -282,6 +282,9 @@ func (s *Store) ListMemoriesMissingEmbedding(repoID, workspace, model string, li
 		mem.EntitiesText = entitiesText.String
 		mem.CreatedAt = parseTime(createdAt)
 		expectedHash := EmbeddingContentHash(MemoryEmbeddingText(mem))
+		if expectedHash == "" {
+			continue
+		}
 		if contentHash.String != "" && contentHash.String == expectedHash {
 			continue
 		}
@@ -342,6 +345,9 @@ func (s *Store) ListChunksMissingEmbedding(repoID, workspace, model string, limi
 		chunk.TagsText = tagsText.String
 		chunk.CreatedAt = parseTime(createdAt)
 		expectedHash := EmbeddingContentHash(ChunkEmbeddingText(chunk))
+		if expectedHash == "" {
+			continue
+		}
 		if contentHash.String != "" && contentHash.String == expectedHash {
 			continue
 		}
@@ -377,66 +383,115 @@ func (s *Store) EmbeddingCoverage(repoID, workspace, kind, model string) (Embedd
 		return EmbeddingCoverage{}, err
 	}
 
-	rows, err := s.db.Query(`
-		SELECT e.content_hash, e.vector_dim, e.updated_at,
-			m.title, m.summary, m.tags_text, m.entities_text,
-			c.locator, c.text, c.tags_text
-		FROM embeddings e
-		LEFT JOIN memories m
-			ON e.kind = ? AND m.id = e.item_id AND m.repo_id = e.repo_id AND m.workspace = e.workspace AND m.deleted_at IS NULL
-		LEFT JOIN chunks c
-			ON e.kind = ? AND c.chunk_id = e.item_id AND c.repo_id = e.repo_id AND c.workspace = e.workspace AND c.deleted_at IS NULL
-		WHERE e.repo_id = ? AND e.workspace = ? AND e.kind = ? AND e.model = ?
-	`, EmbeddingKindMemory, EmbeddingKindChunk, repoID, workspace, kind, model)
-	if err != nil {
-		return EmbeddingCoverage{}, err
-	}
-	defer rows.Close()
-
 	coverage := EmbeddingCoverage{Total: total}
 	firstDim := 0
-	for rows.Next() {
-		var contentHash string
-		var vectorDim int
-		var updatedAt string
-		var title sql.NullString
-		var summary sql.NullString
-		var memTags sql.NullString
-		var entities sql.NullString
-		var locator sql.NullString
-		var text sql.NullString
-		var chunkTags sql.NullString
-		if err := rows.Scan(&contentHash, &vectorDim, &updatedAt, &title, &summary, &memTags, &entities, &locator, &text, &chunkTags); err != nil {
+	switch kind {
+	case EmbeddingKindMemory:
+		rows, err := s.db.Query(`
+			SELECT e.content_hash, e.vector_dim, e.updated_at,
+				m.title, m.summary, m.tags_text, m.entities_text
+			FROM embeddings e
+			LEFT JOIN memories m
+				ON m.id = e.item_id
+				AND m.repo_id = e.repo_id
+				AND m.workspace = e.workspace
+				AND m.deleted_at IS NULL
+			WHERE e.repo_id = ? AND e.workspace = ? AND e.kind = ? AND e.model = ?
+		`, repoID, workspace, kind, model)
+		if err != nil {
 			return EmbeddingCoverage{}, err
 		}
-
-		expected := ""
-		if kind == EmbeddingKindMemory {
-			expected = embeddingContentHash(kind, title.String, summary.String, memTags.String, entities.String, "", "")
-		} else {
-			expected = embeddingContentHash(kind, "", "", chunkTags.String, "", locator.String, text.String)
-		}
-		if expected == "" || contentHash == "" || expected != contentHash {
-			coverage.Stale++
-		} else {
-			coverage.WithEmbeddings++
-		}
-
-		if firstDim == 0 {
-			firstDim = vectorDim
-		} else if vectorDim != firstDim {
-			coverage.DimMismatch++
-		}
-		if ts := parseTime(updatedAt); !ts.IsZero() {
-			if coverage.LastUpdated.IsZero() || ts.After(coverage.LastUpdated) {
-				coverage.LastUpdated = ts
+		defer rows.Close()
+		for rows.Next() {
+			var contentHash string
+			var vectorDim int
+			var updatedAt string
+			var title sql.NullString
+			var summary sql.NullString
+			var memTags sql.NullString
+			var entities sql.NullString
+			if err := rows.Scan(&contentHash, &vectorDim, &updatedAt, &title, &summary, &memTags, &entities); err != nil {
+				return EmbeddingCoverage{}, err
+			}
+			expected := embeddingContentHash(kind, title.String, summary.String, memTags.String, entities.String, "", "")
+			if expected == "" || contentHash == "" || expected != contentHash {
+				coverage.Stale++
+			} else {
+				coverage.WithEmbeddings++
+			}
+			if firstDim == 0 {
+				firstDim = vectorDim
+			} else if vectorDim != firstDim {
+				coverage.DimMismatch++
+			}
+			if ts := parseTime(updatedAt); !ts.IsZero() {
+				if coverage.LastUpdated.IsZero() || ts.After(coverage.LastUpdated) {
+					coverage.LastUpdated = ts
+				}
 			}
 		}
+		if err := rows.Err(); err != nil {
+			return EmbeddingCoverage{}, err
+		}
+	case EmbeddingKindChunk:
+		rows, err := s.db.Query(`
+			SELECT e.content_hash, e.vector_dim, e.updated_at,
+				c.locator, c.text, c.tags_text
+			FROM embeddings e
+			LEFT JOIN chunks c
+				ON c.chunk_id = e.item_id
+				AND c.repo_id = e.repo_id
+				AND c.workspace = e.workspace
+				AND c.deleted_at IS NULL
+			WHERE e.repo_id = ? AND e.workspace = ? AND e.kind = ? AND e.model = ?
+		`, repoID, workspace, kind, model)
+		if err != nil {
+			return EmbeddingCoverage{}, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var contentHash string
+			var vectorDim int
+			var updatedAt string
+			var locator sql.NullString
+			var text sql.NullString
+			var chunkTags sql.NullString
+			if err := rows.Scan(&contentHash, &vectorDim, &updatedAt, &locator, &text, &chunkTags); err != nil {
+				return EmbeddingCoverage{}, err
+			}
+			expected := embeddingContentHash(kind, "", "", chunkTags.String, "", locator.String, text.String)
+			if expected == "" || contentHash == "" || expected != contentHash {
+				coverage.Stale++
+			} else {
+				coverage.WithEmbeddings++
+			}
+			if firstDim == 0 {
+				firstDim = vectorDim
+			} else if vectorDim != firstDim {
+				coverage.DimMismatch++
+			}
+			if ts := parseTime(updatedAt); !ts.IsZero() {
+				if coverage.LastUpdated.IsZero() || ts.After(coverage.LastUpdated) {
+					coverage.LastUpdated = ts
+				}
+			}
+		}
+		if err := rows.Err(); err != nil {
+			return EmbeddingCoverage{}, err
+		}
+	default:
+		return EmbeddingCoverage{}, fmt.Errorf("unsupported embedding kind: %s", kind)
 	}
-	if err := rows.Err(); err != nil {
-		return EmbeddingCoverage{}, err
-	}
+
 	return coverage, nil
+}
+
+func (s *Store) HasEmbeddableItems(repoID, workspace, kind string) (bool, error) {
+	total, err := s.countItems(repoID, normalizeWorkspace(workspace), kind)
+	if err != nil {
+		return false, err
+	}
+	return total > 0, nil
 }
 
 func (s *Store) countItems(repoID, workspace, kind string) (int, error) {

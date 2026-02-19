@@ -19,6 +19,7 @@ type ContextOptions struct {
 	BudgetOverride   int
 	IncludeRawChunks bool
 	ClusterMemories  bool
+	RequireRepo      bool
 }
 
 func buildContextPack(query string, opts ContextOptions, timings *getTimings) (pack.ContextPack, error) {
@@ -35,7 +36,9 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	}
 
 	repoStart := time.Now()
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(opts.RepoOverride))
+	repoInfo, err := resolveRepoWithOptions(&cfg, strings.TrimSpace(opts.RepoOverride), repoResolveOptions{
+		RequireRepo: opts.RequireRepo,
+	})
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("repo detection error: %v", err)
 	}
@@ -54,9 +57,13 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	}
 
 	stateStart := time.Now()
-	stateRaw, stateTokens, stateUpdatedAt, err := loadState(repoInfo, workspace, st)
+	stateRaw, stateTokens, stateUpdatedAt, stateWarning, err := loadState(repoInfo, workspace, st)
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("state error: %v", err)
+	}
+	stateWarnings := []string{}
+	if strings.TrimSpace(stateWarning) != "" {
+		stateWarnings = append(stateWarnings, stateWarning)
 	}
 	t.StateLoad = time.Since(stateStart)
 
@@ -223,6 +230,9 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 
 	rawChunks := budget.Chunks
 	dedupedChunks := dedupeChunksWithSources(rawChunks, rankedChunks)
+	if dedupedChunks == nil {
+		dedupedChunks = []pack.ChunkItem{}
+	}
 
 	searchMeta := buildSearchMeta(len(memResults)+len(chunkResults), len(vectorMemResults)+len(vectorChunkResults), memStats, chunkStats, vectorMemStatus, vectorChunkStatus)
 	searchMeta.Query = query
@@ -236,6 +246,19 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	searchMeta.ClustersFormed = clustersFormed
 	if len(clusterWarnings) > 0 {
 		searchMeta.Warnings = uniqueStrings(append(searchMeta.Warnings, clusterWarnings...))
+	}
+	if len(stateWarnings) > 0 {
+		searchMeta.Warnings = uniqueStrings(append(searchMeta.Warnings, stateWarnings...))
+	}
+
+	if matchedThreads == nil {
+		matchedThreads = []pack.MatchedThread{}
+	}
+	if topMemories == nil {
+		topMemories = []pack.MemoryItem{}
+	}
+	if linkTrail == nil {
+		linkTrail = []pack.LinkTrail{}
 	}
 
 	result := pack.ContextPack{
@@ -337,7 +360,7 @@ func selectSanitizedQuery(memStats, chunkStats store.SearchStats) string {
 
 func dedupeChunksWithSources(chunks []pack.ChunkItem, ranked []RankedChunk) []pack.ChunkItem {
 	if len(chunks) == 0 {
-		return nil
+		return []pack.ChunkItem{}
 	}
 	byID := make(map[string]RankedChunk, len(ranked))
 	for _, item := range ranked {

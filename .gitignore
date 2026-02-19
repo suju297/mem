@@ -5,6 +5,7 @@
 output.txt
 bench_output.txt
 mem
+mem.exe
 improvements.md
 Architecture.md
 Bugs.md
@@ -19,6 +20,11 @@ implementation_plan.md
 *.trace
 coverage/
 tmp/
+dist/
+*.vsix
+extensions/vscode-mempack/node_modules/
+extensions/vscode-mempack/dist/
+docs/test-plan.md
 
 # Env files
 .env
@@ -30,3 +36,9 @@ tmp/
 .vscode/
 *.swp
 *.swo
+
+# Local sandbox memory-evaluation repos and evidence
+sandbox/
+
+# Local mempack config
+.mempack/config.json

@@ -7,8 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
+
+	"mempack/internal/pathutil"
 )
 
 type Info struct {
@@ -154,7 +155,7 @@ func IsAncestor(repoRoot, commit, head string) (bool, error) {
 }
 
 func fallbackInfo(cwd string) Info {
-	root := filepath.Clean(cwd)
+	root := pathutil.Canonical(cwd)
 	id := hashID("p_", root)
 	return Info{
 		ID:      id,
@@ -198,33 +199,37 @@ func gitOutput(repoRoot string, args ...string) (string, error) {
 }
 
 func gitRootHeadBranch(cwd string) (string, string, string, error) {
-	// Note: --abbrev-ref applies to subsequent args, so we put the SHA HEAD first
-	output, err := gitOutput(cwd, "rev-parse", "--show-toplevel", "HEAD", "--abbrev-ref", "HEAD")
+	rootOut, err := gitOutput(cwd, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return "", "", "", err
 	}
-	lines := splitLines(output)
-	if len(lines) < 3 {
+	root := pathutil.Canonical(rootOut)
+	if strings.TrimSpace(root) == "" {
 		return "", "", "", fmt.Errorf("unexpected rev-parse output")
 	}
-	root := strings.TrimSpace(lines[0])
-	head := strings.TrimSpace(lines[1])   // SHA
-	branch := strings.TrimSpace(lines[2]) // Branch
+
+	// These are best-effort: new repos may have an "unborn" HEAD (no commits yet).
+	headOut, _ := gitOutput(root, "rev-parse", "HEAD")
+	branchOut, _ := gitOutput(root, "symbolic-ref", "--short", "HEAD")
+	head := strings.TrimSpace(headOut)
+	branch := strings.TrimSpace(branchOut)
 	return root, head, branch, nil
 }
 
 func gitHeadBranch(root string) (string, string, error) {
-	// Note: --abbrev-ref applies to subsequent args, so we put the SHA HEAD first
-	output, err := gitOutput(root, "rev-parse", "HEAD", "--abbrev-ref", "HEAD")
-	if err != nil {
-		return "", "", err
+	root = pathutil.Canonical(root)
+
+	// Either or both may fail:
+	// - In a new repo with no commits, HEAD doesn't resolve but branch does.
+	// - In a detached HEAD state, branch doesn't resolve but HEAD does.
+	headOut, headErr := gitOutput(root, "rev-parse", "HEAD")
+	branchOut, branchErr := gitOutput(root, "symbolic-ref", "--short", "HEAD")
+
+	head := strings.TrimSpace(headOut)
+	branch := strings.TrimSpace(branchOut)
+	if headErr != nil && branchErr != nil {
+		return "", "", headErr
 	}
-	lines := splitLines(output)
-	if len(lines) < 2 {
-		return "", "", fmt.Errorf("unexpected rev-parse output")
-	}
-	head := strings.TrimSpace(lines[0])   // SHA
-	branch := strings.TrimSpace(lines[1]) // Branch
 	return head, branch, nil
 }
 

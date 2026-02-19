@@ -36,9 +36,15 @@ func checkOllamaAvailable(model string) (bool, string) {
 	available, errMsg := probeOllama(model)
 
 	autoCheckMu.Lock()
+	if now.Before(autoCheckUntil) && autoCheckModel == model {
+		available = autoCheckAvailable
+		errMsg = autoCheckError
+		autoCheckMu.Unlock()
+		return available, errMsg
+	}
 	autoCheckAvailable = available
 	autoCheckError = errMsg
-	autoCheckUntil = now.Add(autoCheckTTL)
+	autoCheckUntil = time.Now().Add(autoCheckTTL)
 	autoCheckModel = model
 	autoCheckMu.Unlock()
 

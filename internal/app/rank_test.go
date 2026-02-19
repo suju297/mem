@@ -52,6 +52,22 @@ func TestReachabilityFilter(t *testing.T) {
 	}
 }
 
+func TestPrepareVectorResultsFiltersByMinSimilarity(t *testing.T) {
+	in := []VectorResult{
+		{ID: "a", Score: 0.35},
+		{ID: "b", Score: 0.90},
+		{ID: "c", Score: 0.60},
+		{ID: "d", Score: 0.90},
+	}
+	got := prepareVectorResults(in, 0.60)
+	if len(got) != 3 {
+		t.Fatalf("expected 3 results after filtering, got %d", len(got))
+	}
+	if got[0].ID != "b" || got[1].ID != "d" || got[2].ID != "c" {
+		t.Fatalf("unexpected ordering after filter/sort: %+v", got)
+	}
+}
+
 func runGit(t testing.TB, dir string, args ...string) {
 	t.Helper()
 	cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)

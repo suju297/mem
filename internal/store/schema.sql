@@ -1,5 +1,3 @@
-PRAGMA foreign_keys = ON;
-
 CREATE TABLE IF NOT EXISTS repos (
     repo_id TEXT PRIMARY KEY,
     git_root TEXT NOT NULL,
@@ -115,7 +113,8 @@ CREATE TABLE IF NOT EXISTS links (
     rel TEXT NOT NULL,
     to_id TEXT NOT NULL,
     weight REAL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (from_id, rel, to_id)
 );
 
 CREATE TABLE IF NOT EXISTS meta (
@@ -137,6 +136,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS memories_fts USING fts5 (
     summary,
     tags,
     entities,
+    repo_id UNINDEXED,
     workspace UNINDEXED,
     mem_id UNINDEXED,
     tokenize = 'porter unicode61'
@@ -146,6 +146,7 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5 (
     locator,
     text,
     tags,
+    repo_id UNINDEXED,
     workspace UNINDEXED,
     chunk_id UNINDEXED,
     thread_id UNINDEXED,

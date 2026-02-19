@@ -37,10 +37,10 @@ func parseWriteConfig(allowWrite bool, repoOptIn bool, modeFlag string) (mcpWrit
 	switch mode {
 	case writeModeOff, writeModeAsk, writeModeAuto:
 	default:
-		return mcpWriteConfig{}, fmt.Errorf("invalid --write-mode: %s (use ask|auto|off)", mode)
+		return mcpWriteConfig{}, fmt.Errorf("invalid write mode: %s (use ask|auto|off)", mode)
 	}
 	if !allowWrite && !repoOptIn && mode != writeModeOff {
-		return mcpWriteConfig{}, fmt.Errorf("write mode requires --allow-write or mempack.allow_write=true in .mempack/MEMORY.md")
+		return mcpWriteConfig{}, fmt.Errorf("write mode requires --allow-write, mcp_allow_write=true in config, or .mempack/config.json")
 	}
 
 	allowed := (allowWrite || repoOptIn) && mode != writeModeOff
@@ -55,35 +55,33 @@ func parseWriteConfig(allowWrite bool, repoOptIn bool, modeFlag string) (mcpWrit
 	return mcpWriteConfig{Allowed: allowed, Mode: mode, Source: source}, nil
 }
 
-func handleAddMemory(ctx context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig) (*mcp.CallToolResult, error) {
+func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mempack.allow_write=true in .mempack/MEMORY.md)"), nil
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
 	}
 
-	threadID := strings.TrimSpace(request.GetString("thread", ""))
 	title := strings.TrimSpace(request.GetString("title", ""))
 	summary := strings.TrimSpace(request.GetString("summary", ""))
 	tags := strings.TrimSpace(request.GetString("tags", ""))
+	entities := strings.TrimSpace(request.GetString("entities", ""))
 	workspace := strings.TrimSpace(request.GetString("workspace", ""))
 	repoOverride := strings.TrimSpace(request.GetString("repo", ""))
 
-	if threadID == "" {
-		return mcp.NewToolResultError("missing thread"), nil
-	}
 	if title == "" {
 		return mcp.NewToolResultError("missing title"), nil
-	}
-	if summary == "" {
-		return mcp.NewToolResultError("missing summary"), nil
 	}
 	if err := requireWriteConfirmation(request, writeCfg); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	if pattern, ok := detectSensitive(title); ok {
+		return mcp.NewToolResultError(fmt.Sprintf("potential secret detected (%s); redact and retry", pattern)), nil
+	}
 	if pattern, ok := detectSensitive(summary); ok {
 		return mcp.NewToolResultError(fmt.Sprintf("potential secret detected (%s); redact and retry", pattern)), nil
 	}
-
-	untrusted := containsInjection(summary)
+	if containsInjection(summary) || containsInjection(title) {
+		return mcp.NewToolResultError("title/summary contains unsafe phrases; remove and retry"), nil
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -96,9 +94,15 @@ func handleAddMemory(ctx context.Context, request mcp.CallToolRequest, writeCfg 
 		return mcp.NewToolResultError(fmt.Sprintf("tokenizer error: %v", err)), nil
 	}
 
-	repoInfo, err := resolveRepo(cfg, repoOverride)
+	repoInfo, err := resolveRepoWithOptions(&cfg, repoOverride, repoResolveOptions{
+		RequireRepo: requireRepo,
+	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+	threadUsed, threadDefaulted, err := resolveThread(cfg, strings.TrimSpace(request.GetString("thread", "")))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	st, err := openStore(cfg, repoInfo.ID)
@@ -113,12 +117,12 @@ func handleAddMemory(ctx context.Context, request mcp.CallToolRequest, writeCfg 
 
 	tagList := store.ParseTags(tags)
 	tagList = store.NormalizeTags(tagList)
-	if untrusted {
-		tagList = append(tagList, "untrusted")
-		tagList = store.NormalizeTags(tagList)
-	}
 	tagsJSON := store.TagsToJSON(tagList)
 	tagsText := store.TagsText(tagList)
+	entityList := store.ParseEntities(entities)
+	entityList = store.NormalizeEntities(entityList)
+	entitiesJSON := store.EntitiesToJSON(entityList)
+	entitiesText := store.EntitiesText(entityList)
 
 	anchorCommit := ""
 	if repoInfo.HasGit {
@@ -130,14 +134,14 @@ func handleAddMemory(ctx context.Context, request mcp.CallToolRequest, writeCfg 
 	memory, err := st.AddMemory(store.AddMemoryInput{
 		RepoID:        repoInfo.ID,
 		Workspace:     workspace,
-		ThreadID:      threadID,
+		ThreadID:      threadUsed,
 		Title:         title,
 		Summary:       summary,
 		SummaryTokens: summaryTokens,
 		TagsJSON:      tagsJSON,
 		TagsText:      tagsText,
-		EntitiesJSON:  "[]",
-		EntitiesText:  "",
+		EntitiesJSON:  entitiesJSON,
+		EntitiesText:  entitiesText,
 		AnchorCommit:  anchorCommit,
 		CreatedAt:     createdAt,
 	})
@@ -146,12 +150,14 @@ func handleAddMemory(ctx context.Context, request mcp.CallToolRequest, writeCfg 
 	}
 	_ = maybeEmbedMemory(cfg, st, memory)
 
-	result := map[string]string{
-		"id":            memory.ID,
-		"thread_id":     memory.ThreadID,
-		"title":         memory.Title,
-		"anchor_commit": memory.AnchorCommit,
-		"created_at":    memory.CreatedAt.UTC().Format(time.RFC3339Nano),
+	result := map[string]any{
+		"id":               memory.ID,
+		"thread_id":        memory.ThreadID,
+		"thread_used":      memory.ThreadID,
+		"thread_defaulted": threadDefaulted,
+		"title":            memory.Title,
+		"anchor_commit":    memory.AnchorCommit,
+		"created_at":       memory.CreatedAt.UTC().Format(time.RFC3339Nano),
 	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
@@ -161,14 +167,191 @@ func handleAddMemory(ctx context.Context, request mcp.CallToolRequest, writeCfg 
 	}, nil
 }
 
-func handleCheckpoint(ctx context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig) (*mcp.CallToolResult, error) {
+func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mempack.allow_write=true in .mempack/MEMORY.md)"), nil
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
+	}
+
+	id := strings.TrimSpace(request.GetString("id", ""))
+	if id == "" {
+		return mcp.NewToolResultError("missing id"), nil
+	}
+
+	flags := updateFieldFlagsFromMCPRequest(request)
+	if !flags.Any() {
+		return mcp.NewToolResultError("no update fields provided"), nil
+	}
+
+	if err := requireWriteConfirmation(request, writeCfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	title := strings.TrimSpace(request.GetString("title", ""))
+	summary := strings.TrimSpace(request.GetString("summary", ""))
+	tags := strings.TrimSpace(request.GetString("tags", ""))
+	tagsAdd := strings.TrimSpace(request.GetString("tags_add", ""))
+	tagsRemove := strings.TrimSpace(request.GetString("tags_remove", ""))
+	entities := strings.TrimSpace(request.GetString("entities", ""))
+	entitiesAdd := strings.TrimSpace(request.GetString("entities_add", ""))
+	entitiesRemove := strings.TrimSpace(request.GetString("entities_remove", ""))
+	workspace := strings.TrimSpace(request.GetString("workspace", ""))
+	repoOverride := strings.TrimSpace(request.GetString("repo", ""))
+
+	cfg, err := loadConfig()
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("config error: %v", err)), nil
+	}
+	workspace = resolveWorkspace(cfg, workspace)
+
+	repoInfo, err := resolveRepoWithOptions(&cfg, repoOverride, repoResolveOptions{
+		RequireRepo: requireRepo,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+
+	st, err := openStore(cfg, repoInfo.ID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
+	}
+	defer st.Close()
+
+	updateInput, err := makeUpdateMemoryInput(
+		repoInfo.ID,
+		workspace,
+		id,
+		cfg.Tokenizer,
+		flags,
+		updateFieldValues{
+			Title:          title,
+			Summary:        summary,
+			Tags:           tags,
+			TagsAdd:        tagsAdd,
+			TagsRemove:     tagsRemove,
+			Entities:       entities,
+			EntitiesAdd:    entitiesAdd,
+			EntitiesRemove: entitiesRemove,
+		},
+	)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("tokenizer error: %v", err)), nil
+	}
+
+	mem, changed, err := st.UpdateMemoryWithStatus(updateInput)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("update memory error: %v", err)), nil
+	}
+	if changed {
+		_ = maybeEmbedMemory(cfg, st, mem)
+	}
+
+	result := map[string]any{
+		"id":         mem.ID,
+		"thread_id":  mem.ThreadID,
+		"title":      mem.Title,
+		"summary":    mem.Summary,
+		"updated_at": time.Now().UTC().Format(time.RFC3339Nano),
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{Type: "text", Text: fmt.Sprintf("Memory updated: %s", mem.ID)},
+		},
+		StructuredContent: result,
+	}, nil
+}
+
+func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
+	if !writeCfg.Allowed {
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
+	}
+
+	fromID := strings.TrimSpace(request.GetString("from_id", ""))
+	toID := strings.TrimSpace(request.GetString("to_id", ""))
+	relRaw := request.GetString("rel", "")
+	workspace := strings.TrimSpace(request.GetString("workspace", ""))
+	repoOverride := strings.TrimSpace(request.GetString("repo", ""))
+
+	if fromID == "" {
+		return mcp.NewToolResultError("missing from_id"), nil
+	}
+	if toID == "" {
+		return mcp.NewToolResultError("missing to_id"), nil
+	}
+	if fromID == toID {
+		return mcp.NewToolResultError("from_id and to_id must differ"), nil
+	}
+	rel, err := normalizeLinkRelation(relRaw)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid rel: %v", err)), nil
+	}
+	if err := requireWriteConfirmation(request, writeCfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("config error: %v", err)), nil
+	}
+	workspace = resolveWorkspace(cfg, workspace)
+
+	repoInfo, err := resolveRepoWithOptions(&cfg, repoOverride, repoResolveOptions{
+		RequireRepo: requireRepo,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+
+	st, err := openStore(cfg, repoInfo.ID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
+	}
+	defer st.Close()
+
+	if err := st.EnsureRepo(repoInfo); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("store repo error: %v", err)), nil
+	}
+	if _, err := ensureMemoryExistsForLink(st, repoInfo.ID, workspace, fromID, "from"); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if _, err := ensureMemoryExistsForLink(st, repoInfo.ID, workspace, toID, "to"); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	createdAt := time.Now().UTC()
+	if err := st.AddLink(store.Link{
+		FromID:    fromID,
+		Rel:       rel,
+		ToID:      toID,
+		Weight:    1,
+		CreatedAt: createdAt,
+	}); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("link error: %v", err)), nil
+	}
+
+	result := map[string]any{
+		"from_id":    fromID,
+		"rel":        rel,
+		"to_id":      toID,
+		"weight":     1,
+		"created_at": createdAt.Format(time.RFC3339Nano),
+		"status":     "linked",
+	}
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			mcp.TextContent{Type: "text", Text: fmt.Sprintf("Memory link saved: %s --%s--> %s", fromID, rel, toID)},
+		},
+		StructuredContent: result,
+	}, nil
+}
+
+func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
+	if !writeCfg.Allowed {
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
 	}
 
 	reason := strings.TrimSpace(request.GetString("reason", ""))
 	stateJSON := strings.TrimSpace(request.GetString("state_json", ""))
-	threadID := strings.TrimSpace(request.GetString("thread", ""))
 	workspace := strings.TrimSpace(request.GetString("workspace", ""))
 	repoOverride := strings.TrimSpace(request.GetString("repo", ""))
 
@@ -207,9 +390,15 @@ func handleCheckpoint(ctx context.Context, request mcp.CallToolRequest, writeCfg
 		return mcp.NewToolResultError(fmt.Sprintf("tokenizer error: %v", err)), nil
 	}
 
-	repoInfo, err := resolveRepo(cfg, repoOverride)
+	repoInfo, err := resolveRepoWithOptions(&cfg, repoOverride, repoResolveOptions{
+		RequireRepo: requireRepo,
+	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+	threadUsed, threadDefaulted, err := resolveThread(cfg, strings.TrimSpace(request.GetString("thread", "")))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	st, err := openStore(cfg, repoInfo.ID)
@@ -228,37 +417,37 @@ func handleCheckpoint(ctx context.Context, request mcp.CallToolRequest, writeCfg
 		return mcp.NewToolResultError(fmt.Sprintf("state current error: %v", err)), nil
 	}
 
-	resp := map[string]string{
-		"state_id":  stateID,
-		"workspace": workspace,
-		"reason":    reason,
+	anchorCommit := ""
+	if repoInfo.HasGit {
+		anchorCommit = repoInfo.Head
 	}
+	reasonTokens := counter.Count(reason)
+	mem, err := st.AddMemory(store.AddMemoryInput{
+		RepoID:        repoInfo.ID,
+		ThreadID:      threadUsed,
+		Workspace:     workspace,
+		Title:         "Checkpoint",
+		Summary:       reason,
+		SummaryTokens: reasonTokens,
+		TagsJSON:      "[]",
+		TagsText:      "",
+		EntitiesJSON:  "[]",
+		EntitiesText:  "",
+		AnchorCommit:  anchorCommit,
+		CreatedAt:     now,
+	})
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("memory add error: %v", err)), nil
+	}
+	_ = maybeEmbedMemory(cfg, st, mem)
 
-	if threadID != "" {
-		anchorCommit := ""
-		if repoInfo.HasGit {
-			anchorCommit = repoInfo.Head
-		}
-		reasonTokens := counter.Count(reason)
-		mem, err := st.AddMemory(store.AddMemoryInput{
-			RepoID:        repoInfo.ID,
-			ThreadID:      threadID,
-			Workspace:     workspace,
-			Title:         "Checkpoint",
-			Summary:       reason,
-			SummaryTokens: reasonTokens,
-			TagsJSON:      "[]",
-			TagsText:      "",
-			EntitiesJSON:  "[]",
-			EntitiesText:  "",
-			AnchorCommit:  anchorCommit,
-			CreatedAt:     now,
-		})
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("memory add error: %v", err)), nil
-		}
-		_ = maybeEmbedMemory(cfg, st, mem)
-		resp["memory_id"] = mem.ID
+	resp := map[string]any{
+		"state_id":         stateID,
+		"workspace":        workspace,
+		"reason":           reason,
+		"memory_id":        mem.ID,
+		"thread_used":      threadUsed,
+		"thread_defaulted": threadDefaulted,
 	}
 
 	return &mcp.CallToolResult{
@@ -278,6 +467,15 @@ func requireWriteConfirmation(request mcp.CallToolRequest, writeCfg mcpWriteConf
 		return fmt.Errorf("write_mode=ask requires confirmed=true after user approval")
 	}
 	return nil
+}
+
+func requestHasArg(request mcp.CallToolRequest, key string) bool {
+	args := request.GetArguments()
+	if args == nil {
+		return false
+	}
+	_, ok := args[key]
+	return ok
 }
 
 func detectSensitive(text string) (string, bool) {
@@ -305,11 +503,5 @@ func detectSensitive(text string) (string, bool) {
 }
 
 func containsInjection(text string) bool {
-	lower := strings.ToLower(text)
-	for _, phrase := range []string{"ignore previous instructions", "system prompt", "you are an ai", "jailbreak"} {
-		if strings.Contains(lower, phrase) {
-			return true
-		}
-	}
-	return false
+	return containsPromptInjectionPhrase(text)
 }

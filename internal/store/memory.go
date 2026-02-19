@@ -61,6 +61,23 @@ type AddMemoryInput struct {
 	CreatedAt     time.Time
 }
 
+type UpdateMemoryInput struct {
+	RepoID         string
+	Workspace      string
+	ID             string
+	Title          *string
+	Summary        *string
+	SummaryTokens  *int
+	TagsSet        bool
+	Tags           []string
+	TagsAdd        []string
+	TagsRemove     []string
+	EntitiesSet    bool
+	Entities       []string
+	EntitiesAdd    []string
+	EntitiesRemove []string
+}
+
 func (s *Store) AddMemory(input AddMemoryInput) (Memory, error) {
 	createdAt := input.CreatedAt.UTC().Format(time.RFC3339Nano)
 	id := input.ID
@@ -143,13 +160,14 @@ func (s *Store) searchMemoriesWithQuery(repoID, workspace, query string, limit i
 
 	candidateStart := time.Now()
 	rows, err := s.db.Query(`
-		SELECT rowid, bm25(memories_fts, 5.0, 3.0, 2.0, 2.0, 0.0, 0.0)
+		SELECT rowid, bm25(memories_fts, 5.0, 3.0, 2.0, 2.0, 0.0, 0.0, 0.0)
 		FROM memories_fts
 		WHERE memories_fts MATCH ?
+		AND repo_id = ?
 		AND workspace = ?
-		ORDER BY bm25(memories_fts, 5.0, 3.0, 2.0, 2.0, 0.0, 0.0)
+		ORDER BY bm25(memories_fts, 5.0, 3.0, 2.0, 2.0, 0.0, 0.0, 0.0)
 		LIMIT ?
-	`, query, workspace, candidateLimit)
+	`, query, repoID, workspace, candidateLimit)
 	if err != nil {
 		return nil, SearchStats{}, err
 	}
@@ -286,13 +304,14 @@ func (s *Store) searchChunksWithQuery(repoID, workspace, query string, limit int
 
 	candidateStart := time.Now()
 	rows, err := s.db.Query(`
-		SELECT rowid, bm25(chunks_fts, 1.0, 3.0, 2.0, 0.0, 0.0, 0.0)
+		SELECT rowid, bm25(chunks_fts, 1.0, 3.0, 2.0, 0.0, 0.0, 0.0, 0.0)
 		FROM chunks_fts
 		WHERE chunks_fts MATCH ?
+		AND repo_id = ?
 		AND workspace = ?
-		ORDER BY bm25(chunks_fts, 1.0, 3.0, 2.0, 0.0, 0.0, 0.0)
+		ORDER BY bm25(chunks_fts, 1.0, 3.0, 2.0, 0.0, 0.0, 0.0, 0.0)
 		LIMIT ?
-	`, query, workspace, candidateLimit)
+	`, query, repoID, workspace, candidateLimit)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such table") {
 			return nil, SearchStats{}, nil
@@ -477,6 +496,46 @@ func ParseTags(value string) []string {
 
 func TagsText(tags []string) string {
 	return strings.Join(tags, " ")
+}
+
+func EntitiesToJSON(entities []string) string {
+	if len(entities) == 0 {
+		return "[]"
+	}
+	encoded, err := json.Marshal(entities)
+	if err != nil {
+		return "[]"
+	}
+	return string(encoded)
+}
+
+func NormalizeEntities(entities []string) []string {
+	seen := make(map[string]struct{})
+	var normalized []string
+	for _, entity := range entities {
+		entity = strings.TrimSpace(entity)
+		if entity == "" {
+			continue
+		}
+		if _, ok := seen[entity]; ok {
+			continue
+		}
+		seen[entity] = struct{}{}
+		normalized = append(normalized, entity)
+	}
+	return normalized
+}
+
+func ParseEntities(value string) []string {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	return NormalizeEntities(parts)
+}
+
+func EntitiesText(entities []string) string {
+	return strings.Join(entities, " ")
 }
 
 const maxQueryLength = 4096

@@ -19,7 +19,7 @@ git -C "$repo" config user.email "demo@example.com"
 cd "$repo"
 
 echo "=== 1. Initialization ==="
-"$bin" init --with-agents
+"$bin" init
 ls -l AGENTS.md
 
 echo -e "\n=== 2. Add Memory ==="

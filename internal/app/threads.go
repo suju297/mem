@@ -36,9 +36,11 @@ func runThreads(args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 	repoOverride := fs.String("repo", "", "Override repo id")
 	workspace := fs.String("workspace", "", "Workspace name")
+	format := fs.String("format", "json", "Output format: json")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
 		"repo":      {RequiresValue: true},
 		"workspace": {RequiresValue: true},
+		"format":    {RequiresValue: true},
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
@@ -51,6 +53,10 @@ func runThreads(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(positional, " "))
 		return 2
 	}
+	if strings.TrimSpace(*format) != "json" {
+		fmt.Fprintf(errOut, "unsupported format: %s\n", *format)
+		return 2
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -59,7 +65,7 @@ func runThreads(args []string, out, errOut io.Writer) int {
 	}
 	workspaceName := resolveWorkspace(cfg, strings.TrimSpace(*workspace))
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1
@@ -104,10 +110,12 @@ func runThreadShow(args []string, out, errOut io.Writer) int {
 	repoOverride := fs.String("repo", "", "Override repo id")
 	limit := fs.Int("limit", 20, "Max memories to show")
 	workspace := fs.String("workspace", "", "Workspace name")
+	format := fs.String("format", "json", "Output format: json")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
 		"repo":      {RequiresValue: true},
 		"limit":     {RequiresValue: true},
 		"workspace": {RequiresValue: true},
+		"format":    {RequiresValue: true},
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
@@ -122,6 +130,10 @@ func runThreadShow(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "missing thread id")
 		return 2
 	}
+	if strings.TrimSpace(*format) != "json" {
+		fmt.Fprintf(errOut, "unsupported format: %s\n", *format)
+		return 2
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -130,7 +142,7 @@ func runThreadShow(args []string, out, errOut io.Writer) int {
 	}
 	workspaceName := resolveWorkspace(cfg, strings.TrimSpace(*workspace))
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1

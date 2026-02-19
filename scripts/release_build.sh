@@ -1,17 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${VERSION:-v0.2.0}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+VERSION="${VERSION:-}"
 COMMIT="${COMMIT:-}"
 
+if [[ -z "$VERSION" ]] && command -v git >/dev/null 2>&1; then
+  VERSION="$(git describe --tags --dirty --always 2>/dev/null || true)"
+fi
+if [[ -z "$VERSION" ]] && command -v python3 >/dev/null 2>&1 && [[ -f "$ROOT_DIR/extensions/vscode-mempack/package.json" ]]; then
+  VERSION="v$(python3 - <<'PY'
+import json, os
+path = os.path.join(os.environ["ROOT_DIR"], "extensions", "vscode-mempack", "package.json")
+with open(path, "r", encoding="utf-8") as f:
+    print(json.load(f).get("version", "").strip())
+PY
+)"
+fi
+if [[ -z "$VERSION" || "$VERSION" == "v" ]]; then
+  VERSION="v0.0.0-dev"
+fi
+
 if [[ -z "$COMMIT" ]] && command -v git >/dev/null 2>&1; then
-  COMMIT="$(git rev-parse --short HEAD || true)"
+  COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)"
 fi
 if [[ -z "$COMMIT" ]]; then
   COMMIT="dev"
 fi
-
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist/$VERSION"
 BIN_NAME="mem"
 

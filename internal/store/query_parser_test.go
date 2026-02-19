@@ -14,6 +14,9 @@ func TestQueryIntentDetection(t *testing.T) {
 		{"auth login", IntentSearch, 1.0},
 		{"recent auth changes", IntentRecent, 2.0},
 		{"show me today's work", IntentRecent, 3.0},
+		{"what's new in auth", IntentRecent, 1.5},
+		{"create new memory", IntentSearch, 1.0},
+		{"new architecture proposal", IntentSearch, 1.0},
 		{"thread T-AUTH", IntentThread, 1.0},
 		{"Store.AddMemory function", IntentSymbol, 1.0},
 		{"changes in auth.go", IntentFile, 1.0},
@@ -26,6 +29,34 @@ func TestQueryIntentDetection(t *testing.T) {
 		}
 		if parsed.BoostRecency != tt.boost {
 			t.Errorf("%q: expected boost %.1f, got %.1f", tt.query, tt.boost, parsed.BoostRecency)
+		}
+	}
+}
+
+func TestParseQueryNewRecencyHeuristics(t *testing.T) {
+	positive := []string{
+		"new",
+		"new changes in auth",
+		"show me new updates",
+		"what is new in auth",
+	}
+	for _, q := range positive {
+		parsed := ParseQuery(q)
+		if parsed.TimeHint == nil || parsed.BoostRecency <= 1.0 {
+			t.Fatalf("%q: expected recent time hint and boost > 1.0", q)
+		}
+	}
+
+	negative := []string{
+		"create new endpoint",
+		"new architecture proposal",
+		"adjust build pipeline",
+		"renew auth token",
+	}
+	for _, q := range negative {
+		parsed := ParseQuery(q)
+		if parsed.TimeHint != nil || parsed.BoostRecency != 1.0 {
+			t.Fatalf("%q: expected no recency hint", q)
 		}
 	}
 }

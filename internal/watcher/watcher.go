@@ -179,9 +179,6 @@ func (w *Watcher) addDirRecursive(path string) error {
 			return err
 		}
 		if d.Type()&os.ModeSymlink != 0 {
-			if d.IsDir() {
-				return filepath.SkipDir
-			}
 			return nil
 		}
 		if !d.IsDir() {

@@ -68,6 +68,38 @@ func TestDetect(t *testing.T) {
 	runGit(t, tmpDir, "checkout", "main") // restore
 }
 
+func TestDetectStrictUnbornHEAD(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mempack-test-unborn-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Git repo with no commits yet (unborn HEAD).
+	runGit(t, tmpDir, "init", "-q", "--initial-branch=main")
+
+	info, err := DetectStrict(tmpDir)
+	if err != nil {
+		t.Fatalf("DetectStrict unborn HEAD failed: %v", err)
+	}
+	if !info.HasGit {
+		t.Fatalf("expected HasGit=true for git repo without commits")
+	}
+	if info.GitRoot == "" {
+		t.Fatalf("expected non-empty GitRoot")
+	}
+	if info.Branch == "" {
+		t.Fatalf("expected non-empty Branch for unborn HEAD")
+	}
+	if info.Head != "" {
+		// Before the first commit, HEAD does not resolve to a SHA.
+		t.Fatalf("expected empty Head for unborn HEAD, got %q", info.Head)
+	}
+	if info.ID == "" {
+		t.Fatalf("expected non-empty ID")
+	}
+}
+
 func TestIsAncestor(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "mempack-test-ancestry-*")
 	if err != nil {

@@ -41,7 +41,14 @@ func vectorSearchMemories(cfg config.Config, st *store.Store, repoID, workspace,
 		return nil, status
 	}
 	if len(embeddings) == 0 {
-		status.Error = fmt.Sprintf("no embeddings stored for model %s (run: mem embed)", model)
+		hasItems, err := st.HasEmbeddableItems(repoID, workspace, store.EmbeddingKindMemory)
+		if err != nil {
+			status.Error = fmt.Sprintf("embedding lookup failed: %v", err)
+			return nil, status
+		}
+		if hasItems {
+			status.Error = fmt.Sprintf("no embeddings stored for model %s (run: mem embed)", model)
+		}
 		return nil, status
 	}
 
@@ -76,7 +83,14 @@ func vectorSearchChunks(cfg config.Config, st *store.Store, repoID, workspace, q
 		return nil, status
 	}
 	if len(embeddings) == 0 {
-		status.Error = fmt.Sprintf("no embeddings stored for model %s (run: mem embed)", model)
+		hasItems, err := st.HasEmbeddableItems(repoID, workspace, store.EmbeddingKindChunk)
+		if err != nil {
+			status.Error = fmt.Sprintf("embedding lookup failed: %v", err)
+			return nil, status
+		}
+		if hasItems {
+			status.Error = fmt.Sprintf("no embeddings stored for model %s (run: mem embed)", model)
+		}
 		return nil, status
 	}
 
@@ -113,7 +127,7 @@ func filterVectorResults(results []VectorResult, minSimilarity float64) []Vector
 	if len(results) == 0 {
 		return results
 	}
-	filtered := results[:0]
+	filtered := make([]VectorResult, 0, len(results))
 	for _, res := range results {
 		if res.Score >= minSimilarity {
 			filtered = append(filtered, res)

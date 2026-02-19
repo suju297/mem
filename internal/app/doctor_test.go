@@ -19,7 +19,7 @@ func TestDoctorRepairsInvalidStateCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config error: %v", err)
 	}
-	repoInfo, err := resolveRepo(cfg, "")
+	repoInfo, err := resolveRepo(&cfg, "")
 	if err != nil {
 		t.Fatalf("repo detection error: %v", err)
 	}

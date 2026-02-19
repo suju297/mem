@@ -202,12 +202,8 @@ func rankChunks(results []store.ChunkResult, vectorOnly []store.Chunk, vectorRes
 			chunk.ThreadBonus = 0.10
 		}
 
-		textLower := strings.ToLower(chunk.Chunk.Text)
-		for _, phrase := range []string{"ignore previous instructions", "system prompt", "you are an ai", "jailbreak"} {
-			if strings.Contains(textLower, phrase) {
-				chunk.SafetyPenalty = -100.0
-				break
-			}
+		if containsPromptInjectionPhrase(chunk.Chunk.Text) {
+			chunk.SafetyPenalty = -100.0
 		}
 		candidates = append(candidates, chunk)
 		ftsOrder = append(ftsOrder, res.Chunk.ID)
@@ -220,17 +216,13 @@ func rankChunks(results []store.ChunkResult, vectorOnly []store.Chunk, vectorRes
 		}
 		chunk := RankedChunk{Chunk: res}
 		chunk.FTSScore = -chunk.BM25
-		chunk.RecencyBonus = recencyBonus(now, chunk.Chunk.CreatedAt)
+		chunk.RecencyBonus = recencyBonus(now, chunk.Chunk.CreatedAt) * recencyMult
 		if _, ok := matchedThreadIDs[chunk.Chunk.ThreadID]; ok {
 			chunk.ThreadBonus = 0.10
 		}
 
-		textLower := strings.ToLower(chunk.Chunk.Text)
-		for _, phrase := range []string{"ignore previous instructions", "system prompt", "you are an ai", "jailbreak"} {
-			if strings.Contains(textLower, phrase) {
-				chunk.SafetyPenalty = -100.0
-				break
-			}
+		if containsPromptInjectionPhrase(chunk.Chunk.Text) {
+			chunk.SafetyPenalty = -100.0
 		}
 		candidates = append(candidates, chunk)
 		seenIDs[res.ID] = struct{}{}
@@ -357,8 +349,19 @@ func prepareVectorResults(results []VectorResult, minSimilarity float64) []Vecto
 	if len(results) == 0 {
 		return results
 	}
-	_ = minSimilarity
-	sorted := append([]VectorResult(nil), results...)
+	if minSimilarity < 0 {
+		minSimilarity = 0
+	}
+	filtered := make([]VectorResult, 0, len(results))
+	for _, res := range results {
+		if res.Score >= minSimilarity {
+			filtered = append(filtered, res)
+		}
+	}
+	if len(filtered) == 0 {
+		return nil
+	}
+	sorted := append([]VectorResult(nil), filtered...)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		if sorted[i].Score != sorted[j].Score {
 			return sorted[i].Score > sorted[j].Score

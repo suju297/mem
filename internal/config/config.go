@@ -22,7 +22,11 @@ type Config struct {
 	ChunksK                int               `toml:"chunks_k"`
 	ChunkMaxEach           int               `toml:"chunk_max_each"`
 	MCPAutoRepair          bool              `toml:"mcp_auto_repair"`
+	MCPAllowWrite          bool              `toml:"mcp_allow_write"`
+	MCPWriteMode           string            `toml:"mcp_write_mode"`
+	MCPRequireRepo         bool              `toml:"mcp_require_repo"`
 	DefaultWorkspace       string            `toml:"default_workspace"`
+	DefaultThread          string            `toml:"default_thread"`
 	EmbeddingProvider      string            `toml:"embedding_provider"`
 	EmbeddingModel         string            `toml:"embedding_model"`
 	EmbeddingMinSimilarity float64           `toml:"embedding_min_similarity"`
@@ -54,7 +58,11 @@ func Default() (Config, error) {
 		ChunksK:                4,
 		ChunkMaxEach:           320,
 		MCPAutoRepair:          false,
+		MCPAllowWrite:          true,
+		MCPWriteMode:           "ask",
+		MCPRequireRepo:         false,
 		DefaultWorkspace:       "default",
+		DefaultThread:          "T-SESSION",
 		EmbeddingProvider:      "auto",
 		EmbeddingModel:         "nomic-embed-text",
 		EmbeddingMinSimilarity: 0.6,
@@ -81,7 +89,6 @@ func Load() (Config, error) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {
 		return Config{}, err
 	}
-	cfg.DataDir = dataDir
 
 	return cfg, nil
 }
@@ -102,25 +109,74 @@ func (c Config) Save() error {
 	if _, err := os.Stat(path); err == nil {
 		var existing Config
 		if _, err := toml.DecodeFile(path, &existing); err == nil {
-			if len(existing.RepoCache) > 0 {
-				if c.RepoCache == nil {
-					c.RepoCache = map[string]string{}
-				}
-				for key, value := range existing.RepoCache {
-					if _, ok := c.RepoCache[key]; !ok {
-						c.RepoCache[key] = value
-					}
-				}
-			}
+			c.RepoCache = mergeRepoCache(existing.RepoCache, c.RepoCache)
 		}
 	}
+	if c.RepoCache == nil {
+		c.RepoCache = map[string]string{}
+	}
+	return writeConfigFile(path, c)
+}
+
+// SaveRepoState persists only repo-routing state (active_repo and repo_cache).
+// It intentionally preserves all other persisted settings to avoid leaking
+// runtime-effective overrides (e.g. --data-dir / MEMPACK_DATA_DIR) into config.toml.
+func (c Config) SaveRepoState() error {
+	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(c.ConfigDir, "config.toml")
+
+	persisted, err := Default()
+	if err != nil {
+		return err
+	}
+	persisted.ConfigDir = c.ConfigDir
+
+	if _, err := os.Stat(path); err == nil {
+		if _, err := toml.DecodeFile(path, &persisted); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	persisted.ActiveRepo = c.ActiveRepo
+	persisted.RepoCache = mergeRepoCache(persisted.RepoCache, c.RepoCache)
+	return writeConfigFile(path, persisted)
+}
+
+func mergeRepoCache(existing map[string]string, updates map[string]string) map[string]string {
+	merged := map[string]string{}
+	for key, value := range existing {
+		if strings.TrimSpace(key) == "" || strings.TrimSpace(value) == "" {
+			continue
+		}
+		merged[key] = value
+	}
+	for key, value := range updates {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" {
+			continue
+		}
+		if value == "" {
+			delete(merged, key)
+			continue
+		}
+		merged[key] = value
+	}
+	return merged
+}
+
+func writeConfigFile(path string, cfg Config) error {
 	tmpPath := path + ".tmp"
 	file, err := os.Create(tmpPath)
 	if err != nil {
 		return err
 	}
 	encoder := toml.NewEncoder(file)
-	if err := encoder.Encode(c); err != nil {
+	if err := encoder.Encode(cfg); err != nil {
 		file.Close()
 		return err
 	}

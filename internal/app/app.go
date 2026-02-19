@@ -42,6 +42,8 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runGet(args[1:], out, errOut)
 	case "add":
 		return runAdd(args[1:], out, errOut)
+	case "update":
+		return runUpdate(args[1:], out, errOut)
 	case "explain":
 		return runExplain(args[1:], out, errOut)
 	case "show":
@@ -50,6 +52,8 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runForget(args[1:], out, errOut)
 	case "supersede":
 		return runSupersede(args[1:], out, errOut)
+	case "link":
+		return runLink(args[1:], out, errOut)
 	case "checkpoint":
 		return runCheckpoint(args[1:], out, errOut)
 	case "repos":
@@ -60,6 +64,14 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runThreads(args[1:], out, errOut)
 	case "thread":
 		return runThreadShow(args[1:], out, errOut)
+	case "recent":
+		return runRecent(args[1:], out, errOut)
+	case "sessions":
+		return runSessions(args[1:], out, errOut)
+	case "session":
+		return runSession(args[1:], out, errOut)
+	case "share":
+		return runShare(args[1:], out, errOut)
 	case "ingest-artifact":
 		return runIngest(args[1:], out, errOut)
 	case "embed":

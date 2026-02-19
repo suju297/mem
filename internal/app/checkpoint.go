@@ -27,7 +27,7 @@ func runCheckpoint(args []string, out, errOut io.Writer) int {
 	workspace := fs.String("workspace", "", "Workspace name")
 	stateFile := fs.String("state-file", "", "Path to state JSON/markdown")
 	stateJSON := fs.String("state-json", "", "Inline state JSON")
-	threadID := fs.String("thread", "", "Optional thread id for a reason memory")
+	threadID := fs.String("thread", "", "Thread id (optional; defaults to default_thread or T-SESSION)")
 	repoOverride := fs.String("repo", "", "Override repo id")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
 		"reason":     {RequiresValue: true},
@@ -74,10 +74,15 @@ func runCheckpoint(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1
+	}
+	threadUsed, threadDefaulted, err := resolveThread(cfg, strings.TrimSpace(*threadID))
+	if err != nil {
+		fmt.Fprintln(errOut, err.Error())
+		return 2
 	}
 
 	st, err := openStore(cfg, repoInfo.ID)
@@ -105,37 +110,43 @@ func runCheckpoint(args []string, out, errOut io.Writer) int {
 		Reason:    reasonText,
 	}
 
-	if strings.TrimSpace(*threadID) != "" {
-		anchorCommit := ""
-		if repoInfo.HasGit {
-			anchorCommit = repoInfo.Head
-		}
-		reasonTokens := counter.Count(reasonText)
-		mem, err := st.AddMemory(store.AddMemoryInput{
-			RepoID:        repoInfo.ID,
-			ThreadID:      strings.TrimSpace(*threadID),
-			Workspace:     workspaceName,
-			Title:         "Checkpoint",
-			Summary:       reasonText,
-			SummaryTokens: reasonTokens,
-			TagsJSON:      "[]",
-			TagsText:      "",
-			EntitiesJSON:  "[]",
-			EntitiesText:  "",
-			AnchorCommit:  anchorCommit,
-			CreatedAt:     now,
-		})
-		if err != nil {
-			fmt.Fprintf(errOut, "memory add error: %v\n", err)
-			return 1
-		}
-		if err := maybeEmbedMemory(cfg, st, mem); err != nil {
-			fmt.Fprintf(errOut, "embedding warning: %v\n", err)
-		}
-		resp.MemoryID = mem.ID
+	anchorCommit := ""
+	if repoInfo.HasGit {
+		anchorCommit = repoInfo.Head
 	}
+	reasonTokens := counter.Count(reasonText)
+	mem, err := st.AddMemory(store.AddMemoryInput{
+		RepoID:        repoInfo.ID,
+		ThreadID:      threadUsed,
+		Workspace:     workspaceName,
+		Title:         "Checkpoint",
+		Summary:       reasonText,
+		SummaryTokens: reasonTokens,
+		TagsJSON:      "[]",
+		TagsText:      "",
+		EntitiesJSON:  "[]",
+		EntitiesText:  "",
+		AnchorCommit:  anchorCommit,
+		CreatedAt:     now,
+	})
+	if err != nil {
+		fmt.Fprintf(errOut, "memory add error: %v\n", err)
+		return 1
+	}
+	if err := maybeEmbedMemory(cfg, st, mem); err != nil {
+		fmt.Fprintf(errOut, "embedding warning: %v\n", err)
+	}
+	resp.MemoryID = mem.ID
 
-	return writeJSON(out, errOut, resp)
+	respWithThread := map[string]any{
+		"state_id":         resp.StateID,
+		"workspace":        resp.Workspace,
+		"reason":           resp.Reason,
+		"memory_id":        resp.MemoryID,
+		"thread_used":      threadUsed,
+		"thread_defaulted": threadDefaulted,
+	}
+	return writeJSON(out, errOut, respWithThread)
 }
 
 func loadStatePayload(path, inline string) (string, error) {

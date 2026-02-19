@@ -19,7 +19,9 @@ func splitGlobalFlags(args []string) ([]string, globalFlags, error) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		if arg == "--" {
-			out = append(out, args[i:]...)
+			if i+1 < len(args) {
+				out = append(out, args[i+1:]...)
+			}
 			break
 		}
 		if arg == "--data-dir" || strings.HasPrefix(arg, "--data-dir=") {
@@ -82,4 +84,22 @@ func splitFlagArgs(args []string, spec map[string]flagSpec) ([]string, []string,
 		positional = append(positional, arg)
 	}
 	return positional, flagArgs, nil
+}
+
+func flagWasSet(args []string, name string) bool {
+	long := "--" + name
+	short := "-" + name
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--" {
+			break
+		}
+		if arg == long || arg == short {
+			return true
+		}
+		if strings.HasPrefix(arg, long+"=") || strings.HasPrefix(arg, short+"=") {
+			return true
+		}
+	}
+	return false
 }

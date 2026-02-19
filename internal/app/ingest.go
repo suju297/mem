@@ -84,7 +84,7 @@ func runIngest(args []string, out, errOut io.Writer) int {
 	}
 	workspaceName := resolveWorkspace(cfg, strings.TrimSpace(*workspace))
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1

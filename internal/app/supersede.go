@@ -28,12 +28,12 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 	workspace := fs.String("workspace", "", "Workspace name")
 	repoOverride := fs.String("repo", "", "Override repo id")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
-		"thread":  {RequiresValue: true},
-		"title":   {RequiresValue: true},
-		"summary": {RequiresValue: true},
-		"tags":    {RequiresValue: true},
+		"thread":    {RequiresValue: true},
+		"title":     {RequiresValue: true},
+		"summary":   {RequiresValue: true},
+		"tags":      {RequiresValue: true},
 		"workspace": {RequiresValue: true},
-		"repo":    {RequiresValue: true},
+		"repo":      {RequiresValue: true},
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
@@ -53,10 +53,6 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 	summaryText := strings.TrimSpace(*summary)
-	if summaryText == "" {
-		fmt.Fprintln(errOut, "missing --summary")
-		return 2
-	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -71,7 +67,7 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1
@@ -104,12 +100,16 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		tagList = parseTagsJSON(oldMem.TagsJSON)
 	}
 	tagList = store.NormalizeTags(tagList)
+	if summaryText == "" && !hasSessionTag(tagList) {
+		fmt.Fprintln(errOut, "missing --summary")
+		return 2
+	}
 	tagsJSON := store.TagsToJSON(tagList)
 	tagsText := store.TagsText(tagList)
 
 	createdAt := time.Now().UTC()
-	anchorCommit := ""
-	if repoInfo.HasGit {
+	anchorCommit := strings.TrimSpace(oldMem.AnchorCommit)
+	if anchorCommit == "" && repoInfo.HasGit {
 		anchorCommit = repoInfo.Head
 	}
 

@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-const schemaVersion = 9
+const schemaVersion = 10
 
 func migrate(db *sql.DB) error {
 	version, err := getUserVersion(db)
@@ -188,10 +188,23 @@ func ensureLinksTable(db *sql.DB) error {
 }
 
 func ensureLinksIndexes(db *sql.DB) error {
+	if _, err := db.Exec(`
+		DELETE FROM links
+		WHERE rowid NOT IN (
+			SELECT MIN(rowid)
+			FROM links
+			GROUP BY from_id, rel, to_id
+		)
+	`); err != nil {
+		return err
+	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_links_from ON links (from_id)`); err != nil {
 		return err
 	}
 	if _, err := db.Exec(`CREATE INDEX IF NOT EXISTS idx_links_to ON links (to_id)`); err != nil {
+		return err
+	}
+	if _, err := db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_links_unique ON links (from_id, rel, to_id)`); err != nil {
 		return err
 	}
 	return nil
@@ -316,8 +329,8 @@ func rebuildFTS(db *sql.DB) error {
 		return err
 	}
 	_, err := db.Exec(`
-		INSERT INTO memories_fts (rowid, title, summary, tags, entities, workspace, mem_id)
-		SELECT rowid, title, summary, COALESCE(tags_text, ''), COALESCE(entities_text, ''), workspace, id
+		INSERT INTO memories_fts (rowid, title, summary, tags, entities, repo_id, workspace, mem_id)
+		SELECT rowid, title, summary, COALESCE(tags_text, ''), COALESCE(entities_text, ''), repo_id, workspace, id
 		FROM memories
 		WHERE deleted_at IS NULL
 	`)
@@ -329,8 +342,8 @@ func rebuildFTS(db *sql.DB) error {
 		return err
 	}
 	_, err = db.Exec(`
-	INSERT INTO chunks_fts (rowid, locator, text, tags, workspace, chunk_id, thread_id)
-	SELECT rowid, locator, text, COALESCE(tags_text, ''), workspace, chunk_id, thread_id
+	INSERT INTO chunks_fts (rowid, locator, text, tags, repo_id, workspace, chunk_id, thread_id)
+	SELECT rowid, locator, text, COALESCE(tags_text, ''), repo_id, workspace, chunk_id, thread_id
 	FROM chunks
 	WHERE deleted_at IS NULL
 	`)
@@ -350,6 +363,7 @@ func recreateFTSTables(db *sql.DB) error {
 			summary,
 			tags,
 			entities,
+			repo_id UNINDEXED,
 			workspace UNINDEXED,
 			mem_id UNINDEXED,
 			tokenize = 'porter unicode61'
@@ -362,6 +376,7 @@ func recreateFTSTables(db *sql.DB) error {
 			locator,
 			text,
 			tags,
+			repo_id UNINDEXED,
 			workspace UNINDEXED,
 			chunk_id UNINDEXED,
 			thread_id UNINDEXED,

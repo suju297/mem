@@ -145,11 +145,11 @@ func TestAcceptanceMCPContextMetaAndSources(t *testing.T) {
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack.get_context",
+			Name:      "mempack_get_context",
 			Arguments: map[string]any{"query": "delta99", "format": "json"},
 		},
 	}
-	res, err := handleGetContext(context.Background(), req)
+	res, err := handleGetContext(context.Background(), req, false)
 	if err != nil {
 		t.Fatalf("get_context error: %v", err)
 	}

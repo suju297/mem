@@ -12,7 +12,10 @@ import (
 	"mempack/internal/store"
 )
 
-const embedBatchSize = 8
+const (
+	embedBatchSize  = 8
+	embedFetchLimit = 64
+)
 
 func runEmbed(args []string, out, errOut io.Writer) int {
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
@@ -57,7 +60,7 @@ func runEmbed(args []string, out, errOut io.Writer) int {
 	}
 
 	workspaceName := resolveWorkspace(cfg, strings.TrimSpace(*workspace))
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1
@@ -173,7 +176,7 @@ func runEmbedStatus(args []string, out, errOut io.Writer) int {
 	}
 	workspaceName := resolveWorkspace(cfg, strings.TrimSpace(*workspace))
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1
@@ -333,121 +336,131 @@ func buildVectorStatus(cfg config.Config, status embed.Status, model string) Vec
 }
 
 func embedMissingMemories(provider embed.Provider, st *store.Store, repoID, workspace, model string) (int, error) {
-	memories, err := st.ListMemoriesMissingEmbedding(repoID, workspace, model, 0)
-	if err != nil {
-		return 0, err
-	}
-	if len(memories) == 0 {
-		return 0, nil
-	}
-
-	now := time.Now().UTC()
 	embedded := 0
-	for i := 0; i < len(memories); i += embedBatchSize {
-		end := i + embedBatchSize
-		if end > len(memories) {
-			end = len(memories)
-		}
-
-		texts := make([]string, 0, end-i)
-		batch := make([]store.Memory, 0, end-i)
-		for _, mem := range memories[i:end] {
-			text := store.MemoryEmbeddingText(mem)
-			if strings.TrimSpace(text) == "" {
-				continue
-			}
-			texts = append(texts, text)
-			batch = append(batch, mem)
-		}
-		if len(texts) == 0 {
-			continue
-		}
-		vectors, err := provider.Embed(texts)
+	for {
+		memories, err := st.ListMemoriesMissingEmbedding(repoID, workspace, model, embedFetchLimit)
 		if err != nil {
 			return embedded, err
 		}
-		if len(vectors) != len(batch) {
-			return embedded, fmt.Errorf("embedding count mismatch: got %d, want %d", len(vectors), len(batch))
+		if len(memories) == 0 {
+			return embedded, nil
 		}
+		progress := 0
+		now := time.Now().UTC()
+		for i := 0; i < len(memories); i += embedBatchSize {
+			end := i + embedBatchSize
+			if end > len(memories) {
+				end = len(memories)
+			}
 
-		for idx, vec := range vectors {
-			mem := batch[idx]
-			text := texts[idx]
-			if err := st.UpsertEmbedding(store.Embedding{
-				RepoID:      repoID,
-				Workspace:   workspace,
-				Kind:        store.EmbeddingKindMemory,
-				ItemID:      mem.ID,
-				Model:       model,
-				ContentHash: store.EmbeddingContentHash(text),
-				Vector:      vec,
-				CreatedAt:   now,
-				UpdatedAt:   now,
-			}); err != nil {
+			texts := make([]string, 0, end-i)
+			batch := make([]store.Memory, 0, end-i)
+			for _, mem := range memories[i:end] {
+				text := store.MemoryEmbeddingText(mem)
+				if strings.TrimSpace(text) == "" {
+					continue
+				}
+				texts = append(texts, text)
+				batch = append(batch, mem)
+			}
+			if len(texts) == 0 {
+				continue
+			}
+			vectors, err := provider.Embed(texts)
+			if err != nil {
 				return embedded, err
 			}
-			embedded++
+			if len(vectors) != len(batch) {
+				return embedded, fmt.Errorf("embedding count mismatch: got %d, want %d", len(vectors), len(batch))
+			}
+
+			for idx, vec := range vectors {
+				mem := batch[idx]
+				text := texts[idx]
+				if err := st.UpsertEmbedding(store.Embedding{
+					RepoID:      repoID,
+					Workspace:   workspace,
+					Kind:        store.EmbeddingKindMemory,
+					ItemID:      mem.ID,
+					Model:       model,
+					ContentHash: store.EmbeddingContentHash(text),
+					Vector:      vec,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}); err != nil {
+					return embedded, err
+				}
+				embedded++
+				progress++
+			}
+		}
+		if progress == 0 {
+			return embedded, nil
 		}
 	}
-	return embedded, nil
 }
 
 func embedMissingChunks(provider embed.Provider, st *store.Store, repoID, workspace, model string) (int, error) {
-	chunks, err := st.ListChunksMissingEmbedding(repoID, workspace, model, 0)
-	if err != nil {
-		return 0, err
-	}
-	if len(chunks) == 0 {
-		return 0, nil
-	}
-
-	now := time.Now().UTC()
 	embedded := 0
-	for i := 0; i < len(chunks); i += embedBatchSize {
-		end := i + embedBatchSize
-		if end > len(chunks) {
-			end = len(chunks)
-		}
-
-		texts := make([]string, 0, end-i)
-		batch := make([]store.Chunk, 0, end-i)
-		for _, chunk := range chunks[i:end] {
-			text := store.ChunkEmbeddingText(chunk)
-			if strings.TrimSpace(text) == "" {
-				continue
-			}
-			texts = append(texts, text)
-			batch = append(batch, chunk)
-		}
-		if len(texts) == 0 {
-			continue
-		}
-		vectors, err := provider.Embed(texts)
+	for {
+		chunks, err := st.ListChunksMissingEmbedding(repoID, workspace, model, embedFetchLimit)
 		if err != nil {
 			return embedded, err
 		}
-		if len(vectors) != len(batch) {
-			return embedded, fmt.Errorf("embedding count mismatch: got %d, want %d", len(vectors), len(batch))
+		if len(chunks) == 0 {
+			return embedded, nil
 		}
+		progress := 0
+		now := time.Now().UTC()
+		for i := 0; i < len(chunks); i += embedBatchSize {
+			end := i + embedBatchSize
+			if end > len(chunks) {
+				end = len(chunks)
+			}
 
-		for idx, vec := range vectors {
-			chunk := batch[idx]
-			text := texts[idx]
-			if err := st.UpsertEmbedding(store.Embedding{
-				RepoID:      repoID,
-				Workspace:   workspace,
-				Kind:        store.EmbeddingKindChunk,
-				ItemID:      chunk.ID,
-				Model:       model,
-				ContentHash: store.EmbeddingContentHash(text),
-				Vector:      vec,
-				CreatedAt:   now,
-				UpdatedAt:   now,
-			}); err != nil {
+			texts := make([]string, 0, end-i)
+			batch := make([]store.Chunk, 0, end-i)
+			for _, chunk := range chunks[i:end] {
+				text := store.ChunkEmbeddingText(chunk)
+				if strings.TrimSpace(text) == "" {
+					continue
+				}
+				texts = append(texts, text)
+				batch = append(batch, chunk)
+			}
+			if len(texts) == 0 {
+				continue
+			}
+			vectors, err := provider.Embed(texts)
+			if err != nil {
 				return embedded, err
 			}
-			embedded++
+			if len(vectors) != len(batch) {
+				return embedded, fmt.Errorf("embedding count mismatch: got %d, want %d", len(vectors), len(batch))
+			}
+
+			for idx, vec := range vectors {
+				chunk := batch[idx]
+				text := texts[idx]
+				if err := st.UpsertEmbedding(store.Embedding{
+					RepoID:      repoID,
+					Workspace:   workspace,
+					Kind:        store.EmbeddingKindChunk,
+					ItemID:      chunk.ID,
+					Model:       model,
+					ContentHash: store.EmbeddingContentHash(text),
+					Vector:      vec,
+					CreatedAt:   now,
+					UpdatedAt:   now,
+				}); err != nil {
+					return embedded, err
+				}
+				embedded++
+				progress++
+			}
+		}
+		if progress == 0 {
+			return embedded, nil
 		}
 	}
-	return embedded, nil
 }

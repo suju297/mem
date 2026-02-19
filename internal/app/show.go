@@ -46,9 +46,11 @@ func runShow(args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 	repoOverride := fs.String("repo", "", "Override repo id")
 	workspace := fs.String("workspace", "", "Workspace name")
+	format := fs.String("format", "json", "Output format: json")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
 		"repo":      {RequiresValue: true},
 		"workspace": {RequiresValue: true},
+		"format":    {RequiresValue: true},
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
@@ -63,6 +65,10 @@ func runShow(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "missing id")
 		return 2
 	}
+	if strings.TrimSpace(*format) != "json" {
+		fmt.Fprintf(errOut, "unsupported format: %s\n", *format)
+		return 2
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -71,7 +77,7 @@ func runShow(args []string, out, errOut io.Writer) int {
 	}
 	workspaceName := resolveWorkspace(cfg, strings.TrimSpace(*workspace))
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(*repoOverride))
+	repoInfo, err := resolveRepo(&cfg, strings.TrimSpace(*repoOverride))
 	if err != nil {
 		fmt.Fprintf(errOut, "repo detection error: %v\n", err)
 		return 1

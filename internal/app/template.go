@@ -28,25 +28,35 @@ func runTemplateAgents(args []string, out, errOut io.Writer) int {
 	// For now, simple output
 	fs := flag.NewFlagSet("template agents", flag.ContinueOnError)
 	fs.SetOutput(errOut)
-	write := fs.Bool("write", false, "Write AGENTS.md and .mempack/MEMORY.md to the current directory")
+	write := fs.Bool("write", false, "Write .mempack/MEMORY.md and assistant stub files to the current directory")
+	assistantsFlag := fs.String("assistants", "agents", "Comma-separated assistant stubs to write: agents,claude,gemini,all")
+	noMemory := fs.Bool("no-memory", false, "Skip writing .mempack/MEMORY.md")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
+	targets, err := parseAssistantStubTargets(*assistantsFlag)
+	if err != nil {
+		fmt.Fprintf(errOut, "invalid --assistants: %v\n", err)
+		return 2
+	}
+
 	if *write {
-		result, err := writeAgentFiles("")
+		result, err := writeAgentFiles("", targets, !*noMemory)
 		if err != nil {
 			fmt.Fprintf(errOut, "failed to write agent files: %v\n", err)
 			return 1
 		}
+		if *noMemory {
+			fmt.Fprintf(out, "Wrote assistant stubs: %s (when missing).\n", assistantStubTargetsLabel(targets))
+		} else {
+			fmt.Fprintf(out, "Wrote .mempack/MEMORY.md and assistant stubs: %s (when missing).\n", assistantStubTargetsLabel(targets))
+		}
 		if result.WroteAlternate {
-			fmt.Fprintln(out, "Wrote .mempack/MEMORY.md and .mempack/AGENTS.md")
-			fmt.Fprintln(out, "AGENTS.md already exists; add the following 2 lines:")
+			fmt.Fprintln(out, "AGENTS.md already exists; wrote .mempack/AGENTS.md. Add the following 2 lines to AGENTS.md:")
 			for _, line := range agentsStubHintLines() {
 				fmt.Fprintln(out, line)
 			}
-		} else {
-			fmt.Fprintln(out, "Wrote AGENTS.md and .mempack/MEMORY.md")
 		}
 		return 0
 	}

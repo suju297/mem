@@ -93,6 +93,7 @@ func (s *Store) EnsureRepo(info repo.Info) error {
 }
 
 func (s *Store) GetStateCurrent(repoID, workspace string) (string, int, string, error) {
+	workspace = normalizeWorkspace(workspace)
 	row := s.db.QueryRow(`
 		SELECT state_json, state_tokens, updated_at
 		FROM state_current

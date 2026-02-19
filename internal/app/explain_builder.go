@@ -15,6 +15,7 @@ type ExplainOptions struct {
 	RepoOverride   string
 	Workspace      string
 	IncludeOrphans bool
+	RequireRepo    bool
 }
 
 func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error) {
@@ -24,7 +25,9 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 	}
 	workspace := resolveWorkspace(cfg, opts.Workspace)
 
-	repoInfo, err := resolveRepo(cfg, strings.TrimSpace(opts.RepoOverride))
+	repoInfo, err := resolveRepoWithOptions(&cfg, strings.TrimSpace(opts.RepoOverride), repoResolveOptions{
+		RequireRepo: opts.RequireRepo,
+	})
 	if err != nil {
 		return ExplainReport{}, fmt.Errorf("repo detection error: %v", err)
 	}
@@ -39,7 +42,7 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 		return ExplainReport{}, fmt.Errorf("store repo error: %v", err)
 	}
 
-	stateRaw, stateTokens, _, err := loadState(repoInfo, workspace, st)
+	stateRaw, stateTokens, _, _, err := loadState(repoInfo, workspace, st)
 	if err != nil {
 		return ExplainReport{}, fmt.Errorf("state error: %v", err)
 	}

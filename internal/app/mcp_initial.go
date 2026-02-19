@@ -29,7 +29,7 @@ type InitialContext struct {
 	Suggestion    string   `json:"suggestion"`
 }
 
-func handleGetInitialContext(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func handleGetInitialContext(ctx context.Context, request mcp.CallToolRequest, requireRepo bool) (*mcp.CallToolResult, error) {
 	repoOverride := strings.TrimSpace(request.GetString("repo", ""))
 	workspaceOverride := strings.TrimSpace(request.GetString("workspace", ""))
 
@@ -39,7 +39,9 @@ func handleGetInitialContext(ctx context.Context, request mcp.CallToolRequest) (
 	}
 	workspace := resolveWorkspace(cfg, workspaceOverride)
 
-	repoInfo, err := resolveRepo(cfg, repoOverride)
+	repoInfo, err := resolveRepoWithOptions(&cfg, repoOverride, repoResolveOptions{
+		RequireRepo: requireRepo,
+	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
 	}
@@ -54,7 +56,7 @@ func handleGetInitialContext(ctx context.Context, request mcp.CallToolRequest) (
 		return mcp.NewToolResultError(fmt.Sprintf("store repo error: %v", err)), nil
 	}
 
-	stateRaw, stateTokens, _, err := loadState(repoInfo, workspace, st)
+	stateRaw, stateTokens, _, _, err := loadState(repoInfo, workspace, st)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("state error: %v", err)), nil
 	}
@@ -130,14 +132,14 @@ func summarizeState(tokenizer string, stateRaw json.RawMessage, stateTokens int)
 func buildInitialSuggestion(hasState bool, memoryCount, chunkCount int) string {
 	if memoryCount == 0 && chunkCount == 0 {
 		if hasState {
-			return "No memories or chunks yet. Add memories or ingest artifacts, then call mempack.get_context."
+			return "No memories or chunks yet. Add memories or ingest artifacts, then call mempack_get_context."
 		}
-		return "No memories or chunks yet. Add memories or ingest artifacts; consider setting state with mempack.checkpoint."
+		return "No memories or chunks yet. Add memories or ingest artifacts; consider setting state with mempack_checkpoint."
 	}
 	if !hasState {
-		return "Call mempack.get_context with a short query; consider setting state with mempack.checkpoint."
+		return "Call mempack_get_context with a short query; consider setting state with mempack_checkpoint."
 	}
-	return "Call mempack.get_context with a short, specific query to fetch relevant memories and chunks."
+	return "Call mempack_get_context with a short, specific query to fetch relevant memories and chunks."
 }
 
 func formatInitialContextText(result InitialContext) string {

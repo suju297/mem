@@ -55,10 +55,20 @@ func (s *Store) ListLinksForIDs(ids []string) ([]Link, error) {
 	}
 
 	rows, err := s.db.Query(fmt.Sprintf(`
-		SELECT from_id, rel, to_id, weight, created_at
-		FROM links
-		WHERE from_id IN (%s) OR to_id IN (%s)
-		ORDER BY created_at DESC
+		SELECT l.from_id, l.rel, l.to_id, l.weight, l.created_at
+		FROM links l
+		JOIN memories m_from
+			ON m_from.id = l.from_id
+			AND m_from.deleted_at IS NULL
+			AND (m_from.superseded_by IS NULL OR m_from.superseded_by = '')
+		JOIN memories m_to
+			ON m_to.id = l.to_id
+			AND m_to.deleted_at IS NULL
+			AND (m_to.superseded_by IS NULL OR m_to.superseded_by = '')
+			AND m_to.repo_id = m_from.repo_id
+			AND m_to.workspace = m_from.workspace
+		WHERE l.from_id IN (%s) OR l.to_id IN (%s)
+		ORDER BY l.created_at DESC
 	`, placeholders, placeholders), args...)
 	if err != nil {
 		return nil, err
@@ -83,4 +93,16 @@ func (s *Store) ListLinksForIDs(ids []string) ([]Link, error) {
 		return nil, err
 	}
 	return links, nil
+}
+
+func (s *Store) DeleteLinksForMemoryID(id string) error {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil
+	}
+	_, err := s.db.Exec(`
+		DELETE FROM links
+		WHERE from_id = ? OR to_id = ?
+	`, id, id)
+	return err
 }

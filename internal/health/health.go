@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"mempack/internal/config"
+	"mempack/internal/pathutil"
 	"mempack/internal/repo"
+	"mempack/internal/reporesolve"
 	"mempack/internal/store"
 	"mempack/internal/token"
 )
@@ -22,6 +24,7 @@ type Options struct {
 	RepoOverride string
 	Cwd          string
 	Repair       bool
+	RequireRepo  bool
 }
 
 type Report struct {
@@ -107,12 +110,12 @@ func check(ctx context.Context, repoRef string, opts Options) (Report, error) {
 		}
 	}
 
-	info, source, err := resolveRepo(cfg, repoRef, cwd)
+	info, source, err := resolveRepo(cfg, repoRef, cwd, opts.RequireRepo)
 	if err != nil {
 		if ce, ok := err.(*CheckError); ok {
 			return reportError(report, ce.Message, ce.Suggestion, ce.Err)
 		}
-		return reportError(report, "repo resolution error", "Run: mem init --with-agents", err)
+		return reportError(report, "repo resolution error", "Run: mem init", err)
 	}
 
 	report.Repo = RepoReport{
@@ -135,7 +138,7 @@ func check(ctx context.Context, repoRef string, opts Options) (Report, error) {
 		if os.IsNotExist(err) {
 			report.DB.Exists = false
 			if !opts.Repair {
-				return reportError(report, "DB not initialized for this repo", "Run: mem init --with-agents", err)
+				return reportError(report, "DB not initialized for this repo", "Run: mem init", err)
 			}
 		} else {
 			msg, hint := mapDBError(err)
@@ -275,10 +278,14 @@ func repairInvalidStateCurrent(st *store.Store, repoID string, rows []store.Stat
 	return repaired, nil
 }
 
-func resolveRepo(cfg config.Config, repoRef, cwd string) (repo.Info, string, error) {
+func resolveRepo(cfg config.Config, repoRef, cwd string, requireRepo bool) (repo.Info, string, error) {
 	if repoRef != "" {
 		if info, err := detectRepoPathStrict(repoRef); err == nil {
 			return info, "path", nil
+		} else if reporesolve.LooksLikePath(repoRef) {
+			if info, err := repoFromRoot(cfg, repoRef); err == nil {
+				return info, "db_root", nil
+			}
 		} else if pathExists(repoRef) {
 			if isGitNotFound(err) {
 				return repo.Info{}, "", &CheckError{
@@ -298,39 +305,89 @@ func resolveRepo(cfg config.Config, repoRef, cwd string) (repo.Info, string, err
 		if err != nil {
 			return repo.Info{}, "", &CheckError{
 				Message:    fmt.Sprintf("repo not found: %s", repoRef),
-				Suggestion: "Run: mem repos or mem init --with-agents",
+				Suggestion: "Run: mem repos or mem init",
 				Err:        err,
 			}
 		}
 		return info, "repo_id", nil
 	}
 
+	info, err := detectRepoCwdStrict(cwd)
+	if err == nil {
+		return info, "cwd", nil
+	}
+	if isGitNotFound(err) {
+		return repo.Info{}, "", &CheckError{
+			Message:    "git not found",
+			Suggestion: "Install git or pass --repo <id|path>",
+			Err:        err,
+		}
+	}
+	if requireRepo {
+		return repo.Info{}, "", &CheckError{
+			Message:    "repo not specified and could not detect repo from current directory",
+			Suggestion: "Pass --repo <id|path> or start mem mcp --repo /path/to/repo",
+			Err:        err,
+		}
+	}
+
 	if cfg.ActiveRepo != "" {
-		meta, err := repoMetaFromID(cfg, cfg.ActiveRepo)
-		if err == nil && meta.GitRoot != "" && pathExists(meta.GitRoot) {
-			info, err := repo.InfoFromCache(meta.RepoID, meta.GitRoot, meta.LastHead, meta.LastBranch, true)
-			if err == nil {
+		meta, metaErr := repoMetaFromID(cfg, cfg.ActiveRepo)
+		if metaErr == nil && meta.GitRoot != "" && pathExists(meta.GitRoot) {
+			info, infoErr := repo.InfoFromCache(meta.RepoID, meta.GitRoot, meta.LastHead, meta.LastBranch, true)
+			if infoErr == nil {
 				return info, "active_repo", nil
 			}
 		}
 	}
 
-	info, err := detectRepoCwdStrict(cwd)
+	return repo.Info{}, "", &CheckError{
+		Message:    "no active repo",
+		Suggestion: "Run: mem init (in your repo) or: mem use <path>",
+		Err:        err,
+	}
+}
+
+func repoFromRoot(cfg config.Config, repoPath string) (repo.Info, error) {
+	cleanPath := pathutil.Canonical(repoPath)
+	if cleanPath == "" {
+		return repo.Info{}, fmt.Errorf("repo path is empty")
+	}
+
+	if _, repoID := cachedRepoForPath(cfg, cleanPath); repoID != "" {
+		return repoFromID(cfg, repoID)
+	}
+	repoID, err := reporesolve.RepoIDFromRoot(cfg.RepoRootDir(), cleanPath)
 	if err != nil {
-		if isGitNotFound(err) {
-			return repo.Info{}, "", &CheckError{
-				Message:    "git not found",
-				Suggestion: "Install git or pass --repo <id|path>",
-				Err:        err,
+		return repo.Info{}, err
+	}
+	return repoFromID(cfg, repoID)
+}
+
+func cachedRepoForPath(cfg config.Config, path string) (string, string) {
+	if len(cfg.RepoCache) == 0 {
+		return "", ""
+	}
+	cleanPath := pathutil.Canonical(path)
+	bestRoot := ""
+	bestID := ""
+	sep := string(os.PathSeparator)
+	for root, repoID := range cfg.RepoCache {
+		if repoID == "" {
+			continue
+		}
+		cleanRoot := pathutil.Canonical(root)
+		if cleanRoot == "." || cleanRoot == "" {
+			continue
+		}
+		if cleanPath == cleanRoot || strings.HasPrefix(cleanPath, cleanRoot+sep) {
+			if len(cleanRoot) > len(bestRoot) {
+				bestRoot = cleanRoot
+				bestID = repoID
 			}
 		}
-		return repo.Info{}, "", &CheckError{
-			Message:    "no active repo",
-			Suggestion: "Run: mem init --with-agents (in your repo) or: mem use <path>",
-			Err:        err,
-		}
 	}
-	return info, "cwd", nil
+	return bestRoot, bestID
 }
 
 func detectRepoCwdStrict(cwd string) (repo.Info, error) {

@@ -53,7 +53,7 @@ func TestQueryOrderInsensitive(t *testing.T) {
 	if err != nil {
 		t.Fatalf("config error: %v", err)
 	}
-	repoInfo, err := resolveRepo(cfg, "")
+	repoInfo, err := resolveRepo(&cfg, "")
 	if err != nil {
 		t.Fatalf("repo detection error: %v", err)
 	}
@@ -113,7 +113,7 @@ func addMemory(t testing.TB, id, title, summary string) {
 	if err != nil {
 		t.Fatalf("config error: %v", err)
 	}
-	repoInfo, err := resolveRepo(cfg, "")
+	repoInfo, err := resolveRepo(&cfg, "")
 	if err != nil {
 		t.Fatalf("repo detection error: %v", err)
 	}
@@ -146,7 +146,7 @@ func addMemory(t testing.TB, id, title, summary string) {
 	}
 }
 
-func writeTestConfig(t testing.TB, base string, update func(cfg *config.Config)) {
+func writeTestConfig(t testing.TB, _ string, update func(cfg *config.Config)) {
 	t.Helper()
 	cfg, err := config.Default()
 	if err != nil {
