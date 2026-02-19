@@ -33,7 +33,7 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "                 mem ingest-artifact <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>] (alias)\n")
 	io.WriteString(w, "  embed           mem embed [--kind memory|chunk|all] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "                 mem embed status [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  repos           mem repos\n")
+	io.WriteString(w, "  repos           mem repos [--format table|json] [--full-paths]\n")
 	io.WriteString(w, "  use             mem use <repo_id|path>\n")
 	io.WriteString(w, "  threads         mem threads [--workspace <name>] [--repo <id>] [--format json]\n")
 	io.WriteString(w, "  thread          mem thread <thread_id> [--limit 20] [--workspace <name>] [--repo <id>] [--format json]\n")

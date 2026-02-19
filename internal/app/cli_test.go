@@ -618,6 +618,36 @@ func TestCLIReposAndUse(t *testing.T) {
 	if len(reposOut) == 0 {
 		t.Fatalf("expected repos output")
 	}
+	reposText := string(reposOut)
+	if !strings.Contains(reposText, "REPO ID") || !strings.Contains(reposText, "ROOT") {
+		t.Fatalf("expected repos table headers, got %q", reposText)
+	}
+	if !strings.Contains(reposText, info.ID) {
+		t.Fatalf("expected repos table to include repo id %s", info.ID)
+	}
+
+	reposJSONOut := runCLI(t, "repos", "--format", "json")
+	var repos []RepoListItem
+	if err := json.Unmarshal(reposJSONOut, &repos); err != nil {
+		t.Fatalf("decode repos json response: %v", err)
+	}
+	if len(repos) == 0 {
+		t.Fatalf("expected repos json output to include at least one item")
+	}
+	found := false
+	expectedRoot := filepath.Base(repoDir)
+	for _, item := range repos {
+		if item.RepoID != info.ID {
+			continue
+		}
+		found = true
+		if item.RootName != expectedRoot {
+			t.Fatalf("expected root_name %s for repo %s, got %s", expectedRoot, info.ID, item.RootName)
+		}
+	}
+	if !found {
+		t.Fatalf("expected repos json output to include repo id %s", info.ID)
+	}
 }
 
 func TestCLIThreadFlagsAfterID(t *testing.T) {

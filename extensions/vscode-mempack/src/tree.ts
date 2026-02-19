@@ -95,6 +95,14 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
       ];
     }
 
+    if (element instanceof RepoNode) {
+      return this.getRepoChildren(element);
+    }
+
+    if (element instanceof RepoMemoryNode) {
+      return this.getRepoMemoryChildren(element);
+    }
+
     if (element instanceof SettingsRootNode) {
       return [
         await this.getMcpWritesNode(cwd),
@@ -207,14 +215,63 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
         typeof report?.db?.size_bytes === "number" ? Number(report.db.size_bytes) : undefined;
       const memoryDBExists =
         typeof report?.db?.exists === "boolean" ? Boolean(report.db.exists) : undefined;
-      const node = new RepoNode(root, repoID, memoryDBPath, memoryDBSizeBytes, memoryDBExists);
+      const node = new RepoNode({
+        repoRoot: root,
+        repoID,
+        memoryDBPath,
+        memoryDBSizeBytes,
+        memoryDBExists
+      });
       this.repoCache = { at: now, node };
       return node;
     } catch (err: any) {
-      const node = new RepoNode(cwd, "", formatErrorMessage(err));
+      const node = new RepoNode({
+        repoRoot: cwd,
+        repoID: "",
+        detail: formatErrorMessage(err)
+      });
       this.repoCache = { at: now, node };
       return node;
     }
+  }
+
+  private getRepoChildren(node: RepoNode): MempackNode[] {
+    const items: MempackNode[] = [];
+    items.push(new RepoDetailNode("Root", compactPath(node.info.repoRoot), "folder", node.info.repoRoot));
+    if (node.info.repoID.trim() !== "") {
+      items.push(new RepoDetailNode("ID", node.info.repoID, "tag"));
+    }
+    items.push(new RepoMemoryNode(node.info));
+    if (node.info.detail && node.info.detail.trim() !== "") {
+      items.push(new MessageNode("Repo detail", node.info.detail, "info"));
+    }
+    return items;
+  }
+
+  private getRepoMemoryChildren(node: RepoMemoryNode): MempackNode[] {
+    const items: MempackNode[] = [];
+    const info = node.info;
+
+    if (info.memoryDBPath && info.memoryDBPath.trim() !== "") {
+      items.push(new RepoDetailNode("Location", compactPath(info.memoryDBPath), "folder", info.memoryDBPath));
+    }
+
+    if (typeof info.memoryDBSizeBytes === "number") {
+      items.push(new RepoDetailNode("Size", formatBytes(info.memoryDBSizeBytes), "dashboard"));
+    }
+
+    if (info.memoryDBExists === false) {
+      items.push(new RepoDetailNode("State", "Not initialized", "circle-slash"));
+    } else if (info.memoryDBPath && info.memoryDBPath.trim() !== "") {
+      items.push(new RepoDetailNode("State", "Initialized", "check"));
+    } else {
+      items.push(new RepoDetailNode("State", "Unknown", "question"));
+    }
+
+    if (items.length === 0) {
+      items.push(new MessageNode("Memory details unavailable", "", "warning"));
+    }
+    return items;
   }
 
   private async getMcpWritesNode(cwd: string): Promise<McpWritesNode> {
@@ -436,6 +493,8 @@ export type MempackNode =
   | ExplainSearchNode
   | HealthNode
   | RepoNode
+  | RepoMemoryNode
+  | RepoDetailNode
   | McpServerNode
   | McpWritesNode
   | EmbeddingsNode
@@ -451,6 +510,15 @@ export type MempackNode =
   | MemoryNode
   | SessionNode
   | MessageNode;
+
+type RepoNodeInfo = {
+  repoRoot: string;
+  repoID: string;
+  memoryDBPath?: string;
+  memoryDBSizeBytes?: number;
+  memoryDBExists?: boolean;
+  detail?: string;
+};
 
 class StatusRootNode extends vscode.TreeItem {
   constructor() {
@@ -514,48 +582,65 @@ class HealthNode extends vscode.TreeItem {
 }
 
 class RepoNode extends vscode.TreeItem {
-  constructor(
-    repoRoot: string,
-    repoID: string,
-    memoryDBPathOrDetail?: string,
-    memoryDBSizeBytes?: number,
-    memoryDBExists?: boolean,
-    detail?: string
-  ) {
-    const memoryDBPath =
-      memoryDBSizeBytes === undefined && memoryDBExists === undefined && detail === undefined
-        ? undefined
-        : memoryDBPathOrDetail;
-    const fallbackDetail =
-      memoryDBSizeBytes === undefined && memoryDBExists === undefined && detail === undefined
-        ? memoryDBPathOrDetail
-        : detail;
+  readonly info: RepoNodeInfo;
 
-    const name = basenameSafe(repoRoot);
-    super(`Repo: ${name}`, vscode.TreeItemCollapsibleState.None);
+  constructor(info: RepoNodeInfo) {
+    const name = basenameSafe(info.repoRoot);
+    super(`Repo: ${name}`, vscode.TreeItemCollapsibleState.Collapsed);
+    this.info = info;
     this.contextValue = "mempackRepo";
     this.iconPath = brandIcon("repo");
-    this.command = { command: "mempack.refresh", title: "Refresh" };
-    const lines = [`Repo root: ${repoRoot}`];
-    if (repoID) {
-      lines.push(`Repo id: ${repoID}`);
+    this.description = info.repoID ? info.repoID : "";
+    const lines = [`Repo root: ${info.repoRoot}`];
+    if (info.repoID) {
+      lines.push(`Repo id: ${info.repoID}`);
     }
-    if (memoryDBPath) {
-      lines.push(`Memory DB: ${memoryDBPath}`);
+    if (info.memoryDBPath) {
+      lines.push(`Memory DB: ${info.memoryDBPath}`);
     }
-    if (memoryDBSizeBytes !== undefined) {
-      lines.push(`Memory size: ${formatBytes(memoryDBSizeBytes)}`);
-      this.description = `${formatBytes(memoryDBSizeBytes)} · ${compactPath(memoryDBPath || "memory.db")}`;
-    } else if (memoryDBExists === false) {
-      lines.push("Memory size: DB not initialized");
-      this.description = "No memory DB";
-    } else if (memoryDBPath) {
-      this.description = compactPath(memoryDBPath);
+    if (typeof info.memoryDBSizeBytes === "number") {
+      lines.push(`Memory size: ${formatBytes(info.memoryDBSizeBytes)}`);
+    } else if (info.memoryDBExists === false) {
+      lines.push("Memory DB: not initialized");
     }
-    if (fallbackDetail) {
-      lines.push(fallbackDetail);
+    if (info.detail) {
+      lines.push(info.detail);
     }
     this.tooltip = lines.join("\n");
+  }
+}
+
+class RepoMemoryNode extends vscode.TreeItem {
+  readonly info: RepoNodeInfo;
+
+  constructor(info: RepoNodeInfo) {
+    super("Memory", vscode.TreeItemCollapsibleState.Collapsed);
+    this.info = info;
+    this.contextValue = "mempackRepoMemory";
+    this.iconPath = brandIcon("database");
+
+    if (typeof info.memoryDBSizeBytes === "number") {
+      this.description = formatBytes(info.memoryDBSizeBytes);
+      this.tooltip = `Repo memory DB\n${formatBytes(info.memoryDBSizeBytes)}`;
+      return;
+    }
+    if (info.memoryDBExists === false) {
+      this.description = "Not initialized";
+      this.tooltip = "Repo memory DB is not initialized yet.";
+      return;
+    }
+    this.description = "Unknown";
+    this.tooltip = "Repo memory DB details are unavailable.";
+  }
+}
+
+class RepoDetailNode extends vscode.TreeItem {
+  constructor(label: string, value: string, iconName: string, tooltipValue?: string) {
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = "mempackRepoDetail";
+    this.description = value;
+    this.iconPath = brandIcon(iconName);
+    this.tooltip = `${label}: ${tooltipValue || value}`;
   }
 }
 
