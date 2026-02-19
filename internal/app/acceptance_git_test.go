@@ -56,7 +56,7 @@ func TestAcceptanceGitAnchoringAndOrphans(t *testing.T) {
 		t.Fatalf("mkdir docs: %v", err)
 	}
 	writeFile(t, repoDir, filepath.Join("docs", "acceptance.txt"), "mempack acceptance chunk\nDelta-99 for rewrite coverage.\n")
-	runCLI(t, "ingest-artifact", "docs/acceptance.txt", "--thread", "acceptance-chunks-a")
+	runCLI(t, "ingest", "docs/acceptance.txt", "--thread", "acceptance-chunks-a")
 	runCLI(t, "ingest-artifact", "docs/acceptance.txt", "--thread", "acceptance-chunks-b")
 
 	out := runCLI(t, "get", "delta99", "--format", "json")
@@ -140,7 +140,7 @@ func TestAcceptanceMCPContextMetaAndSources(t *testing.T) {
 		t.Fatalf("mkdir docs: %v", err)
 	}
 	writeFile(t, repoDir, filepath.Join("docs", "mcp-acceptance.txt"), "mcp acceptance chunk\nDelta-99 for rewrite coverage.\n")
-	runCLI(t, "ingest-artifact", "docs/mcp-acceptance.txt", "--thread", "mcp-chunks-a")
+	runCLI(t, "ingest", "docs/mcp-acceptance.txt", "--thread", "mcp-chunks-a")
 	runCLI(t, "ingest-artifact", "docs/mcp-acceptance.txt", "--thread", "mcp-chunks-b")
 
 	req := mcp.CallToolRequest{

@@ -72,7 +72,7 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runSession(args[1:], out, errOut)
 	case "share":
 		return runShare(args[1:], out, errOut)
-	case "ingest-artifact":
+	case "ingest", "ingest-artifact":
 		return runIngest(args[1:], out, errOut)
 	case "embed":
 		return runEmbed(args[1:], out, errOut)

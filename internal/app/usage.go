@@ -16,6 +16,8 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "  mem [--data-dir <path>] <command> [options]\n\n")
 	io.WriteString(w, colorize(useColor, "Global options:")+"\n")
 	io.WriteString(w, "  --data-dir <path>  Override data dir (MEMPACK_DATA_DIR)\n\n")
+	io.WriteString(w, "Version:\n")
+	io.WriteString(w, "  mem version | mem --version | mem -v\n\n")
 	io.WriteString(w, commands+"\n")
 	io.WriteString(w, "  init            mem init [--no-agents] [--assistants agents|claude|gemini|all]\n")
 	io.WriteString(w, "  get             mem get \"<query>\" [--workspace <name>] [--include-orphans] [--cluster] [--repo <id>] [--debug]\n")
@@ -24,10 +26,11 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "  explain         mem explain \"<query>\" [--workspace <name>] [--include-orphans] [--repo <id>]\n")
 	io.WriteString(w, "  show            mem show <id> [--format json] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  forget          mem forget <id> [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  supersede       mem supersede <id> --title <title> --summary <summary> [--thread <id>] [--tags tag1,tag2] [--workspace <name>] [--repo <id>]\n")
+	io.WriteString(w, "  supersede       mem supersede <id> --title <title> --summary <summary> [--thread <id>] [--tags tag1,tag2] [--entities <csv>] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  link            mem link --from <id> --rel <relation> --to <id> [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  checkpoint      mem checkpoint --reason \"<...>\" --state-file <path>|--state-json <json> [--thread <id>] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  ingest-artifact mem ingest-artifact <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>]\n")
+	io.WriteString(w, "  ingest          mem ingest <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>]\n")
+	io.WriteString(w, "                 mem ingest-artifact <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>] (alias)\n")
 	io.WriteString(w, "  embed           mem embed [--kind memory|chunk|all] [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "                 mem embed status [--workspace <name>] [--repo <id>]\n")
 	io.WriteString(w, "  repos           mem repos\n")
@@ -43,6 +46,7 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "                 mem mcp manager [--port <n>] [--token <token>] [--idle-seconds <n>]\n")
 	io.WriteString(w, "                 mem mcp manager status [--json]\n")
 	io.WriteString(w, "  doctor          mem doctor [--repo <id|path>] [--json] [--repair] [--verbose]\n")
+	io.WriteString(w, "  template        mem template [agents] [--write] [--assistants agents|claude|gemini|all] [--memory|--no-memory]\n")
 }
 
 func shouldColorize(w io.Writer) bool {
