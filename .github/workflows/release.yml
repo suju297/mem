@@ -9,8 +9,31 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: darwin
+            goarch: amd64
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            archive: tar.gz
+          - goos: linux
+            goarch: amd64
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            archive: tar.gz
+          - goos: windows
+            goarch: amd64
+            archive: zip
+          - goos: windows
+            goarch: arm64
+            archive: zip
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,17 +41,64 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version: "1.24.x"
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.x"
-
-      - name: Build release artifacts
+      - name: Build and package
         run: |
-          chmod +x scripts/release_build.sh
-          VERSION="${GITHUB_REF_NAME}" COMMIT="${GITHUB_SHA::7}" scripts/release_build.sh
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          COMMIT="${GITHUB_SHA::7}"
+          DIST_DIR="dist/${VERSION}"
+          PKG_DIR="${DIST_DIR}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}"
+          mkdir -p "${PKG_DIR}"
+
+          BIN_NAME="mem"
+          if [[ "${{ matrix.goos }}" == "windows" ]]; then
+            BIN_NAME="mem.exe"
+          fi
+
+          CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" \
+            go build -trimpath \
+              -ldflags "-s -w -X mempack/internal/app.Version=${VERSION} -X mempack/internal/app.Commit=${COMMIT}" \
+              -o "${PKG_DIR}/${BIN_NAME}" ./cmd/mem
+
+          if [[ -f "ReadMe.md" ]]; then
+            cp "ReadMe.md" "${PKG_DIR}/README.md"
+          fi
+          if [[ -f "LICENSE" ]]; then
+            cp "LICENSE" "${PKG_DIR}/LICENSE"
+          fi
+
+          if [[ "${{ matrix.archive }}" == "zip" ]]; then
+            (cd "${PKG_DIR}" && zip -q -r "../mempack_${{ matrix.goos }}_${{ matrix.goarch }}.zip" .)
+          else
+            tar -czf "${DIST_DIR}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" -C "${PKG_DIR}" .
+          fi
+
+      - name: Upload packaged artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mempack-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/${{ github.ref_name }}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}.*
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: mempack-*
+          path: dist/${{ github.ref_name }}
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd "dist/${GITHUB_REF_NAME}"
+          sha256sum mempack_* > checksums.txt
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
