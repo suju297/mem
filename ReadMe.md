@@ -25,13 +25,13 @@ Use this as the docs entrypoint:
 macOS/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release>
+curl -fsSL https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.sh | sh -s -- --repo suju297/mempack
 ```
 
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release> }"
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo suju297/mempack }"
 ```
 
 Verify:
