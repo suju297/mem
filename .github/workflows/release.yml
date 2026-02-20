@@ -1,0 +1,41 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Build release artifacts
+        run: |
+          chmod +x scripts/release_build.sh
+          VERSION="${GITHUB_REF_NAME}" COMMIT="${GITHUB_SHA::7}" scripts/release_build.sh
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            dist/${{ github.ref_name }}/mempack_*.tar.gz
+            dist/${{ github.ref_name }}/mempack_*.zip
+            dist/${{ github.ref_name }}/checksums.txt
