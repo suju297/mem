@@ -79,13 +79,17 @@ mem [--data-dir <path>] share import [--repo <id|path>] [--workspace <name>] [--
 ### MCP
 
 ```text
-mem [--data-dir <path>] mcp [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
+mem [--data-dir <path>] mcp [--stdio] [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
 mem [--data-dir <path>] mcp start [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
 mem [--data-dir <path>] mcp stop [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
 mem [--data-dir <path>] mcp status [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
 mem [--data-dir <path>] mcp manager [--port <n>] [--token <token>] [--idle-seconds <n>]
 mem [--data-dir <path>] mcp manager status [--json]
 ```
+
+Notes:
+- `mem mcp` is raw stdio mode for MCP clients.
+- For manual terminal control, use `mem mcp start`, `mem mcp status`, and `mem mcp stop`.
 
 ### Templates
 

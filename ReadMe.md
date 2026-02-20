@@ -28,11 +28,21 @@ macOS/Linux:
 curl -fsSL https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.sh | sh -s -- --repo suju297/mempack
 ```
 
+Add PATH automatically during install (macOS/Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.sh | sh -s -- --repo suju297/mempack --add-to-path
+```
+
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo suju297/mempack }"
+iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo suju297/mempack
 ```
+
+Windows PATH behavior:
+- By default, installer updates user PATH (`-AddToPath $true`).
+- To skip PATH update: `-AddToPath $false`.
 
 If release assets are unavailable, installers fall back to source build (Go toolchain required).
 
@@ -167,17 +177,34 @@ embedding_model = "nomic-embed-text"
 
 Detailed diagrams and architecture contracts live in `ARCHITECTURE.md`.
 
-```text
-mem CLI / MCP / extension
-          |
-          v
-internal/app (query, rank, budget, handlers)
-          |
-          v
-internal/store (SQLite + FTS)
-          |
-          v
-internal/embed (optional vectors)
+```mermaid
+flowchart TD
+    CLI["CLI<br/>`mem ...`"]
+    MCP["MCP Tools<br/>`mempack_*`"]
+    EXT["VS Code/Cursor<br/>Extension"]
+
+    APP["App Orchestrator<br/>`internal/app`"]
+    CFG["Config + Repo Resolution<br/>`internal/config`, `internal/repo*`"]
+    STORE["SQLite Store<br/>`internal/store`"]
+    FTS["FTS Search Index<br/>SQLite FTS5"]
+    EMBED["Embedding Layer<br/>`internal/embed` (optional)"]
+
+    CLI --> APP
+    MCP --> APP
+    EXT --> APP
+    APP --> CFG
+    APP --> STORE
+    STORE --> FTS
+    APP --> EMBED
+    EMBED -. vectors .-> STORE
+
+    classDef edge fill:#E8F1FF,stroke:#2D6CDF,color:#0B2545,stroke-width:1.5px;
+    classDef core fill:#E9FFF3,stroke:#1B8A5A,color:#0C3B2E,stroke-width:1.5px;
+    classDef data fill:#FFF3E8,stroke:#C96A12,color:#4A2A00,stroke-width:1.5px;
+
+    class CLI,MCP,EXT edge;
+    class APP,CFG core;
+    class STORE,FTS,EMBED data;
 ```
 
 ## VS Code/Cursor Extension

@@ -6,21 +6,24 @@ REPO="${MEMPACK_REPO:-}"
 VERSION="${MEMPACK_VERSION:-latest}"
 INSTALL_DIR="${MEMPACK_INSTALL_DIR:-}"
 VERIFY_CHECKSUMS="${MEMPACK_VERIFY_CHECKSUMS:-1}"
+ADD_TO_PATH="${MEMPACK_ADD_TO_PATH:-0}"
+PATH_RC_FILE="${MEMPACK_PATH_RC_FILE:-}"
 
 usage() {
   cat <<'EOF'
 Install mempack from GitHub Releases.
 
 Usage:
-  install.sh --repo <owner/repo> [--version <tag>] [--install-dir <dir>] [--bin-name <name>]
+  install.sh --repo <owner/repo> [--version <tag>] [--install-dir <dir>] [--bin-name <name>] [--add-to-path]
 
 Environment overrides:
-  MEMPACK_REPO, MEMPACK_VERSION, MEMPACK_INSTALL_DIR
+  MEMPACK_REPO, MEMPACK_VERSION, MEMPACK_INSTALL_DIR, MEMPACK_ADD_TO_PATH, MEMPACK_PATH_RC_FILE
 
 Examples:
   ./install.sh --repo owner/mempack
   MEMPACK_REPO=owner/mempack ./install.sh
   ./install.sh --repo owner/mempack --version v0.2.0
+  ./install.sh --repo owner/mempack --add-to-path
 
 Notes:
   - This script supports macOS, Linux, and Git-Bash/MSYS/Cygwin on Windows.
@@ -41,6 +44,61 @@ download_file() {
   fi
 }
 
+select_path_rc() {
+  if [[ -n "${PATH_RC_FILE}" ]]; then
+    printf '%s\n' "${PATH_RC_FILE}"
+    return
+  fi
+  local shell_name
+  shell_name="$(basename "${SHELL:-}")"
+  case "$shell_name" in
+    zsh)
+      printf '%s\n' "${HOME}/.zshrc"
+      ;;
+    bash)
+      if [[ "${os:-}" == "darwin" ]]; then
+        printf '%s\n' "${HOME}/.bash_profile"
+      else
+        printf '%s\n' "${HOME}/.bashrc"
+      fi
+      ;;
+    fish)
+      printf '%s\n' "${HOME}/.config/fish/config.fish"
+      ;;
+    *)
+      printf '%s\n' "${HOME}/.profile"
+      ;;
+  esac
+}
+
+persist_path_entry() {
+  local install_dir="$1"
+  local rc_file
+  rc_file="$(select_path_rc)"
+  mkdir -p "$(dirname "$rc_file")"
+  if [[ -f "$rc_file" ]] && grep -F "$install_dir" "$rc_file" >/dev/null 2>&1; then
+    echo "PATH already configured in $rc_file"
+    return 0
+  fi
+
+  local shell_name line
+  shell_name="$(basename "${SHELL:-}")"
+  if [[ "$shell_name" == "fish" ]] || [[ "$rc_file" == *"/config.fish" ]]; then
+    line="set -gx PATH \"$install_dir\" \$PATH"
+  else
+    line="export PATH=\"$install_dir:\$PATH\""
+  fi
+
+  {
+    echo ""
+    echo "# mempack installer PATH update"
+    echo "$line"
+  } >> "$rc_file"
+
+  echo "Added PATH entry to $rc_file"
+  echo "Open a new terminal or source the file to apply changes."
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
@@ -57,6 +115,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --bin-name)
       BIN_NAME="$2"
+      shift 2
+      ;;
+    --add-to-path)
+      ADD_TO_PATH="1"
+      shift
+      ;;
+    --path-rc-file)
+      PATH_RC_FILE="$2"
       shift 2
       ;;
     -h|--help)
@@ -241,3 +307,24 @@ else
 fi
 
 echo "Installed $bin_file to $INSTALL_DIR/$bin_file"
+case ":$PATH:" in
+  *":$INSTALL_DIR:"*)
+    if [[ "$ADD_TO_PATH" == "1" ]]; then
+      persist_path_entry "$INSTALL_DIR"
+    fi
+    ;;
+  *)
+    if [[ "$ADD_TO_PATH" == "1" ]]; then
+      if [[ "$os" == "windows" ]]; then
+        echo "warning: persistent PATH edits are not supported from install.sh on Windows."
+        echo "Use scripts/install.ps1 for Windows PATH updates."
+      else
+        persist_path_entry "$INSTALL_DIR"
+      fi
+    else
+      echo "Add $INSTALL_DIR to PATH to run '$BIN_NAME' without full path."
+      echo "Quick option: rerun with --add-to-path"
+      echo "Manual option: export PATH=\"$INSTALL_DIR:\$PATH\""
+    fi
+    ;;
+esac

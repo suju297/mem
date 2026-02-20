@@ -1,52 +1,46 @@
 package app
 
 import (
+	"fmt"
 	"io"
 	"os"
+	"text/tabwriter"
 )
 
 func writeUsage(w io.Writer) {
 	useColor := shouldColorize(w)
-	title := colorize(useColor, "mempack - repo-scoped memory CLI")
-	usage := colorize(useColor, "Usage:")
-	commands := colorize(useColor, "Commands:")
+	title := colorize(useColor, "mempack")
+	subtitle := colorizeSubtle(useColor, "repo-scoped memory CLI")
+	usage := colorize(useColor, "Usage")
+	sections := colorize(useColor, "Common Commands")
+	notes := colorize(useColor, "Notes")
 
-	io.WriteString(w, title+"\n\n")
+	io.WriteString(w, title+" "+subtitle+"\n\n")
 	io.WriteString(w, usage+"\n")
 	io.WriteString(w, "  mem [--data-dir <path>] <command> [options]\n\n")
-	io.WriteString(w, colorize(useColor, "Global options:")+"\n")
+	io.WriteString(w, colorize(useColor, "Global Options")+"\n")
 	io.WriteString(w, "  --data-dir <path>  Override data dir (MEMPACK_DATA_DIR)\n\n")
-	io.WriteString(w, "Version:\n")
+	io.WriteString(w, colorize(useColor, "Version")+"\n")
 	io.WriteString(w, "  mem version | mem --version | mem -v\n\n")
-	io.WriteString(w, commands+"\n")
-	io.WriteString(w, "  init            mem init [--no-agents] [--assistants agents|claude|gemini|all]\n")
-	io.WriteString(w, "  get             mem get \"<query>\" [--workspace <name>] [--include-orphans] [--cluster] [--repo <id>] [--debug]\n")
-	io.WriteString(w, "  add             mem add --title <title> --summary <summary> [--thread <id>] [--tags tag1,tag2] [--entities <csv>] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  update          mem update <id> [--title <title>] [--summary <summary>] [--tags <csv>] [--tags-add <csv>] [--tags-remove <csv>] [--entities <csv>] [--entities-add <csv>] [--entities-remove <csv>] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  explain         mem explain \"<query>\" [--workspace <name>] [--include-orphans] [--repo <id>]\n")
-	io.WriteString(w, "  show            mem show <id> [--format json] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  forget          mem forget <id> [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  supersede       mem supersede <id> --title <title> --summary <summary> [--thread <id>] [--tags tag1,tag2] [--entities <csv>] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  link            mem link --from <id> --rel <relation> --to <id> [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  checkpoint      mem checkpoint --reason \"<...>\" --state-file <path>|--state-json <json> [--thread <id>] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  ingest          mem ingest <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "                 mem ingest-artifact <path> --thread <id> [--watch] [--workspace <name>] [--repo <id>] (alias)\n")
-	io.WriteString(w, "  embed           mem embed [--kind memory|chunk|all] [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "                 mem embed status [--workspace <name>] [--repo <id>]\n")
-	io.WriteString(w, "  repos           mem repos [--format table|json] [--full-paths]\n")
-	io.WriteString(w, "  use             mem use <repo_id|path>\n")
-	io.WriteString(w, "  threads         mem threads [--workspace <name>] [--repo <id>] [--format json]\n")
-	io.WriteString(w, "  thread          mem thread <thread_id> [--limit 20] [--workspace <name>] [--repo <id>] [--format json]\n")
-	io.WriteString(w, "  recent          mem recent [--limit 20] [--workspace <name>] [--repo <id>] [--format json]\n")
-	io.WriteString(w, "  sessions        mem sessions [--needs-summary] [--count] [--limit 20] [--workspace <name>] [--repo <id>] [--format json]\n")
-	io.WriteString(w, "  session         mem session upsert --title <title> [--summary <summary>] [--thread <id>] [--tags <csv>] [--entities <csv>] [--merge-window-ms <n>] [--min-gap-ms <n>] [--workspace <name>] [--repo <id>] [--format json]\n")
-	io.WriteString(w, "  share           mem share export [--repo <id|path>] [--workspace <name>] [--out <dir>]\n")
-	io.WriteString(w, "                 mem share import [--repo <id|path>] [--workspace <name>] [--in <dir>] [--replace] [--allow-repo-mismatch]\n")
-	io.WriteString(w, "  mcp             mem mcp [start|stop|status] [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]\n")
-	io.WriteString(w, "                 mem mcp manager [--port <n>] [--token <token>] [--idle-seconds <n>]\n")
-	io.WriteString(w, "                 mem mcp manager status [--json]\n")
-	io.WriteString(w, "  doctor          mem doctor [--repo <id|path>] [--json] [--repair] [--verbose]\n")
-	io.WriteString(w, "  template        mem template [agents] [--write] [--assistants agents|claude|gemini|all] [--memory|--no-memory]\n")
+	io.WriteString(w, sections+"\n")
+	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(tw, "  init\tInitialize memory in current repo")
+	fmt.Fprintln(tw, "  get\tRetrieve context by query")
+	fmt.Fprintln(tw, "  add\tSave a memory")
+	fmt.Fprintln(tw, "  update\tUpdate a memory")
+	fmt.Fprintln(tw, "  repos\tList known repos")
+	fmt.Fprintln(tw, "  share export\tExport memories to mempack-share/")
+	fmt.Fprintln(tw, "  share import\tImport from mempack-share/")
+	fmt.Fprintln(tw, "  mcp start|status|stop\tManage local MCP daemon")
+	fmt.Fprintln(tw, "  mcp manager\tRun MCP manager control plane")
+	fmt.Fprintln(tw, "  doctor\tRun health checks")
+	fmt.Fprintln(tw, "  template\tGenerate assistant template files")
+	_ = tw.Flush()
+
+	io.WriteString(w, "\n"+notes+"\n")
+	io.WriteString(w, "  - Run 'mem <command> --help' for command-specific flags.\n")
+	io.WriteString(w, "  - 'mem mcp' is raw stdio mode for MCP clients; in terminals use 'mem mcp start|status|stop'.\n")
+	io.WriteString(w, "  - For full CLI reference, see docs/cli.md.\n")
 }
 
 func shouldColorize(w io.Writer) bool {
@@ -68,8 +62,17 @@ func colorize(enabled bool, text string) string {
 	if !enabled {
 		return text
 	}
-	const purple = "\x1b[35m"
+	const cyan = "\x1b[36m"
 	const bold = "\x1b[1m"
 	const reset = "\x1b[0m"
-	return bold + purple + text + reset
+	return bold + cyan + text + reset
+}
+
+func colorizeSubtle(enabled bool, text string) string {
+	if !enabled {
+		return text
+	}
+	const dim = "\x1b[2m"
+	const reset = "\x1b[0m"
+	return dim + text + reset
 }

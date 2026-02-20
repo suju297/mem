@@ -26,11 +26,21 @@ macOS/Linux:
 curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release>
 ```
 
+Add PATH automatically during install (macOS/Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release> --add-to-path
+```
+
 Windows (PowerShell):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release> }"
+iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release>
 ```
+
+Windows PATH behavior:
+- By default, installer updates user PATH (`-AddToPath $true`).
+- To skip PATH update: `-AddToPath $false`.
 
 If release assets are unavailable, installers fall back to source build (Go toolchain required).
 

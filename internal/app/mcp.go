@@ -12,6 +12,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/mattn/go-isatty"
 
 	"mempack/internal/config"
 	"mempack/internal/health"
@@ -46,6 +47,7 @@ func runMCP(args []string, out, errOut io.Writer) int {
 	repair := fs.Bool("repair", false, "Repair invalid state before starting")
 	requireRepo := fs.Bool("require-repo", false, "Require repo resolution from request/cwd (no active_repo fallback)")
 	writeModeFlag := fs.String("write-mode", "", "Write mode: ask|auto|off (default: config or ask when writes enabled)")
+	forceStdio := fs.Bool("stdio", false, "Force raw MCP stdio mode on interactive terminals")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -101,6 +103,16 @@ func runMCP(args []string, out, errOut io.Writer) int {
 	modeLabel := "write=disabled"
 	if writeCfg.Allowed {
 		modeLabel = "write-mode=" + writeCfg.Mode
+	}
+	if !shouldServeMCPStdio(*forceStdio, isInteractiveTerminal(os.Stdin), isInteractiveTerminal(os.Stdout)) {
+		fmt.Fprintln(errOut, "mcp stdio expects a JSON-RPC client, not an interactive terminal.")
+		fmt.Fprintln(errOut, "Use one of:")
+		fmt.Fprintln(errOut, "  mem mcp start")
+		fmt.Fprintln(errOut, "  mem mcp status")
+		fmt.Fprintln(errOut, "  mem mcp stop")
+		fmt.Fprintln(errOut, "or force raw mode with:")
+		fmt.Fprintln(errOut, "  mem mcp --stdio")
+		return 2
 	}
 	fmt.Fprintf(errOut, "mempack mcp: repo=%s db=%s schema=v%d fts=ok tools=%d (%s)\n",
 		report.Repo.ID, report.DB.Path, report.Schema.UserVersion, tools, modeLabel)
@@ -292,6 +304,21 @@ func repoAllowsWrite(root string) bool {
 		}
 	}
 	return false
+}
+
+func shouldServeMCPStdio(forceStdio bool, stdinTTY bool, stdoutTTY bool) bool {
+	if forceStdio {
+		return true
+	}
+	return !(stdinTTY && stdoutTTY)
+}
+
+func isInteractiveTerminal(file *os.File) bool {
+	if file == nil {
+		return false
+	}
+	fd := file.Fd()
+	return isatty.IsTerminal(fd) || isatty.IsCygwinTerminal(fd)
 }
 
 func handleGetContext(_ context.Context, request mcp.CallToolRequest, requireRepo bool) (*mcp.CallToolResult, error) {

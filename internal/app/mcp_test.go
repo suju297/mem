@@ -822,6 +822,29 @@ func TestMCPHealthRepairToggle(t *testing.T) {
 	}
 }
 
+func TestShouldServeMCPStdio(t *testing.T) {
+	tests := []struct {
+		name      string
+		force     bool
+		stdinTTY  bool
+		stdoutTTY bool
+		wantServe bool
+	}{
+		{name: "non-tty should serve", force: false, stdinTTY: false, stdoutTTY: false, wantServe: true},
+		{name: "mixed tty should serve", force: false, stdinTTY: true, stdoutTTY: false, wantServe: true},
+		{name: "interactive tty blocked by default", force: false, stdinTTY: true, stdoutTTY: true, wantServe: false},
+		{name: "interactive tty allowed with --stdio", force: true, stdinTTY: true, stdoutTTY: true, wantServe: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := shouldServeMCPStdio(tc.force, tc.stdinTTY, tc.stdoutTTY)
+			if got != tc.wantServe {
+				t.Fatalf("shouldServeMCPStdio(%v, %v, %v)=%v, want %v", tc.force, tc.stdinTTY, tc.stdoutTTY, got, tc.wantServe)
+			}
+		})
+	}
+}
+
 func seedMemory(t testing.TB, title, summary string) {
 	t.Helper()
 	cfg, err := loadConfig()

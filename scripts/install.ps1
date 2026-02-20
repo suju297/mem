@@ -4,6 +4,7 @@ Param(
     [string]$Version = "latest",
     [string]$InstallDir = "$env:USERPROFILE\bin",
     [string]$BinName = "mem",
+    [bool]$AddToPath = $true,
     [switch]$SkipChecksums
 )
 
@@ -15,6 +16,43 @@ function Resolve-Arch {
     if ($env:PROCESSOR_ARCHITEW6432 -eq "ARM64") { return "arm64" }
     if ($env:PROCESSOR_ARCHITEW6432 -eq "AMD64") { return "amd64" }
     throw "Unsupported Windows architecture: $env:PROCESSOR_ARCHITECTURE"
+}
+
+function Test-PathContains {
+    Param(
+        [string]$PathValue,
+        [string]$Entry
+    )
+    if ([string]::IsNullOrWhiteSpace($PathValue) -or [string]::IsNullOrWhiteSpace($Entry)) {
+        return $false
+    }
+    $normalizedEntry = $Entry.TrimEnd('\').ToLowerInvariant()
+    foreach ($item in ($PathValue -split ';')) {
+        $candidate = $item.Trim()
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+        if ($candidate.TrimEnd('\').ToLowerInvariant() -eq $normalizedEntry) {
+            return $true
+        }
+    }
+    return $false
+}
+
+function Add-UserPathEntry {
+    Param([string]$Entry)
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    if (Test-PathContains -PathValue $userPath -Entry $Entry) {
+        return $false
+    }
+    if ([string]::IsNullOrWhiteSpace($userPath)) {
+        $newPath = $Entry
+    } else {
+        $newPath = "$userPath;$Entry"
+    }
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    return $true
 }
 
 $arch = Resolve-Arch
@@ -121,7 +159,26 @@ try {
     Copy-Item -Path $candidate -Destination $dest -Force
 
     Write-Host "Installed $binFile to $dest"
-    Write-Host "If needed, add $InstallDir to your user PATH."
+    if ($AddToPath) {
+        $userPathUpdated = Add-UserPathEntry -Entry $InstallDir
+        $sessionPathUpdated = $false
+        if (-not (Test-PathContains -PathValue $env:Path -Entry $InstallDir)) {
+            $env:Path = "$InstallDir;$env:Path"
+            $sessionPathUpdated = $true
+        }
+
+        if ($userPathUpdated) {
+            Write-Host "Updated user PATH: added $InstallDir"
+        } else {
+            Write-Host "User PATH already includes $InstallDir"
+        }
+        if ($sessionPathUpdated) {
+            Write-Host "Updated current session PATH so '$BinName' works immediately."
+        }
+    } else {
+        Write-Host "Skipped PATH update (-AddToPath=`$false)."
+        Write-Host "To update manually: `$env:Path = ""$InstallDir;`$env:Path"""
+    }
 } finally {
     if (Test-Path $tmp) {
         Remove-Item -Path $tmp -Recurse -Force
