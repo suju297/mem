@@ -32,6 +32,8 @@ Windows (PowerShell):
 powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release> }"
 ```
 
+If release assets are unavailable, installers fall back to source build (Go toolchain required).
+
 2. Initialize in your repo:
 
 ```bash

@@ -28,6 +28,19 @@ Notes:
 EOF
 }
 
+download_file() {
+  local src="$1"
+  local dst="$2"
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL -o "$dst" "$src"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "$dst" "$src"
+  else
+    echo "error: curl or wget required" >&2
+    return 1
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)
@@ -125,26 +138,17 @@ fi
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 archive="$tmpdir/$asset"
-
-if command -v curl >/dev/null 2>&1; then
-  curl -fsSL -o "$archive" "$url"
-elif command -v wget >/dev/null 2>&1; then
-  wget -qO "$archive" "$url"
+downloaded_release=0
+if download_file "$url" "$archive"; then
+  downloaded_release=1
 else
-  echo "error: curl or wget required" >&2
-  exit 1
+  echo "warning: release asset not found (${asset}); falling back to source build" >&2
 fi
 
-if [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
+if [[ "$downloaded_release" == "1" ]] && [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
   checksums_path="$tmpdir/checksums.txt"
-  if command -v curl >/dev/null 2>&1; then
-    if ! curl -fsSL -o "$checksums_path" "$checksums_url"; then
-      checksums_path=""
-    fi
-  elif command -v wget >/dev/null 2>&1; then
-    if ! wget -qO "$checksums_path" "$checksums_url"; then
-      checksums_path=""
-    fi
+  if ! download_file "$checksums_url" "$checksums_path"; then
+    checksums_path=""
   fi
 
   if [[ -n "${checksums_path:-}" ]] && [[ -f "$checksums_path" ]]; then
@@ -171,30 +175,62 @@ if [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
   fi
 fi
 
-if [[ "$archive_ext" == "zip" ]]; then
-  if command -v unzip >/dev/null 2>&1; then
-    unzip -q "$archive" -d "$tmpdir"
-  elif command -v bsdtar >/dev/null 2>&1; then
-    bsdtar -xf "$archive" -C "$tmpdir"
-  elif command -v powershell.exe >/dev/null 2>&1; then
-    powershell.exe -NoProfile -Command \
-      "Expand-Archive -Path '$archive' -DestinationPath '$tmpdir' -Force" >/dev/null
+if [[ "$downloaded_release" == "1" ]]; then
+  if [[ "$archive_ext" == "zip" ]]; then
+    if command -v unzip >/dev/null 2>&1; then
+      unzip -q "$archive" -d "$tmpdir"
+    elif command -v bsdtar >/dev/null 2>&1; then
+      bsdtar -xf "$archive" -C "$tmpdir"
+    elif command -v powershell.exe >/dev/null 2>&1; then
+      powershell.exe -NoProfile -Command \
+        "Expand-Archive -Path '$archive' -DestinationPath '$tmpdir' -Force" >/dev/null
+    else
+      echo "error: unzip, bsdtar, or powershell.exe required to extract $asset" >&2
+      exit 1
+    fi
   else
-    echo "error: unzip, bsdtar, or powershell.exe required to extract $asset" >&2
+    tar -xzf "$archive" -C "$tmpdir"
+  fi
+
+  bin_path="$tmpdir/$bin_file"
+  if [[ ! -f "$bin_path" ]]; then
+    bin_path="$(find "$tmpdir" -maxdepth 2 -type f -name "$bin_file" | head -n 1)"
+  fi
+  if [[ -z "$bin_path" ]] || [[ ! -f "$bin_path" ]]; then
+    echo "error: binary $bin_file not found in archive" >&2
     exit 1
   fi
 else
-  tar -xzf "$archive" -C "$tmpdir"
-fi
+  if ! command -v go >/dev/null 2>&1; then
+    echo "error: release asset unavailable and Go toolchain not found for source build fallback" >&2
+    exit 1
+  fi
 
-bin_path="$tmpdir/$bin_file"
-if [[ ! -f "$bin_path" ]]; then
-  bin_path="$(find "$tmpdir" -maxdepth 2 -type f -name "$bin_file" | head -n 1)"
-fi
+  if [[ "$VERSION" == "latest" ]]; then
+    source_ref="heads/main"
+  else
+    source_ref="tags/$VERSION"
+  fi
+  source_url="https://github.com/${REPO}/archive/refs/${source_ref}.tar.gz"
+  source_archive="$tmpdir/source.tar.gz"
+  if ! download_file "$source_url" "$source_archive"; then
+    echo "error: unable to download source archive from $source_url" >&2
+    exit 1
+  fi
 
-if [[ -z "$bin_path" ]] || [[ ! -f "$bin_path" ]]; then
-  echo "error: binary $bin_file not found in archive" >&2
-  exit 1
+  tar -xzf "$source_archive" -C "$tmpdir"
+  main_go="$(find "$tmpdir" -maxdepth 5 -type f -path "*/cmd/mem/main.go" | head -n 1)"
+  if [[ -z "$main_go" ]]; then
+    echo "error: source archive missing cmd/mem/main.go" >&2
+    exit 1
+  fi
+  src_root="${main_go%/cmd/mem/main.go}"
+  echo "Building $bin_file from source (${source_ref})..." >&2
+  (
+    cd "$src_root"
+    CGO_ENABLED=0 go build -trimpath -o "$tmpdir/$bin_file" ./cmd/mem
+  )
+  bin_path="$tmpdir/$bin_file"
 fi
 
 mkdir -p "$INSTALL_DIR"

@@ -34,6 +34,8 @@ Windows (PowerShell):
 powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo suju297/mempack }"
 ```
 
+If release assets are unavailable, installers fall back to source build (Go toolchain required).
+
 Verify:
 
 ```bash

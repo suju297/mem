@@ -4,8 +4,8 @@
 # Local outputs
 output.txt
 bench_output.txt
-mem
-mem.exe
+/mem
+/mem.exe
 mempack-share/
 excalidraw.log
 improvements.md
