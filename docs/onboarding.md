@@ -18,21 +18,42 @@ Who it’s not for:
 
 ## Quick Start (MCP first, under 5 minutes)
 
+1. Install `mem`:
+
+macOS/Linux:
+
 ```bash
-# Install
 curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release>
+```
 
-# Initialize in your repo
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release> }"
+```
+
+2. Initialize in your repo:
+
+```bash
 mem init
+```
 
-# Connect Codex to MCP
+3. Connect Codex to MCP:
+
+```bash
 codex mcp add mempack -- mem mcp --require-repo
 codex mcp list
+```
 
-# Start the MCP server
+4. Start MCP:
+
+```bash
 mem mcp
+```
 
-# Minimal example (seed one memory)
+5. Seed one memory:
+
+```bash
 mem add --title "Auth plan" --summary "Use middleware; invalid token returns 401."
 ```
 

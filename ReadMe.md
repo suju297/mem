@@ -20,11 +20,23 @@ Use this as the docs entrypoint:
 
 ## Minimum Viable Quick Start (5 minutes)
 
-1. Build/install CLI:
+1. Install CLI from GitHub Releases:
+
+macOS/Linux:
 
 ```bash
-go build -o mem ./cmd/mem
-sudo install -m 0755 ./mem /usr/local/bin/mem
+curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release>
+```
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "& { iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release> }"
+```
+
+Verify:
+
+```bash
 mem --version
 ```
 

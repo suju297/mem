@@ -6,6 +6,8 @@ output.txt
 bench_output.txt
 mem
 mem.exe
+mempack-share/
+excalidraw.log
 improvements.md
 Bugs.md
 implementation.md

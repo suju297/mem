@@ -4,7 +4,7 @@ set -euo pipefail
 BIN_NAME="mem"
 REPO="${MEMPACK_REPO:-}"
 VERSION="${MEMPACK_VERSION:-latest}"
-INSTALL_DIR="${MEMPACK_INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${MEMPACK_INSTALL_DIR:-}"
 VERIFY_CHECKSUMS="${MEMPACK_VERIFY_CHECKSUMS:-1}"
 
 usage() {
@@ -21,6 +21,10 @@ Examples:
   ./install.sh --repo owner/mempack
   MEMPACK_REPO=owner/mempack ./install.sh
   ./install.sh --repo owner/mempack --version v0.2.0
+
+Notes:
+  - This script supports macOS, Linux, and Git-Bash/MSYS/Cygwin on Windows.
+  - Native PowerShell installer: scripts/install.ps1
 EOF
 }
 
@@ -74,11 +78,19 @@ if [[ -z "$REPO" ]]; then
   exit 1
 fi
 
-os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-case "$os" in
+os_raw="$(uname -s | tr '[:upper:]' '[:lower:]')"
+os="$os_raw"
+archive_ext="tar.gz"
+bin_file="$BIN_NAME"
+case "$os_raw" in
   darwin|linux) ;;
+  msys*|mingw*|cygwin*)
+    os="windows"
+    archive_ext="zip"
+    bin_file="${BIN_NAME}.exe"
+    ;;
   *)
-    echo "unsupported OS: $os" >&2
+    echo "unsupported OS: $os_raw" >&2
     exit 1
     ;;
 esac
@@ -93,7 +105,15 @@ case "$arch" in
     ;;
 esac
 
-asset="mempack_${os}_${arch}.tar.gz"
+if [[ -z "$INSTALL_DIR" ]]; then
+  if [[ "$os" == "windows" ]]; then
+    INSTALL_DIR="${USERPROFILE:-$HOME}/bin"
+  else
+    INSTALL_DIR="${HOME}/.local/bin"
+  fi
+fi
+
+asset="mempack_${os}_${arch}.${archive_ext}"
 if [[ "$VERSION" == "latest" ]]; then
   url="https://github.com/${REPO}/releases/latest/download/${asset}"
   checksums_url="https://github.com/${REPO}/releases/latest/download/checksums.txt"
@@ -151,19 +171,37 @@ if [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
   fi
 fi
 
-tar -xzf "$archive" -C "$tmpdir"
+if [[ "$archive_ext" == "zip" ]]; then
+  if command -v unzip >/dev/null 2>&1; then
+    unzip -q "$archive" -d "$tmpdir"
+  elif command -v bsdtar >/dev/null 2>&1; then
+    bsdtar -xf "$archive" -C "$tmpdir"
+  elif command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "Expand-Archive -Path '$archive' -DestinationPath '$tmpdir' -Force" >/dev/null
+  else
+    echo "error: unzip, bsdtar, or powershell.exe required to extract $asset" >&2
+    exit 1
+  fi
+else
+  tar -xzf "$archive" -C "$tmpdir"
+fi
 
-bin_path="$tmpdir/$BIN_NAME"
+bin_path="$tmpdir/$bin_file"
 if [[ ! -f "$bin_path" ]]; then
-  bin_path="$(find "$tmpdir" -maxdepth 2 -type f -name "$BIN_NAME" | head -n 1)"
+  bin_path="$(find "$tmpdir" -maxdepth 2 -type f -name "$bin_file" | head -n 1)"
 fi
 
 if [[ -z "$bin_path" ]] || [[ ! -f "$bin_path" ]]; then
-  echo "error: binary $BIN_NAME not found in archive" >&2
+  echo "error: binary $bin_file not found in archive" >&2
   exit 1
 fi
 
 mkdir -p "$INSTALL_DIR"
-install -m 0755 "$bin_path" "$INSTALL_DIR/$BIN_NAME"
+if [[ "$os" == "windows" ]]; then
+  cp "$bin_path" "$INSTALL_DIR/$bin_file"
+else
+  install -m 0755 "$bin_path" "$INSTALL_DIR/$bin_file"
+fi
 
-echo "Installed $BIN_NAME to $INSTALL_DIR/$BIN_NAME"
+echo "Installed $bin_file to $INSTALL_DIR/$bin_file"

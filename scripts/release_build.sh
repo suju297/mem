@@ -37,18 +37,26 @@ targets=(
   "darwin/arm64"
   "linux/amd64"
   "linux/arm64"
+  "windows/amd64"
+  "windows/arm64"
 )
 
 for target in "${targets[@]}"; do
   IFS="/" read -r os arch <<<"$target"
   pkgdir="$DIST_DIR/mempack_${os}_${arch}"
+  bin_file="$BIN_NAME"
+  asset="$DIST_DIR/mempack_${os}_${arch}.tar.gz"
+  if [[ "$os" == "windows" ]]; then
+    bin_file="${BIN_NAME}.exe"
+    asset="$DIST_DIR/mempack_${os}_${arch}.zip"
+  fi
   rm -rf "$pkgdir"
   mkdir -p "$pkgdir"
 
   echo "Building $os/$arch..."
   CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" \
     go build -trimpath -ldflags "-s -w -X mempack/internal/app.Version=$VERSION -X mempack/internal/app.Commit=$COMMIT" \
-    -o "$pkgdir/$BIN_NAME" ./cmd/mem
+    -o "$pkgdir/$bin_file" ./cmd/mem
 
   if [[ -f "$ROOT_DIR/ReadMe.md" ]]; then
     cp "$ROOT_DIR/ReadMe.md" "$pkgdir/README.md"
@@ -57,8 +65,22 @@ for target in "${targets[@]}"; do
     cp "$ROOT_DIR/LICENSE" "$pkgdir/LICENSE"
   fi
 
-  tarball="$DIST_DIR/mempack_${os}_${arch}.tar.gz"
-  tar -czf "$tarball" -C "$pkgdir" .
+  if [[ "$os" == "windows" ]]; then
+    PKG_DIR="$pkgdir" ASSET_PATH="$asset" python3 - <<'PY'
+import os
+from pathlib import Path
+from zipfile import ZIP_DEFLATED, ZipFile
+
+pkg_dir = Path(os.environ["PKG_DIR"])
+asset_path = Path(os.environ["ASSET_PATH"])
+with ZipFile(asset_path, "w", compression=ZIP_DEFLATED) as zf:
+    for item in sorted(pkg_dir.rglob("*")):
+        if item.is_file():
+            zf.write(item, item.relative_to(pkg_dir))
+PY
+  else
+    tar -czf "$asset" -C "$pkgdir" .
+  fi
 done
 
 DIST_DIR="$DIST_DIR" python3 - <<'PY'
@@ -68,7 +90,8 @@ from pathlib import Path
 
 dist = Path(os.environ["DIST_DIR"])
 checksums = []
-for path in sorted(dist.glob("mempack_*.tar.gz")):
+assets = sorted(list(dist.glob("mempack_*.tar.gz")) + list(dist.glob("mempack_*.zip")))
+for path in assets:
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1024 * 1024), b""):
