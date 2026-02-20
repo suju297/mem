@@ -46,10 +46,10 @@ jobs:
       - name: Build and package
         shell: bash
         run: |
-          set -euo pipefail
+          set -eo pipefail
           go version
-          VERSION="${GITHUB_REF_NAME}"
-          COMMIT="$(printf '%s' "${GITHUB_SHA}" | cut -c1-7)"
+          VERSION="${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+          COMMIT="$(printf '%s' "${GITHUB_SHA:-dev}" | cut -c1-7)"
           DIST_DIR="dist/${VERSION}"
           PKG_DIR="${DIST_DIR}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}"
           mkdir -p "${PKG_DIR}"
@@ -99,8 +99,9 @@ jobs:
       - name: Generate checksums
         shell: bash
         run: |
-          set -euo pipefail
-          cd "dist/${GITHUB_REF_NAME}"
+          set -eo pipefail
+          VERSION="${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+          cd "dist/${VERSION}"
           sha256sum mempack_* > checksums.txt
 
       - name: Publish GitHub release
