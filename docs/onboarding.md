@@ -226,6 +226,6 @@ A: Use `mem explain "<query>"` and check `search_meta`.
 
 ## Contribution & Support
 
-- Track known issues in `Bugs.md`.
-- Check planned work in `Todo.md`.
-- See `ReadMe.md` for the full reference.
+- Start from `ReadMe.md` for the high-level command/reference map.
+- See `docs/architecture.md` for runtime/data-flow internals.
+- Use `docs/memory-testing-process.md` for reproducible sandbox validation.
