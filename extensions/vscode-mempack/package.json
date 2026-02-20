@@ -8,7 +8,7 @@
   },
   "description": "Repo-scoped memory for coding agents (CLI wrapper).",
   "license": "MIT",
-  "version": "0.2.28",
+  "version": "0.2.29",
   "publisher": "mempack",
   "engines": {
     "vscode": "^1.84.0"
@@ -28,9 +28,6 @@
     "onCommand:mempack.explain",
     "onCommand:mempack.searchMemories",
     "onCommand:mempack.refresh",
-    "onCommand:mempack.startMcpServer",
-    "onCommand:mempack.stopMcpServer",
-    "onCommand:mempack.restartMcpServer",
     "onCommand:mempack.openMemory",
     "onCommand:mempack.openThreadsUI",
     "onCommand:mempack.openRecentUI",
@@ -123,20 +120,6 @@
         "shortTitle": "Refresh",
         "category": "Mempack",
         "icon": "$(refresh)"
-      },
-      {
-        "command": "mempack.startMcpServer",
-        "title": "Mempack: Start MCP Server",
-        "icon": "$(play)"
-      },
-      {
-        "command": "mempack.stopMcpServer",
-        "title": "Mempack: Stop MCP Server",
-        "icon": "$(primitive-square)"
-      },
-      {
-        "command": "mempack.restartMcpServer",
-        "title": "Mempack: Restart MCP Server"
       },
       {
         "command": "mempack.openMemory",
@@ -263,21 +246,6 @@
           "command": "mempack.refresh",
           "when": "view == mempackView",
           "group": "navigation@1"
-        },
-        {
-          "command": "mempack.startMcpServer",
-          "when": "view == mempackView && !mempack.mcpRunning",
-          "group": "navigation@10"
-        },
-        {
-          "command": "mempack.stopMcpServer",
-          "when": "view == mempackView && mempack.mcpRunning",
-          "group": "navigation@10"
-        },
-        {
-          "command": "mempack.restartMcpServer",
-          "when": "view == mempackView && mempack.mcpRunning",
-          "group": "navigation@11"
         }
       ],
       "editor/context": [
@@ -364,11 +332,6 @@
             "cli"
           ],
           "description": "Write transport strategy for add/update/checkpoint calls. mcp_first tries MCP then falls back to CLI."
-        },
-        "mempack.promptStartMcpServer": {
-          "type": "boolean",
-          "default": true,
-          "description": "Prompt to start the MCP server when opening a Mempack repo and MCP is not running."
         },
         "mempack.autoSessionsEnabled": {
           "type": "boolean",

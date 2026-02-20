@@ -30,6 +30,8 @@ interface McpClientOptions {
   cwd: string;
   timeoutMs: number;
   onLog?: (line: string) => void;
+  onSpawn?: (pid: number | undefined) => void;
+  onExit?: (code: number | null, signal: NodeJS.Signals | null) => void;
 }
 
 function isObject(value: unknown): value is Record<string, any> {
@@ -85,6 +87,11 @@ export async function callMcpTool(
     cwd: options.cwd,
     stdio: ["pipe", "pipe", "pipe"]
   });
+  try {
+    options.onSpawn?.(child.pid);
+  } catch {
+    // ignore callback failures
+  }
 
   const pending = new Map<number, { resolve: (result: any) => void; reject: (err: Error) => void }>();
   let nextId = 1;
@@ -120,6 +127,11 @@ export async function callMcpTool(
   });
 
   child.on("exit", (code, signal) => {
+    try {
+      options.onExit?.(code, signal);
+    } catch {
+      // ignore callback failures
+    }
     const tail = stderr.trim();
     const detail = tail ? `: ${tail}` : "";
     const reason =
@@ -252,4 +264,3 @@ export async function callMcpTool(
     rlOut.close();
   }
 }
-

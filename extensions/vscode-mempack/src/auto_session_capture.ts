@@ -146,6 +146,8 @@ const DEFAULT_IGNORED_SEGMENTS = [
   "coverage/"
 ];
 
+const MAX_SNAPSHOTS_PER_WORKSPACE = 200;
+
 export class AutoSessionCaptureEngine {
   private readonly snapshotsByWorkspace = new Map<string, Map<string, string>>();
   private readonly burstByWorkspace = new Map<string, BurstState>();
@@ -179,8 +181,7 @@ export class AutoSessionCaptureEngine {
 
     const snapshots = this.ensureSnapshots(workspaceRoot);
 
-    const previous = snapshots.get(relPath);
-    snapshots.set(relPath, normalized);
+    const previous = this.upsertSnapshot(snapshots, relPath, normalized);
     if (typeof previous !== "string") {
       return;
     }
@@ -232,7 +233,7 @@ export class AutoSessionCaptureEngine {
     const whitespaceSensitive = isWhitespaceSensitiveExt(ext, relPath);
     const normalized = normalizeForDiff(text, whitespaceSensitive);
     const snapshots = this.ensureSnapshots(workspaceRoot);
-    snapshots.set(relPath, normalized);
+    this.upsertSnapshot(snapshots, relPath, normalized);
 
     const deltaLines = Math.max(1, normalized.split("\n").filter((line) => line.trim() !== "").length);
     const semanticBonus = computeSemanticBonus("", normalized, relPath);
@@ -294,7 +295,7 @@ export class AutoSessionCaptureEngine {
     const whitespaceSensitive = isWhitespaceSensitiveExt(newExt, newRelPath);
     const normalized = normalizeForDiff(nextText, whitespaceSensitive);
     if (!newIgnored) {
-      snapshots.set(newRelPath, normalized);
+      this.upsertSnapshot(snapshots, newRelPath, normalized);
     }
     if (oldIgnored || newIgnored) {
       return;
@@ -331,6 +332,30 @@ export class AutoSessionCaptureEngine {
       this.snapshotsByWorkspace.set(workspaceRoot, snapshots);
     }
     return snapshots;
+  }
+
+  private upsertSnapshot(
+    snapshots: Map<string, string>,
+    relPath: string,
+    normalizedText: string
+  ): string | undefined {
+    const previous = snapshots.get(relPath);
+    if (previous !== undefined) {
+      snapshots.delete(relPath);
+    }
+    snapshots.set(relPath, normalizedText);
+    this.trimSnapshots(snapshots);
+    return previous;
+  }
+
+  private trimSnapshots(snapshots: Map<string, string>): void {
+    while (snapshots.size > MAX_SNAPSHOTS_PER_WORKSPACE) {
+      const oldest = snapshots.keys().next();
+      if (oldest.done) {
+        return;
+      }
+      snapshots.delete(oldest.value);
+    }
   }
 
   private async shouldIgnore(

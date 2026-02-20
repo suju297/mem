@@ -33,40 +33,34 @@ func (p *OllamaProvider) Embed(texts []string) ([][]float64, error) {
 	if len(texts) == 0 {
 		return nil, nil
 	}
-	results := make([][]float64, 0, len(texts))
 	for _, text := range texts {
 		if strings.TrimSpace(text) == "" {
 			return nil, fmt.Errorf("embedding text is empty")
 		}
-		embedding, err := p.embedOne(text)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, embedding)
 	}
-	return results, nil
+	return p.embedBatch(texts)
 }
 
 type ollamaEmbeddingRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
+	Model string   `json:"model"`
+	Input []string `json:"input"`
 }
 
 type ollamaEmbeddingResponse struct {
-	Embedding []float64 `json:"embedding"`
-	Error     string    `json:"error,omitempty"`
+	Embeddings [][]float64 `json:"embeddings"`
+	Error      string      `json:"error,omitempty"`
 }
 
-func (p *OllamaProvider) embedOne(text string) ([]float64, error) {
+func (p *OllamaProvider) embedBatch(texts []string) ([][]float64, error) {
 	reqBody, err := json.Marshal(ollamaEmbeddingRequest{
-		Model:  p.model,
-		Prompt: text,
+		Model: p.model,
+		Input: texts,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	url := strings.TrimRight(p.baseURL, "/") + "/api/embeddings"
+	url := strings.TrimRight(p.baseURL, "/") + "/api/embed"
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err
@@ -92,12 +86,17 @@ func (p *OllamaProvider) embedOne(text string) ([]float64, error) {
 		return nil, err
 	}
 	if payload.Error != "" {
-		return nil, fmt.Errorf("ollama embeddings error: %s", payload.Error)
+		return nil, fmt.Errorf("ollama embed error: %s", payload.Error)
 	}
-	if len(payload.Embedding) == 0 {
-		return nil, fmt.Errorf("ollama embeddings returned empty vector")
+	if len(payload.Embeddings) != len(texts) {
+		return nil, fmt.Errorf("ollama embed count mismatch: expected %d, got %d", len(texts), len(payload.Embeddings))
 	}
-	return payload.Embedding, nil
+	for i, vector := range payload.Embeddings {
+		if len(vector) == 0 {
+			return nil, fmt.Errorf("ollama embed returned empty vector at index %d", i)
+		}
+	}
+	return payload.Embeddings, nil
 }
 
 func resolveOllamaURL() string {

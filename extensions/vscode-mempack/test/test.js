@@ -237,6 +237,15 @@ function testSessionMergeDecision() {
   assert.strictEqual(
     decideSessionUpsertAction({
       ...base,
+      latestCreatedAtMs: base.nowMs - 120_000,
+      mergeWindowMs: 60_000,
+      minGapMs: 300_000
+    }),
+    "create_new"
+  );
+  assert.strictEqual(
+    decideSessionUpsertAction({
+      ...base,
       latestCreatedAtMs: 0
     }),
     "create_new"
@@ -622,6 +631,67 @@ async function testAutoSessionLifecycleAndIgnore() {
   engine.dispose();
 }
 
+async function testAutoSessionSnapshotEviction() {
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mempack-auto-snapshots-"));
+  const workspaceRoot = path.join(tmpRoot, "repo");
+  await fs.mkdir(path.join(workspaceRoot, "src"), { recursive: true });
+
+  const scheduler = {
+    now: () => 1_700_000_000_000,
+    setTimeout: () => 0,
+    clearTimeout: () => {}
+  };
+
+  const engine = new AutoSessionCaptureEngine(
+    {
+      async listRecentSessions() {
+        return [];
+      },
+      async resolveThread() {
+        return "T-SESSION";
+      },
+      async createSession() {
+        return { id: "M-IGNORED" };
+      },
+      async updateSession() {
+        return;
+      }
+    },
+    () => ({
+      quietMs: 60_000,
+      maxBurstMs: 3_600_000,
+      scoreThreshold: 1_000_000_000,
+      filesThreshold: 1_000_000_000,
+      maxFilesPerSession: 50,
+      mergeWindowMs: 300_000,
+      newSessionMinGapMs: 300_000,
+      maxFileBytes: 2_000_000,
+      privacyMode: "folders_exts",
+      needsSummary: false,
+      ignoredSegments: []
+    }),
+    scheduler
+  );
+
+  for (let i = 0; i < 260; i += 1) {
+    await engine.recordCreate({
+      workspaceRoot,
+      filePath: path.join(workspaceRoot, "src", `f${i}.ts`),
+      text: `export const v${i} = ${i};\n`
+    });
+  }
+
+  const snapshotsByWorkspace = engine.snapshotsByWorkspace;
+  assert.ok(snapshotsByWorkspace instanceof Map);
+  const snapshots = snapshotsByWorkspace.get(workspaceRoot);
+  assert.ok(snapshots instanceof Map);
+  assert.strictEqual(snapshots.size <= 200, true);
+  assert.strictEqual(snapshots.has("src/f0.ts"), false);
+  assert.strictEqual(snapshots.has("src/f259.ts"), true);
+
+  engine.dispose();
+}
+
 async function runTests() {
   try {
     testStubHelpers();
@@ -632,6 +702,7 @@ async function runTests() {
     await testAutoSessionCaptureIntegration();
     await testAutoSessionFlushPreservesPendingChanges();
     await testAutoSessionLifecycleAndIgnore();
+    await testAutoSessionSnapshotEviction();
     console.log("Extension unit tests: ok");
   } catch (err) {
     console.error("Extension unit tests: failed", err);

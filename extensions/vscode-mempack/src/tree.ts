@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as fs from "fs/promises";
-import { MempackClient } from "./client";
+import { LastMcpSpawn, MempackClient } from "./client";
 import { EmbedStatusResponse, RecentMemoryItem, SessionItem, ThreadItem, ThreadMemoryBrief } from "./types";
 import { getWorkspaceRoot } from "./workspace";
 import {
@@ -101,6 +101,10 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
 
     if (element instanceof RepoMemoryNode) {
       return this.getRepoMemoryChildren(element);
+    }
+
+    if (element instanceof McpServerNode) {
+      return this.getMcpChildren(element);
     }
 
     if (element instanceof SettingsRootNode) {
@@ -323,18 +327,85 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     if (this.mcpCache && now - this.mcpCache.at < 5000) {
       return this.mcpCache.node;
     }
+    let daemonRunning = false;
+    let daemonPid: number | undefined;
+    let daemonMessage: string | undefined;
+    let daemonUnavailable = false;
     try {
       const status = await this.client.mcpStatus(cwd);
-      await vscode.commands.executeCommand("setContext", "mempack.mcpRunning", status.running);
-      const node = new McpServerNode(status.running, status.pid, status.message);
-      this.mcpCache = { at: now, node, running: status.running };
-      return node;
+      daemonRunning = status.running;
+      daemonPid = status.pid;
+      daemonMessage = status.message;
     } catch (err: any) {
-      await vscode.commands.executeCommand("setContext", "mempack.mcpRunning", false);
-      const node = new McpServerNode(false, undefined, formatErrorMessage(err), true);
-      this.mcpCache = { at: now, node, running: false };
-      return node;
+      daemonUnavailable = true;
+      daemonMessage = formatErrorMessage(err);
     }
+    await vscode.commands.executeCommand("setContext", "mempack.mcpRunning", daemonRunning);
+
+    const manager = await this.client.mcpManagerStatus(cwd);
+    const info: McpRuntimeInfo = {
+      checkedAt: now,
+      daemonRunning,
+      daemonPid,
+      daemonMessage,
+      daemonUnavailable,
+      managerRunning: manager.running,
+      managerPid: manager.pid,
+      managerPort: manager.port,
+      managerMessage: manager.message,
+      lastSpawn: this.client.getLastMcpSpawn()
+    };
+
+    const node = new McpServerNode(info);
+    this.mcpCache = { at: now, node, running: daemonRunning };
+    return node;
+  }
+
+  private getMcpChildren(node: McpServerNode): MempackNode[] {
+    const info = node.info;
+    const items: MempackNode[] = [];
+
+    items.push(new McpDetailNode("Daemon", info.daemonRunning ? "Running" : "Stopped", info.daemonRunning ? "check" : "circle-slash"));
+    items.push(new McpDetailNode("Daemon PID", info.daemonPid ? String(info.daemonPid) : "N/A", "tag"));
+
+    items.push(new McpDetailNode("Manager", info.managerRunning ? "Running" : "Stopped", info.managerRunning ? "check" : "circle-slash"));
+    items.push(new McpDetailNode("Manager PID", info.managerPid ? String(info.managerPid) : "N/A", "tag"));
+    items.push(
+      new McpDetailNode(
+        "Manager Port",
+        typeof info.managerPort === "number" ? String(info.managerPort) : "N/A",
+        "plug"
+      )
+    );
+
+    if (info.lastSpawn) {
+      const last = info.lastSpawn;
+      items.push(new McpDetailNode("Last Spawn PID", last.pid ? String(last.pid) : "Unknown", "tag"));
+      items.push(new McpDetailNode("Last Spawn Tool", last.tool, "tools"));
+      const result = last.ok ? `OK (${last.durationMs} ms)` : `Error (${last.durationMs} ms)`;
+      items.push(new McpDetailNode("Last Spawn Result", result, last.ok ? "check" : "warning"));
+      items.push(
+        new McpDetailNode(
+          "Last Spawn At",
+          formatTimestamp(last.startedAtMs),
+          "history",
+          `${formatTimestamp(last.startedAtMs)}\nRepo: ${last.repo}`
+        )
+      );
+      if (!last.ok && last.error && last.error.trim() !== "") {
+        items.push(new MessageNode("Last spawn error", truncateSummary(last.error, 120), "warning"));
+      }
+    } else {
+      items.push(new McpDetailNode("Last Spawn", "No MCP tool call in this session", "history"));
+    }
+
+    if (info.daemonUnavailable && info.daemonMessage && info.daemonMessage.trim() !== "") {
+      items.push(new MessageNode("Daemon status detail", truncateSummary(info.daemonMessage, 120), "warning"));
+    }
+    if (info.managerMessage && info.managerMessage.trim() !== "") {
+      items.push(new MessageNode("Manager status detail", truncateSummary(info.managerMessage, 120), "warning"));
+    }
+    return items;
   }
 
   private async getEmbeddingsNode(cwd: string): Promise<EmbeddingsNode> {
@@ -496,6 +567,7 @@ export type MempackNode =
   | RepoMemoryNode
   | RepoDetailNode
   | McpServerNode
+  | McpDetailNode
   | McpWritesNode
   | EmbeddingsNode
   | SessionsOnCommitNode
@@ -518,6 +590,19 @@ type RepoNodeInfo = {
   memoryDBSizeBytes?: number;
   memoryDBExists?: boolean;
   detail?: string;
+};
+
+type McpRuntimeInfo = {
+  checkedAt: number;
+  daemonRunning: boolean;
+  daemonPid?: number;
+  daemonMessage?: string;
+  daemonUnavailable: boolean;
+  managerRunning: boolean;
+  managerPid?: number;
+  managerPort?: number;
+  managerMessage?: string;
+  lastSpawn?: LastMcpSpawn;
 };
 
 class StatusRootNode extends vscode.TreeItem {
@@ -663,22 +748,33 @@ class McpWritesNode extends vscode.TreeItem {
 }
 
 class McpServerNode extends vscode.TreeItem {
-  constructor(running: boolean, pid?: number, detail?: string, unavailable = false) {
-    super("Status", vscode.TreeItemCollapsibleState.None);
+  readonly info: McpRuntimeInfo;
+
+  constructor(info: McpRuntimeInfo) {
+    super("Status", vscode.TreeItemCollapsibleState.Collapsed);
+    this.info = info;
     this.contextValue = "mempackMcpServer";
-    if (unavailable) {
+    if (info.daemonUnavailable) {
       this.description = "Unavailable";
       this.iconPath = new vscode.ThemeIcon("warning");
-      this.tooltip = detail || "Unable to check MCP status.";
-      this.command = { command: "mempack.startMcpServer", title: "Start MCP Server" };
+      this.tooltip = info.daemonMessage || "Unable to check MCP daemon status.";
       return;
     }
-    this.description = running ? "Running" : "Stopped";
-    this.iconPath = running ? brandIcon("play-circle") : new vscode.ThemeIcon("circle-slash");
-    this.tooltip = detail || (running ? `Running${pid ? ` (pid=${pid})` : ""}` : "Not running");
-    this.command = running
-      ? { command: "mempack.stopMcpServer", title: "Stop MCP Server" }
-      : { command: "mempack.startMcpServer", title: "Start MCP Server" };
+    const daemon = info.daemonRunning ? "On" : "Off";
+    const manager = info.managerRunning ? `On${info.managerPort ? `:${info.managerPort}` : ""}` : "Off";
+    this.description = `Daemon ${daemon} · Manager ${manager}`;
+    this.iconPath = info.daemonRunning ? brandIcon("play-circle") : new vscode.ThemeIcon("circle-slash");
+    this.tooltip = buildMcpStatusTooltip(info);
+  }
+}
+
+class McpDetailNode extends vscode.TreeItem {
+  constructor(label: string, value: string, iconName: string, tooltipValue?: string) {
+    super(label, vscode.TreeItemCollapsibleState.None);
+    this.contextValue = "mempackMcpDetail";
+    this.description = value;
+    this.iconPath = new vscode.ThemeIcon(iconName);
+    this.tooltip = `${label}: ${tooltipValue || value}`;
   }
 }
 
@@ -975,6 +1071,33 @@ function formatBytes(value: number): string {
     return `${Math.round(size)} ${units[unit]}`;
   }
   return `${size.toFixed(1)} ${units[unit]}`;
+}
+
+function buildMcpStatusTooltip(info: McpRuntimeInfo): string {
+  const lines: string[] = [];
+  lines.push(`Daemon: ${info.daemonRunning ? "running" : "stopped"}${info.daemonPid ? ` (pid=${info.daemonPid})` : ""}`);
+  lines.push(
+    `Manager: ${info.managerRunning ? "running" : "stopped"}${info.managerPid ? ` (pid=${info.managerPid})` : ""}${
+      info.managerPort ? ` (port=${info.managerPort})` : ""
+    }`
+  );
+  if (info.lastSpawn) {
+    lines.push(
+      `Last spawn: pid=${info.lastSpawn.pid ?? "unknown"}, tool=${info.lastSpawn.tool}, duration=${info.lastSpawn.durationMs}ms`
+    );
+  } else {
+    lines.push("Last spawn: none in this extension session");
+  }
+  lines.push(`Checked: ${formatTimestamp(info.checkedAt)}`);
+  return lines.join("\n");
+}
+
+function formatTimestamp(epochMs: number): string {
+  try {
+    return new Date(epochMs).toLocaleString();
+  } catch {
+    return String(epochMs);
+  }
 }
 
 function compactPath(value: string): string {

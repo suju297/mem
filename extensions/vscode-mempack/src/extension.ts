@@ -201,55 +201,6 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.startMcpServer", async () => {
-      const cwd = requireWorkspace();
-      if (!cwd) {
-        return;
-      }
-      try {
-        const message = await client.mcpStart(cwd);
-        tree.refresh();
-        vscode.window.showInformationMessage(message || "MCP server started.");
-      } catch (err: any) {
-        showError(err);
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.stopMcpServer", async () => {
-      const cwd = requireWorkspace();
-      if (!cwd) {
-        return;
-      }
-      try {
-        const message = await client.mcpStop(cwd);
-        tree.refresh();
-        vscode.window.showInformationMessage(message || "MCP server stopped.");
-      } catch (err: any) {
-        showError(err);
-      }
-    })
-  );
-
-  context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.restartMcpServer", async () => {
-      const cwd = requireWorkspace();
-      if (!cwd) {
-        return;
-      }
-      try {
-        await client.mcpStop(cwd).catch(() => "");
-        const message = await client.mcpStart(cwd);
-        tree.refresh();
-        vscode.window.showInformationMessage(message || "MCP server restarted.");
-      } catch (err: any) {
-        showError(err);
-      }
-    })
-  );
-
-  context.subscriptions.push(
     vscode.commands.registerCommand("mempack.init", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
@@ -335,7 +286,6 @@ export function activate(context: vscode.ExtensionContext): void {
         }
 
         await maybePromptMcpWrites(context, tree);
-        await maybePromptStartMcpServer(context, client, tree);
         await maybePromptAssistantFiles(context, client, repoRoot);
       } catch (err: any) {
         showError(err);
@@ -782,7 +732,6 @@ export function activate(context: vscode.ExtensionContext): void {
   void (async () => {
     await maybePromptOllamaInstall(context, client);
     await maybePromptMcpWrites(context, tree);
-    await maybePromptStartMcpServer(context, client, tree);
     const cwd = getWorkspaceRoot(vscode.window.activeTextEditor?.document?.uri);
     if (cwd) {
       await maybePromptAssistantFiles(context, client, await resolveRepoRoot(client, cwd));
@@ -1424,84 +1373,6 @@ async function maybePromptAssistantFiles(
       await client.writeAssistantFiles(repoRoot, missingTargets, false);
       vscode.window.showInformationMessage(`Created ${fileList}.`);
       await context.globalState.update(promptKey, Date.now());
-    } catch (err: any) {
-      showError(err);
-    }
-  }
-}
-
-async function maybePromptStartMcpServer(
-  context: vscode.ExtensionContext,
-  client: MempackClient,
-  tree: MempackTreeProvider
-): Promise<void> {
-  const enabled = vscode.workspace
-    .getConfiguration("mempack")
-    .get<boolean>("promptStartMcpServer", true);
-  if (!enabled) {
-    return;
-  }
-
-  const active = vscode.window.activeTextEditor?.document?.uri;
-  const cwd = getWorkspaceRoot(active);
-  if (!cwd) {
-    return;
-  }
-
-  const repoConfigPath = getRepoConfigPath(cwd);
-  const suppressKey = `mempack.mcpStartPromptSuppressed:${repoConfigPath}`;
-  if (context.globalState.get<boolean>(suppressKey)) {
-    return;
-  }
-
-  const promptKey = `mempack.mcpStartPrompted:${repoConfigPath}`;
-  if (context.globalState.get<boolean>(promptKey)) {
-    return;
-  }
-
-  try {
-    const mempackDir = path.join(cwd, ".mempack");
-    await fs.stat(mempackDir);
-  } catch (err: any) {
-    if (err?.code === "ENOENT") {
-      return;
-    }
-    showError(err);
-    return;
-  }
-
-  try {
-    const status = await client.mcpStatus(cwd);
-    if (status.running) {
-      await context.globalState.update(promptKey, true);
-      return;
-    }
-  } catch {
-    // Fall through and offer start prompt.
-  }
-
-  const pick = await vscode.window.showInformationMessage(
-    "MCP server is not running. Start it now? (recommended for MCP-first reads/writes)",
-    "Start MCP",
-    "Later",
-    "Don't ask again"
-  );
-
-  if (pick === "Don't ask again") {
-    await context.globalState.update(suppressKey, true);
-    await context.globalState.update(promptKey, true);
-    return;
-  }
-  if (pick === "Later" || !pick) {
-    await context.globalState.update(promptKey, true);
-    return;
-  }
-  if (pick === "Start MCP") {
-    try {
-      const message = await client.mcpStart(cwd);
-      tree.refresh();
-      vscode.window.showInformationMessage(message || "MCP server started.");
-      await context.globalState.update(promptKey, true);
     } catch (err: any) {
       showError(err);
     }

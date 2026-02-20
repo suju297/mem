@@ -17,6 +17,17 @@ import {
   UpdateMemoryResponse
 } from "./types";
 
+export type LastMcpSpawn = {
+  pid?: number;
+  tool: string;
+  repo: string;
+  startedAtMs: number;
+  endedAtMs: number;
+  durationMs: number;
+  ok: boolean;
+  error?: string;
+};
+
 function execFileStrict(
   binary: string,
   args: string[],
@@ -112,6 +123,7 @@ function execFileStrict(
 
 export class MempackClient {
   private output: vscode.OutputChannel;
+  private lastMcpSpawn?: LastMcpSpawn;
 
   constructor(output: vscode.OutputChannel) {
     this.output = output;
@@ -186,12 +198,48 @@ export class MempackClient {
     const repo = this.normalizeRepoPath(cwd);
     const serverArgs = ["mcp", "--require-repo", "--repo", repo];
     this.output.appendLine(`${binary} ${serverArgs.join(" ")}  # MCP tool: ${toolName}`);
+    const startedAtMs = Date.now();
+    let spawnedPid: number | undefined;
 
-    return callMcpTool(binary, serverArgs, toolName, toolArgs, {
-      cwd: repo,
-      timeoutMs: this.timeoutMs,
-      onLog: (line) => this.output.appendLine(line)
-    });
+    try {
+      const result = await callMcpTool(binary, serverArgs, toolName, toolArgs, {
+        cwd: repo,
+        timeoutMs: this.timeoutMs,
+        onLog: (line) => this.output.appendLine(line),
+        onSpawn: (pid) => {
+          spawnedPid = pid;
+          this.output.appendLine(`[mcp spawn] pid=${pid ?? "unknown"} tool=${toolName}`);
+        }
+      });
+      const endedAtMs = Date.now();
+      this.lastMcpSpawn = {
+        pid: spawnedPid,
+        tool: toolName,
+        repo,
+        startedAtMs,
+        endedAtMs,
+        durationMs: Math.max(0, endedAtMs - startedAtMs),
+        ok: true
+      };
+      return result;
+    } catch (err) {
+      const endedAtMs = Date.now();
+      this.lastMcpSpawn = {
+        pid: spawnedPid,
+        tool: toolName,
+        repo,
+        startedAtMs,
+        endedAtMs,
+        durationMs: Math.max(0, endedAtMs - startedAtMs),
+        ok: false,
+        error: err instanceof Error ? err.message : String(err)
+      };
+      throw err;
+    }
+  }
+
+  getLastMcpSpawn(): LastMcpSpawn | undefined {
+    return this.lastMcpSpawn;
   }
 
   private extractFirstText(result: McpToolCallResult): string {

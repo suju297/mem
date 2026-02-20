@@ -310,9 +310,7 @@ export function decideSessionUpsertAction(input: SessionUpsertDecisionInput): Se
   }
   const withinMergeWindow =
     input.latestCreatedAtMs > 0 && input.nowMs - input.latestCreatedAtMs <= input.mergeWindowMs;
-  const withinGap =
-    input.latestCreatedAtMs > 0 && input.nowMs - input.latestCreatedAtMs <= input.minGapMs;
-  if (withinMergeWindow || withinGap) {
+  if (withinMergeWindow) {
     return "update_latest";
   }
   return "create_new";
