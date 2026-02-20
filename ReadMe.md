@@ -13,7 +13,8 @@ Data is persisted in local SQLite under your configured `data_dir`.
 
 Use this as the docs entrypoint:
 - Getting started + troubleshooting: `docs/onboarding.md`
-- Architecture + runtime diagrams: `docs/architecture.md`
+- Full CLI syntax reference: `docs/cli.md`
+- Architecture + runtime diagrams: `ARCHITECTURE.md`
 - Sandbox evaluation/testing process: `docs/memory-testing-process.md`
 - VS Code/Cursor extension: `extensions/vscode-mempack/README.md`
 
@@ -69,45 +70,43 @@ Resolution order is:
 2. Git root from current working directory
 3. `active_repo` fallback (disabled in require-repo mode)
 
-## Core Commands
+## CLI Reference
 
-### Setup and diagnostics
+Basic form:
 
-- `mem init`
-- `mem doctor [--json] [--repair]`
-- `mem repos`
-- `mem use <repo_id|path>`
-- `mem --version`
+```text
+mem [--data-dir <path>] <command> [options]
+mem <command> --help
+mem --version
+```
 
-### Write memory
+Command groups:
 
-- `mem add --title <str> --summary <str> [--thread <id>]`
-- `mem update <id> [--title ...] [--summary ...]`
-- `mem supersede <id> --title <str> --summary <str>`
-- `mem link --from <id> --rel <relation> --to <id>`
-- `mem checkpoint --reason <str> --state-json <json>|--state-file <path>`
+| Group | Commands |
+|---|---|
+| Setup | `init`, `doctor`, `repos`, `use`, `version` |
+| Retrieval | `get`, `explain`, `show`, `threads`, `thread`, `recent`, `sessions` |
+| Writes | `add`, `update`, `supersede`, `link`, `checkpoint`, `forget` |
+| Ingest/Embed | `ingest`, `ingest-artifact`, `embed` |
+| Session/Share | `session upsert`, `share export`, `share import` |
+| MCP | `mcp`, `mcp start|stop|status`, `mcp manager`, `mcp manager status` |
+| Templates | `template` |
 
-### Retrieve memory
+Common options:
+- `--data-dir <path>`: override data root.
+- `--repo <id|path>`: explicit repo scope.
+- `--workspace <name>`: workspace scope.
+- `--format json`: machine-readable output where supported.
 
-- `mem get "<query>" --format prompt|json [--cluster]`
-- `mem explain "<query>"`
-- `mem threads`
-- `mem thread <thread_id>`
-- `mem recent`
-- `mem sessions [--needs-summary] [--count]`
+Examples:
 
-### Ingest and embeddings
+```bash
+mem get "auth middleware" --format json
+mem add --title "Auth plan" --summary "Use middleware"
+mem mcp status
+```
 
-- `mem ingest-artifact <path> --thread <id> [--watch]`
-- `mem embed [--kind memory|chunk|all]`
-- `mem embed status`
-
-### MCP runtime
-
-- `mem mcp [--repo <id|path>] [--require-repo] [--write-mode ask|auto|off]`
-- `mem mcp start|stop|status`
-
-For full flags, run `mem --help` and `mem <command> --help`.
+Full Docopt-style syntax: `docs/cli.md`
 
 ## MCP Tool Surface
 
@@ -152,7 +151,7 @@ embedding_model = "nomic-embed-text"
 
 ## Architecture At A Glance
 
-Detailed diagrams live in `docs/architecture.md`.
+Detailed diagrams and architecture contracts live in `ARCHITECTURE.md`.
 
 ```text
 mem CLI / MCP / extension
@@ -172,7 +171,7 @@ internal/embed (optional vectors)
 Extension implementation and usage are documented in:
 - `extensions/vscode-mempack/README.md`
 
-Current design notes:
+Extension behavior:
 - Extension MCP lifecycle/status should reflect CLI/daemon state (single source of truth).
 - Status UI is read-only visibility; control flows through CLI-backed commands.
 

@@ -1,0 +1,19 @@
+flowchart LR
+  classDef person fill:#E8F1FF,stroke:#2563EB,stroke-width:2px,color:#0F172A
+  classDef system fill:#E8FFF4,stroke:#059669,stroke-width:2px,color:#052E2B
+  classDef external fill:#FFF7ED,stroke:#EA580C,stroke-width:2px,color:#431407
+  classDef data fill:#F5F3FF,stroke:#7C3AED,stroke-width:2px,color:#2E1065
+
+  U["Developer / Agent<br/>Person"]:::person
+  X["VS Code / Cursor Extension<br/>External System"]:::external
+  M["Mempack (CLI + MCP)<br/>System"]:::system
+  G["Local Git Repository<br/>External Data Source"]:::external
+  D["Repo Memory DB (SQLite)<br/>Data Store"]:::data
+  O["Ollama (optional)<br/>External Embedding Service"]:::external
+
+  U -->|"uses"| X
+  U -->|"runs CLI commands"| M
+  X -->|"calls MCP tools"| M
+  M -->|"reads/writes memory/state/chunks"| D
+  M -->|"reads repo head/root/branch"| G
+  M -.->|"optional embed calls"| O

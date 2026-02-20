@@ -3,7 +3,7 @@
 Repo-scoped memory for coding agents, stored locally.
 
 Why it exists:
-- Keeps context inside the repo instead of a general chat history.
+- Keeps context inside the repo instead of a generic conversation log.
 - Stores data on your machine (SQLite), not a remote service.
 
 Who it’s for:
@@ -34,10 +34,6 @@ mem mcp
 
 # Minimal example (seed one memory)
 mem add --title "Auth plan" --summary "Use middleware; invalid token returns 401."
-
-# Output
-# Expected: your agent can call `mempack_get_context` and see the "Auth plan" memory summary.
-# The default thread is used if you don’t pass --thread.
 ```
 
 ---
@@ -227,5 +223,5 @@ A: Use `mem explain "<query>"` and check `search_meta`.
 ## Contribution & Support
 
 - Start from `ReadMe.md` for the high-level command/reference map.
-- See `docs/architecture.md` for runtime/data-flow internals.
+- See `../ARCHITECTURE.md` for runtime/data-flow internals.
 - Use `docs/memory-testing-process.md` for reproducible sandbox validation.

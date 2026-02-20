@@ -1,0 +1,22 @@
+flowchart TB
+  classDef container fill:#ECFEFF,stroke:#0E7490,stroke-width:2px,color:#083344
+  classDef data fill:#FAF5FF,stroke:#9333EA,stroke-width:2px,color:#3B0764
+  classDef cfg fill:#FFF7ED,stroke:#C2410C,stroke-width:2px,color:#431407
+
+  subgraph HOST["Developer Machine"]
+    EXT["Extension Host<br/>Container"]:::container
+    STDIO["mem process (one-shot stdio MCP)<br/>Container"]:::container
+    DAEMON["mem mcp daemon (background)<br/>Container"]:::container
+    MANAGER["mem mcp manager (localhost TCP)<br/>Container"]:::container
+    CFG["Config + Repo Routing State<br/>XDG config, active_repo, repo_cache"]:::cfg
+    DB["SQLite Repo DB<br/>&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::data
+  end
+
+  EXT -->|"spawn per tool call"| STDIO
+  EXT -->|"status/start/stop commands"| MANAGER
+  MANAGER -->|"start/stop/status"| DAEMON
+  STDIO -->|"reads/writes"| DB
+  DAEMON -->|"reads/writes"| DB
+  STDIO -->|"loads config"| CFG
+  DAEMON -->|"loads config"| CFG
+  MANAGER -->|"loads manager info + token"| CFG
