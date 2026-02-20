@@ -118,6 +118,112 @@ mem get "auth middleware" --format prompt
 
 ---
 
+## Architecture (Detailed)
+
+Mempack is split into small internal modules so CLI, MCP, and extension flows share the same core logic.
+
+### Core packages
+
+* `cmd/mem`: program entrypoint.
+* `internal/app`: command dispatch, MCP handlers, retrieval orchestration, ranking, token budgeting.
+* `internal/store`: SQLite schema, migrations, FTS, records API, link persistence.
+* `internal/embed`: embedding provider resolution + optional vector generation/search support.
+* `internal/config`: XDG config loading, data dir resolution, repo state persistence.
+* `extensions/vscode-mempack`: VS Code/Cursor UI, one-shot MCP tool calls, auto session capture.
+
+### High-level system diagram (ASCII)
+
+```text
++-------------------------+          +--------------------------+
+| User / Agent / Scripts  |          | VS Code / Cursor Ext     |
+| - mem CLI commands      |          | - Sidebar / Commands     |
++------------+------------+          +------------+-------------+
+             |                                    |
+             | mem ...                            | one-shot MCP tool calls
+             v                                    v
+      +------+------------------------------------+------+
+      |            mem CLI (internal/app)                |
+      | - global flag parsing / command dispatch         |
+      | - repo + workspace resolution                    |
+      +------+-------------------------------+------------+
+             |                               |
+             | retrieval path                | MCP tool handlers
+             v                               v
+ +-----------+-------------------+   +-------+------------------+
+ | Context Builder / Rank /      |   | mempack_get_context      |
+ | Budget                         |   | mempack_explain          |
+ | - query parse + hints          |   | mempack_add/update/link  |
+ | - BM25 + optional vectors      |   | mempack_checkpoint       |
+ +-----------+-------------------+   +-----------+--------------+
+             |                                   |
+             +-------------------+---------------+
+                                 v
+                    +------------+-------------+
+                    | internal/store (SQLite)  |
+                    | repos/<repo_id>/memory.db|
+                    +------------+-------------+
+                                 |
+                                 v
+                    +------------+-------------+
+                    | internal/embed (optional)|
+                    | Ollama / vectors         |
+                    +--------------------------+
+```
+
+### Retrieval pipeline (ASCII)
+
+```text
+query
+  -> validate + parse (intent/time/entity hints)
+  -> BM25 search (memories + chunks via FTS)
+  -> optional vector search (if embeddings available)
+  -> merge + rank (RRF-style fusion, recency boosts, safety filtering)
+  -> orphan filtering (git reachability unless include-orphans)
+  -> token budgeting (state + memories + chunks under hard cap)
+  -> context pack (prompt + structured JSON)
+```
+
+### Data model and storage layout
+
+Global config:
+* `~/.config/mempack/config.toml` (or `XDG_CONFIG_HOME/mempack/config.toml`)
+
+Per-repo DB path:
+* `<data_dir>/repos/<repo_id>/memory.db`
+
+Primary tables:
+* `repos`
+* `state_current`, `state_history`
+* `threads`, `memories`
+* `artifacts`, `chunks`
+* `embeddings`, `embedding_queue`
+* `links`
+* `meta`
+
+FTS indexes:
+* `memories_fts`
+* `chunks_fts`
+
+### MCP runtime modes
+
+Mempack supports three practical MCP run modes:
+
+* One-shot stdio server: used by the extension for tool calls (`mem mcp ...` spawned per request, then exits).
+* Local daemon: `mem mcp start|status|stop` keeps a background process with PID/log files.
+* Manager mode (optional): `mem mcp manager` runs a local TCP control plane (`127.0.0.1:<port>`) that coordinates daemon lifecycle.
+
+### Repo scoping behavior
+
+Repo resolution order for reads/writes:
+
+1. Explicit repo override (`--repo` or MCP `repo` argument)
+2. Git root from current working directory
+3. `active_repo` fallback (only when strict mode is off)
+
+Use `--require-repo` / `mcp_require_repo=true` to disable fallback and fail fast.
+
+---
+
 ## Ingest (watch mode)
 
 Use watch mode to keep artifacts indexed as you edit files:
@@ -223,11 +329,17 @@ Start the local MCP server:
 mem mcp
 ```
 
-Tools exposed (read-only by default):
+Tools exposed:
 
 * `mempack_get_initial_context`
 * `mempack_get_context`
 * `mempack_explain`
+* `mempack_add_memory`
+* `mempack_update_memory`
+* `mempack_link_memories`
+* `mempack_checkpoint`
+
+Write tools are gated by write mode (`ask|auto|off`). Default behavior is `ask` when writes are enabled.
 
 Example MCP structured payload (JSON):
 
@@ -498,8 +610,8 @@ npx vsce package
 
 * **Save Selection as Memory**: Highlight text, press `Cmd+Shift+M` (Mac) / `Ctrl+Shift+M` (Win/Linux)
 * **Get Context**: Press `Cmd+Shift+G` to search and retrieve context
-* **Sidebar**: Browse memory threads, recent memories, MCP server status, and embeddings
-* **Start/Stop MCP Server**: Control the MCP server from the sidebar
+* **Sidebar**: Browse memory threads, recent memories, MCP status, and embeddings
+* **Status node**: Read-only MCP runtime visibility (daemon/manager state + last spawned MCP call metadata)
 * **Memory Actions**: View details, copy summary, copy as prompt snippet, delete
 
 ### Commands
