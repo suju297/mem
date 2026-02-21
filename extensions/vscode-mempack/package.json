@@ -8,7 +8,7 @@
   },
   "description": "Repo-scoped memory for coding agents (CLI wrapper).",
   "license": "MIT",
-  "version": "0.2.30",
+  "version": "0.2.31",
   "publisher": "mempack",
   "engines": {
     "vscode": "^1.84.0"

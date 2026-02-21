@@ -66,7 +66,9 @@ Operational note:
 Audience: maintainers changing `get` / `explain` / `mempack_get_context`.
 Scope: retrieval orchestration in `internal/app` and store/embed integrations.
 
-![L3 Retrieval Components](docs/diagrams/architecture-l3-retrieval-components.png)
+<a href="docs/diagrams/architecture-l3-retrieval-components.png">
+  <img src="docs/diagrams/architecture-l3-retrieval-components.png" alt="L3 Retrieval Components" width="760" />
+</a>
 
 Source: `docs/diagrams/src/l3-retrieval-components.mmd`
 
