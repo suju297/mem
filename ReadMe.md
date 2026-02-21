@@ -14,6 +14,7 @@ Data is persisted in local SQLite under your configured `data_dir`.
 Reference:
 - Getting started + troubleshooting: `docs/onboarding.md`
 - Full CLI syntax reference: `docs/cli.md`
+- Storage layout, schema, and artifacts: `docs/storage.md`
 - Architecture + runtime diagrams: `ARCHITECTURE.md`
 - Sandbox evaluation/testing process: `docs/memory-testing-process.md`
 - VS Code/Cursor extension: `extensions/vscode-mempack/README.md`

@@ -1,0 +1,41 @@
+flowchart TB
+  classDef fs fill:#ECFEFF,stroke:#0E7490,stroke-width:1.8px,color:#083344
+  classDef db fill:#FAF5FF,stroke:#9333EA,stroke-width:1.8px,color:#3B0764
+  classDef fts fill:#FEFCE8,stroke:#CA8A04,stroke-width:1.8px,color:#422006
+  classDef xfer fill:#ECFDF5,stroke:#16A34A,stroke-width:1.8px,color:#052E16
+
+  subgraph HOST["Host Filesystem"]
+    DATA["&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::fs
+    WAL["memory.db-wal / memory.db-shm"]:::fs
+    CFG["&lt;config_dir&gt;/config.toml<br/>&lt;config_dir&gt;/mcp.manager.json"]:::fs
+    SHARE["&lt;repo_root&gt;/mempack-share/<br/>manifest.json, memories.jsonl, README.md"]:::xfer
+  end
+
+  subgraph SQL["SQLite Logical Model"]
+    REPOS["repos"]:::db
+    STATE["state_current + state_history"]:::db
+    THREADS["threads"]:::db
+    MEM["memories"]:::db
+    ART["artifacts"]:::db
+    CHUNK["chunks"]:::db
+    LINK["links"]:::db
+    EMB["embeddings + embedding_queue"]:::db
+    FTS["memories_fts + chunks_fts"]:::fts
+    META["meta"]:::db
+  end
+
+  DATA --> REPOS
+  DATA --> STATE
+  DATA --> THREADS
+  DATA --> MEM
+  DATA --> ART
+  DATA --> CHUNK
+  DATA --> LINK
+  DATA --> EMB
+  DATA --> FTS
+  DATA --> META
+  MEM --> FTS
+  CHUNK --> FTS
+  ART --> CHUNK
+  SHARE -. "import/export" .- MEM
+  DATA --> WAL
