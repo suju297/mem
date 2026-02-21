@@ -1,4 +1,4 @@
-# Mempack
+# Mem
 
 Repo-scoped memory for coding agents, stored locally.
 
@@ -35,7 +35,7 @@ curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/in
 Windows (PowerShell):
 
 ```powershell
-iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo <owner>/<repo> -Version <release>
+iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo <owner>/<repo> -Version <release>
 ```
 
 Windows PATH behavior:
@@ -53,7 +53,7 @@ mem init
 3. Connect Codex to MCP:
 
 ```bash
-codex mcp add mempack -- mem mcp --require-repo
+codex mcp add mem -- mem mcp --require-repo
 codex mcp list
 ```
 
@@ -73,7 +73,7 @@ mem add --title "Auth plan" --summary "Use middleware; invalid token returns 401
 
 ## Mental Model
 
-How Mempack works:
+How Mem works:
 - State: current truth you want the agent to remember.
 - Memories: short decisions or summaries.
 - Evidence: ingested code/text chunks from your repo.
@@ -97,11 +97,11 @@ Common tasks:
 Task: Use MCP with your agent
 Command:
 ```
-codex mcp add mempack -- mem mcp --require-repo
+codex mcp add mem -- mem mcp --require-repo
 mem mcp
 ```
 What happens:
-- The agent can call `mempack_get_context` automatically.
+- The agent can call `mem_get_context` automatically.
 Common mistakes:
 - Running MCP globally without `--require-repo`.
 - Forgetting to start the MCP server.
@@ -248,7 +248,7 @@ A: Start MCP with `--require-repo`; then use current repo (cwd) or pass `repo=<p
 Q: Can I keep multiple contexts?
 A: Yes. Use named workspaces and switch with `--workspace <name>`.
 
-Q: How do I verify what Mempack is returning?
+Q: How do I verify what Mem is returning?
 A: Use `mem explain "<query>"` and check `search_meta`.
 
 ---

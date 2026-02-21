@@ -7,7 +7,7 @@ export async function addMempackStub(): Promise<void> {
   const active = vscode.window.activeTextEditor?.document?.uri;
   const root = getWorkspaceRoot(active);
   if (!root) {
-    vscode.window.showErrorMessage("Open a folder to use Mempack.");
+    vscode.window.showErrorMessage("Open a folder to use Mem.");
     return;
   }
 
@@ -22,19 +22,19 @@ export async function addMempackStub(): Promise<void> {
 
   if (!exists) {
     await writeFile(agentsPath, buildAgentsWithStub());
-    vscode.window.showInformationMessage("Created AGENTS.md with Mempack stub.");
+    vscode.window.showInformationMessage("Created AGENTS.md with Mem stub.");
     return;
   }
 
   const existing = await readFile(agentsPath);
   if (hasStub(existing)) {
-    vscode.window.showInformationMessage("Mempack stub already present in AGENTS.md.");
+    vscode.window.showInformationMessage("Mem stub already present in AGENTS.md.");
     return;
   }
 
   const result = appendStub(existing);
   await writeFile(agentsPath, result.updated);
-  vscode.window.showInformationMessage("Appended Mempack stub to AGENTS.md.");
+  vscode.window.showInformationMessage("Appended Mem stub to AGENTS.md.");
 }
 
 async function readFile(filePath: string): Promise<string> {

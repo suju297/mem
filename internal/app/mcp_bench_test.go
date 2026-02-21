@@ -17,7 +17,7 @@ func BenchmarkMCPGetContext(b *testing.B) {
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": "decision", "format": "json"},
 		},
 	}
@@ -41,7 +41,7 @@ func BenchmarkMCPExplain(b *testing.B) {
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_explain",
+			Name:      "mem_explain",
 			Arguments: map[string]any{"query": "decision"},
 		},
 	}

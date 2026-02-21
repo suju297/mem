@@ -9,7 +9,7 @@ import (
 
 func writeUsage(w io.Writer) {
 	useColor := shouldColorize(w)
-	title := colorize(useColor, "mempack")
+	title := colorize(useColor, "mem")
 	subtitle := colorizeSubtle(useColor, "repo-scoped memory CLI")
 	usage := colorize(useColor, "Usage")
 	sections := colorize(useColor, "Common Commands")
@@ -19,7 +19,7 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, usage+"\n")
 	io.WriteString(w, "  mem [--data-dir <path>] <command> [options]\n\n")
 	io.WriteString(w, colorize(useColor, "Global Options")+"\n")
-	io.WriteString(w, "  --data-dir <path>  Override data dir (MEMPACK_DATA_DIR)\n\n")
+	io.WriteString(w, "  --data-dir <path>  Override data dir (MEM_DATA_DIR, legacy: MEMPACK_DATA_DIR)\n\n")
 	io.WriteString(w, colorize(useColor, "Version")+"\n")
 	io.WriteString(w, "  mem version | mem --version | mem -v\n\n")
 	io.WriteString(w, sections+"\n")
@@ -29,8 +29,8 @@ func writeUsage(w io.Writer) {
 	fmt.Fprintln(tw, "  add\tSave a memory")
 	fmt.Fprintln(tw, "  update\tUpdate a memory")
 	fmt.Fprintln(tw, "  repos\tList known repos")
-	fmt.Fprintln(tw, "  share export\tExport memories to mempack-share/")
-	fmt.Fprintln(tw, "  share import\tImport from mempack-share/")
+	fmt.Fprintln(tw, "  share export\tExport memories to mem-share/")
+	fmt.Fprintln(tw, "  share import\tImport from mem-share/")
 	fmt.Fprintln(tw, "  mcp start|status|stop\tManage local MCP daemon")
 	fmt.Fprintln(tw, "  mcp manager\tRun MCP manager control plane")
 	fmt.Fprintln(tw, "  doctor\tRun health checks")

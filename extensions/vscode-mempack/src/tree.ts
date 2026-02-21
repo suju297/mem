@@ -71,7 +71,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
   async getChildren(element?: MempackNode): Promise<MempackNode[]> {
     const cwd = this.getCwd();
     if (!cwd) {
-      return [new HealthNode("Health: Unavailable", "Mempack needs a workspace")];
+      return [new HealthNode("Health: Unavailable", "Mem needs a workspace")];
     }
 
     if (!element) {
@@ -1038,7 +1038,7 @@ function formatErrorMessage(err: unknown): string {
 function inferErrorHint(message: string): string {
   const lower = message.toLowerCase();
   if (lower.includes("repo detection") || lower.includes("db not initialized")) {
-    return "Run: Mempack Init";
+    return "Run: Mem Init";
   }
   if (lower.includes("mem command failed")) {
     return "Check mem binary path";
@@ -1046,7 +1046,7 @@ function inferErrorHint(message: string): string {
   if (lower.includes("not found") && lower.includes("mem")) {
     return "Set mempack.binaryPath";
   }
-  return "See Output: Mempack";
+  return "See Output: Mem";
 }
 
 function basenameSafe(value: string): string {

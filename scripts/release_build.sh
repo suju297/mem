@@ -43,12 +43,14 @@ targets=(
 
 for target in "${targets[@]}"; do
   IFS="/" read -r os arch <<<"$target"
-  pkgdir="$DIST_DIR/mempack_${os}_${arch}"
+  pkgdir="$DIST_DIR/mem_${os}_${arch}"
   bin_file="$BIN_NAME"
-  asset="$DIST_DIR/mempack_${os}_${arch}.tar.gz"
+  asset="$DIST_DIR/mem_${os}_${arch}.tar.gz"
+  legacy_asset="$DIST_DIR/mempack_${os}_${arch}.tar.gz"
   if [[ "$os" == "windows" ]]; then
     bin_file="${BIN_NAME}.exe"
-    asset="$DIST_DIR/mempack_${os}_${arch}.zip"
+    asset="$DIST_DIR/mem_${os}_${arch}.zip"
+    legacy_asset="$DIST_DIR/mempack_${os}_${arch}.zip"
   fi
   rm -rf "$pkgdir"
   mkdir -p "$pkgdir"
@@ -81,6 +83,7 @@ PY
   else
     tar -czf "$asset" -C "$pkgdir" .
   fi
+  cp "$asset" "$legacy_asset"
 done
 
 DIST_DIR="$DIST_DIR" python3 - <<'PY'
@@ -90,7 +93,12 @@ from pathlib import Path
 
 dist = Path(os.environ["DIST_DIR"])
 checksums = []
-assets = sorted(list(dist.glob("mempack_*.tar.gz")) + list(dist.glob("mempack_*.zip")))
+assets = sorted(
+    list(dist.glob("mem_*.tar.gz"))
+    + list(dist.glob("mem_*.zip"))
+    + list(dist.glob("mempack_*.tar.gz"))
+    + list(dist.glob("mempack_*.zip"))
+)
 for path in assets:
     h = hashlib.sha256()
     with open(path, "rb") as f:

@@ -30,7 +30,7 @@ export function formatDoctorReport(report: any): string {
   const ok = report?.ok === true;
   const status = ok ? "Ready" : report?.error ? "Error" : "Needs setup";
   const lines = [
-    "# Mempack Doctor",
+    "# Mem Doctor",
     "",
     `- Status: ${status}`,
     report?.error ? `- Error: ${report.error}` : "",
@@ -131,7 +131,7 @@ export function formatContextPack(pack: ContextPack, promptText: string): string
     }
   };
 
-  push(`# Mempack Context${query ? ` — ${query}` : ""}`);
+  push(`# Mem Context${query ? ` — ${query}` : ""}`);
   push("");
   push(
     "| Repo | Workspace | Mode | Results |",

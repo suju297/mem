@@ -924,7 +924,7 @@ export class SessionManager implements vscode.Disposable {
     }
 
     const choice = await vscode.window.showWarningMessage(
-      "Enable auto-capture? Mempack will save lightweight session memories for this repo based on meaningful edits (no prompts). You can turn this off anytime.",
+      "Enable auto-capture? Mem will save lightweight session memories for this repo based on meaningful edits (no prompts). You can turn this off anytime.",
       { modal: true },
       "Enable",
       "Cancel"

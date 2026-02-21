@@ -12,7 +12,7 @@ export async function showRecentPanel(
   if (!panel) {
     panel = vscode.window.createWebviewPanel(
       "mempackRecent",
-      "Mempack Recent",
+      "Mem Recent",
       vscode.ViewColumn.Active,
       {
         enableScripts: true,
@@ -48,7 +48,7 @@ function renderRecentHtml(
   const json = JSON.stringify(data);
   const nonce = String(Date.now());
   const csp = panel?.webview.cspSource ?? "";
-  const title = "Mempack Recent";
+  const title = "Mem Recent";
 
   return `<!DOCTYPE html>
 <html lang="en">

@@ -34,6 +34,11 @@ type Config struct {
 
 var dataDirOverride string
 
+const (
+	appDirName       = "mem"
+	legacyAppDirName = "mempack"
+)
+
 func SetDataDirOverride(path string) {
 	dataDirOverride = strings.TrimSpace(path)
 }
@@ -45,9 +50,9 @@ func Default() (Config, error) {
 	}
 
 	return Config{
-		ConfigDir:              filepath.Join(configHome, "mempack"),
-		DataDir:                filepath.Join(dataHome, "mempack"),
-		CacheDir:               filepath.Join(cacheHome, "mempack"),
+		ConfigDir:              preferredAppDir(configHome),
+		DataDir:                preferredAppDir(dataHome),
+		CacheDir:               preferredAppDir(cacheHome),
 		ActiveRepo:             "",
 		RepoCache:              map[string]string{},
 		Tokenizer:              "cl100k_base",
@@ -120,7 +125,7 @@ func (c Config) Save() error {
 
 // SaveRepoState persists only repo-routing state (active_repo and repo_cache).
 // It intentionally preserves all other persisted settings to avoid leaking
-// runtime-effective overrides (e.g. --data-dir / MEMPACK_DATA_DIR) into config.toml.
+// runtime-effective overrides (e.g. --data-dir / MEM_DATA_DIR) into config.toml.
 func (c Config) SaveRepoState() error {
 	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
 		return err
@@ -217,11 +222,31 @@ func resolveDataDir(cfg Config) string {
 	if dataDirOverride != "" {
 		return dataDirOverride
 	}
+	if env := strings.TrimSpace(os.Getenv("MEM_DATA_DIR")); env != "" {
+		return env
+	}
 	if env := strings.TrimSpace(os.Getenv("MEMPACK_DATA_DIR")); env != "" {
 		return env
 	}
 	if strings.TrimSpace(cfg.DataDir) != "" {
 		return cfg.DataDir
 	}
-	return filepath.Join(".", "mempack")
+	return preferredAppDir(".")
+}
+
+func preferredAppDir(root string) string {
+	primary := filepath.Join(root, appDirName)
+	legacy := filepath.Join(root, legacyAppDirName)
+	if pathExists(primary) {
+		return primary
+	}
+	if pathExists(legacy) {
+		return legacy
+	}
+	return primary
+}
+
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }

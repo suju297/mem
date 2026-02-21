@@ -2,15 +2,15 @@ export const MARKER_START = "<!-- mempack:start -->";
 export const MARKER_END = "<!-- mempack:end -->";
 
 export const STUB_BLOCK = `${MARKER_START}
-Use Mempack:
-- Prefer MCP tool: mempack_get_context at task start.
+Use Mem:
+- Prefer MCP tool: mem_get_context at task start.
 - Fallback: run \`mem get "<task>" --format prompt\`.
 ${MARKER_END}`;
 
-export const MINIMAL_AGENTS = `# Mempack Agent Policy
+export const MINIMAL_AGENTS = `# Mem Agent Policy
 
 Before starting any task, fetch repo memory:
-- Prefer MCP: call mempack_get_context with the user's task as the query.
+- Prefer MCP: call mem_get_context with the user's task as the query.
 
 If MCP is unavailable, ask the user to run:
 \`mem get "<task>" --format prompt\`

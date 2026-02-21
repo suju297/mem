@@ -1,4 +1,4 @@
-# Mempack CLI
+# Mem CLI
 
 ## Usage
 

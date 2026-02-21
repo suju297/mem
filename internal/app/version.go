@@ -10,5 +10,5 @@ var (
 )
 
 func VersionString() string {
-	return fmt.Sprintf("mempack %s (%s)", Version, Commit)
+	return fmt.Sprintf("mem %s (%s)", Version, Commit)
 }

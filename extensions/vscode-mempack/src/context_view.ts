@@ -11,7 +11,7 @@ export function showContextPanel(
   if (!panel) {
     panel = vscode.window.createWebviewPanel(
       "mempackContext",
-      "Mempack Context",
+      "Mem Context",
       vscode.ViewColumn.Active,
       {
         enableScripts: true,
@@ -40,7 +40,7 @@ function renderContextHtml(
   const json = JSON.stringify(data);
   const nonce = String(Date.now());
   const csp = panel?.webview.cspSource ?? "";
-  const title = "Mempack Context";
+  const title = "Mem Context";
 
   return `<!DOCTYPE html>
 <html lang="en">

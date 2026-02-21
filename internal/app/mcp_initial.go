@@ -132,14 +132,14 @@ func summarizeState(tokenizer string, stateRaw json.RawMessage, stateTokens int)
 func buildInitialSuggestion(hasState bool, memoryCount, chunkCount int) string {
 	if memoryCount == 0 && chunkCount == 0 {
 		if hasState {
-			return "No memories or chunks yet. Add memories or ingest artifacts, then call mempack_get_context."
+			return "No memories or chunks yet. Add memories or ingest artifacts, then call mem_get_context."
 		}
-		return "No memories or chunks yet. Add memories or ingest artifacts; consider setting state with mempack_checkpoint."
+		return "No memories or chunks yet. Add memories or ingest artifacts; consider setting state with mem_checkpoint."
 	}
 	if !hasState {
-		return "Call mempack_get_context with a short query; consider setting state with mempack_checkpoint."
+		return "Call mem_get_context with a short query; consider setting state with mem_checkpoint."
 	}
-	return "Call mempack_get_context with a short, specific query to fetch relevant memories and chunks."
+	return "Call mem_get_context with a short, specific query to fetch relevant memories and chunks."
 }
 
 func formatInitialContextText(result InitialContext) string {

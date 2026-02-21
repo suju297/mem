@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "tool": "mempack",
+  "tool": "mem",
   "repo": {
     "repo_id": "p_example123",
     "git_root": "/path/to/repo"

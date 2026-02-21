@@ -25,7 +25,7 @@ import {
 } from "./config";
 
 export function activate(context: vscode.ExtensionContext): void {
-  const output = vscode.window.createOutputChannel("Mempack");
+  const output = vscode.window.createOutputChannel("Mem");
   const client = new MempackClient(output);
   const tree = new MempackTreeProvider(client, context);
   const sessions = new SessionManager(client, output, context.globalState);
@@ -133,8 +133,8 @@ export function activate(context: vscode.ExtensionContext): void {
         await sessions.refreshStatus();
         vscode.window.showInformationMessage(
           current
-            ? "Auto-capture is Off. Mempack will not write session memories automatically."
-            : "Auto-capture is On. Mempack will write lightweight session memories from meaningful edits."
+            ? "Auto-capture is Off. Mem will not write session memories automatically."
+            : "Auto-capture is On. Mem will write lightweight session memories from meaningful edits."
         );
       } catch (err: any) {
         showError(err);
@@ -191,8 +191,8 @@ export function activate(context: vscode.ExtensionContext): void {
         await sessions.refreshStatus();
         vscode.window.showInformationMessage(
           enabledPick.value
-            ? "Auto-capture is On. Mempack will write session memories from meaningful edits."
-            : "Auto-capture is Off. Mempack will not write session memories automatically."
+            ? "Auto-capture is On. Mem will write session memories from meaningful edits."
+            : "Auto-capture is Off. Mem will not write session memories automatically."
         );
       } catch (err: any) {
         showError(err);
@@ -225,7 +225,7 @@ export function activate(context: vscode.ExtensionContext): void {
               "Runs `mem init --no-agents`. Initializes the repo DB and welcome memory, but writes no files into this repo."
           }
         ],
-        { placeHolder: "Initialize Mempack in this repo" }
+        { placeHolder: "Initialize Mem in this repo" }
       );
       if (!choice) {
         return;
@@ -233,7 +233,7 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         output.show(true);
         await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: "Initializing Mempack", cancellable: false },
+          { location: vscode.ProgressLocation.Notification, title: "Initializing Mem", cancellable: false },
           async () => {
             await client.init(cwd, choice.value === "no-agents");
           }
@@ -254,8 +254,8 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const message =
           choice.value === "no-agents"
-            ? "Mempack initialized. No repo files were written (as requested)."
-            : "Mempack initialized. Agent instruction files were written.";
+            ? "Mem initialized. No repo files were written (as requested)."
+            : "Mem initialized. Agent instruction files were written.";
 
         const actions: Array<{ label: string; filePath?: string }> = [];
         if (choice.value !== "no-agents") {
@@ -678,7 +678,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const current = config.get<string>("workspace") || "";
       const next = await vscode.window.showInputBox({
-        prompt: "Mempack workspace name (blank = default)",
+        prompt: "Mem workspace name (blank = default)",
         value: current,
         ignoreFocusOut: true
       });
@@ -757,7 +757,7 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         const report = await client.doctor(cwd);
         const content = formatDoctorReport(report);
-        await openTextDocument("Mempack Doctor", content, "markdown");
+        await openTextDocument("Mem Doctor", content, "markdown");
       } catch (err: any) {
         showError(err);
       }
@@ -771,7 +771,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       const query = await vscode.window.showInputBox({
-        prompt: "Enter a Mempack query",
+        prompt: "Enter a Mem query",
         placeHolder: "e.g. auth middleware",
         ignoreFocusOut: true
       });
@@ -782,7 +782,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const { pack, prompt } = await client.getContextPack(cwd, query.trim());
         showContextPanel(context, pack, prompt);
         await vscode.env.clipboard.writeText(prompt);
-        vscode.window.showInformationMessage("Mempack context copied to clipboard.");
+        vscode.window.showInformationMessage("Mem context copied to clipboard.");
       } catch (err: any) {
         showError(err);
       }
@@ -806,9 +806,9 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         const report = await client.explainReport(cwd, query.trim());
         const text = JSON.stringify(report, null, 2);
-        await openTextDocument("Mempack Explain", text, "json");
+        await openTextDocument("Mem Explain", text, "json");
         await vscode.env.clipboard.writeText(text);
-        vscode.window.showInformationMessage("Mempack explain copied to clipboard.");
+        vscode.window.showInformationMessage("Mem explain copied to clipboard.");
       } catch (err: any) {
         showError(err);
       }
@@ -905,7 +905,7 @@ export function activate(context: vscode.ExtensionContext): void {
         await client.addMemory(cwd, thread.trim(), title.trim(), combinedSummary, tags || "");
         await context.workspaceState.update("mempack.lastThread", thread.trim());
         tree.refresh();
-        vscode.window.showInformationMessage(`Saved to Mempack: ${thread.trim()}`);
+        vscode.window.showInformationMessage(`Saved to Mem: ${thread.trim()}`);
       } catch (err: any) {
         showError(err);
       }
@@ -968,7 +968,7 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         const result = await client.show(cwd, node.memory.id);
         const content = formatShowResult(result);
-        await openTextDocument("Mempack Memory", content, "markdown");
+        await openTextDocument("Mem Memory", content, "markdown");
       } catch (err: any) {
         showError(err);
       }
@@ -1040,7 +1040,7 @@ function requireWorkspace(): string | undefined {
   const active = vscode.window.activeTextEditor?.document?.uri;
   const cwd = getWorkspaceRoot(active);
   if (!cwd) {
-    vscode.window.showErrorMessage("Open a folder to use Mempack.");
+    vscode.window.showErrorMessage("Open a folder to use Mem.");
     return undefined;
   }
   return cwd;
@@ -1296,8 +1296,8 @@ async function maybePromptMcpWrites(
         : "built-in default";
 
   const message = settings.effective.mode === "off"
-    ? `MCP writes are currently Off (${sourceLabel}). You can change this via "Mempack: Configure MCP Writes".`
-    : `MCP writes are currently ${settings.effective.mode === "auto" ? "Auto" : "Ask"} (${sourceLabel}). You can change this anytime via "Mempack: Configure MCP Writes".`;
+    ? `MCP writes are currently Off (${sourceLabel}). You can change this via "Mem: Configure MCP Writes".`
+    : `MCP writes are currently ${settings.effective.mode === "auto" ? "Auto" : "Ask"} (${sourceLabel}). You can change this anytime via "Mem: Configure MCP Writes".`;
 
   const pick = await vscode.window.showInformationMessage(message, "Configure", "OK");
   if (pick === "Configure") {
@@ -1352,7 +1352,7 @@ async function maybePromptAssistantFiles(
 
   const fileList = missingTargets.map((target) => `${target.toUpperCase()}.md`).join(", ");
   const pick = await vscode.window.showInformationMessage(
-    `Detected assistant tooling for this repo. Create ${fileList} with Mempack policy?`,
+    `Detected assistant tooling for this repo. Create ${fileList} with Mem policy?`,
     "Create",
     "Later",
     "Don't ask again"

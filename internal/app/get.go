@@ -177,7 +177,7 @@ func renderPrompt(out io.Writer, p pack.ContextPack) {
 	fmt.Fprintf(out, "# Context from Memory (Repo: %s)\n", p.Repo.RepoID)
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, "Agent rule: If you do not have this pack for the current task, ask the user to run:")
-	fmt.Fprintln(out, "`mempack get \"<task>\" --format prompt`")
+	fmt.Fprintln(out, "`mem get \"<task>\" --format prompt`")
 	fmt.Fprintln(out)
 
 	if len(p.State) > 0 && string(p.State) != "{}" {

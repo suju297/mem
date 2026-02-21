@@ -1,6 +1,6 @@
-# Mempack Architecture
+# Mem Architecture
 
-This document describes Mempack runtime architecture, boundaries, and invariants.
+This document describes Mem runtime architecture, boundaries, and invariants.
 
 Purpose:
 - Show system shape and boundaries quickly.
@@ -15,11 +15,11 @@ The implementation is authoritative. Keep this document updated in the same PR a
 
 ## 1) Context
 
-Mempack is a local-first, repo-scoped memory system for coding workflows.
+Mem is a local-first, repo-scoped memory system for coding workflows.
 
 Primary surfaces:
 - CLI (`mem ...`)
-- MCP tools/server (`mem mcp ...`, `mempack_*`)
+- MCP tools/server (`mem mcp ...`, `mem_*` with legacy `mempack_*` aliases)
 - VS Code/Cursor extension (`extensions/vscode-mempack`)
 
 Per-repo persistent data location:
@@ -42,7 +42,7 @@ Legend:
 ## 3) L1: System Context
 
 Audience: product engineers and integrators.
-Scope: Mempack as a system and its external dependencies.
+Scope: Mem as a system and its external dependencies.
 
 ![L1 System Context](docs/diagrams/architecture-l1-system-context.png)
 
@@ -63,7 +63,7 @@ Operational note:
 
 ## 5) L3: Retrieval Components
 
-Audience: maintainers changing `get` / `explain` / `mempack_get_context`.
+Audience: maintainers changing `get` / `explain` / `mem_get_context`.
 Scope: retrieval orchestration in `internal/app` and store/embed integrations.
 
 <p align="center">
@@ -121,7 +121,7 @@ Detailed table/column and artifact reference: `docs/storage.md`
 - MCP structured-content contract remains backward-compatible.
 - Data-root precedence remains deterministic:
   1. `--data-dir`
-  2. `MEMPACK_DATA_DIR`
+  2. `MEM_DATA_DIR`
   3. `data_dir` in config
 - Extension status is observational and should align with CLI/daemon truth.
 

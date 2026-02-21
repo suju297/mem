@@ -34,7 +34,7 @@ func runMCPStartLocal(args []string, out, errOut io.Writer) int {
 	defer unlockPIDFile(lockFile)
 
 	if pid, running := readPID(pidPath); running {
-		fmt.Fprintf(out, "mempack mcp already running (pid=%d)\n", pid)
+		fmt.Fprintf(out, "mem mcp already running (pid=%d)\n", pid)
 		return 0
 	}
 
@@ -84,7 +84,7 @@ func runMCPStartLocal(args []string, out, errOut io.Writer) int {
 	_ = logFile.Close()
 	_ = cmd.Process.Release()
 
-	fmt.Fprintf(out, "mempack mcp started (pid=%d, log=%s)\n", cmd.Process.Pid, logPath)
+	fmt.Fprintf(out, "mem mcp started (pid=%d, log=%s)\n", cmd.Process.Pid, logPath)
 	return 0
 }
 
@@ -141,7 +141,7 @@ func runMCPStopLocal(out, errOut io.Writer) int {
 
 	pid, running := readPID(pidPath)
 	if pid == 0 || !running {
-		fmt.Fprintln(out, "mempack mcp not running")
+		fmt.Fprintln(out, "mem mcp not running")
 		_ = os.Remove(pidPath)
 		return 0
 	}
@@ -156,7 +156,7 @@ func runMCPStopLocal(out, errOut io.Writer) int {
 		return 1
 	}
 	_ = os.Remove(pidPath)
-	fmt.Fprintf(out, "mempack mcp stopped (pid=%d)\n", pid)
+	fmt.Fprintf(out, "mem mcp stopped (pid=%d)\n", pid)
 	return 0
 }
 
@@ -176,10 +176,10 @@ func runMCPStatusLocal(out, errOut io.Writer) int {
 
 	pid, running := readPID(pidPath)
 	if pid == 0 || !running {
-		fmt.Fprintln(out, "mempack mcp not running")
+		fmt.Fprintln(out, "mem mcp not running")
 		return 1
 	}
-	fmt.Fprintf(out, "mempack mcp running (pid=%d)\n", pid)
+	fmt.Fprintf(out, "mem mcp running (pid=%d)\n", pid)
 	return 0
 }
 

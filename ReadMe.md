@@ -1,6 +1,6 @@
-# Mempack: Repo-Scoped Memory for Coding Agents
+# Mem: Repo-Scoped Memory for Coding Agents
 
-Mempack is a local-first memory system for coding workflows.
+Mem is a local-first memory system for coding workflows.
 
 It stores three things per repo:
 - State: current project context.
@@ -38,7 +38,7 @@ curl -fsSL https://raw.githubusercontent.com/suju297/mempack/main/scripts/instal
 Windows (PowerShell):
 
 ```powershell
-iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mempack-install.ps1; & $env:TEMP\\mempack-install.ps1 -Repo suju297/mempack
+iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo suju297/mempack
 ```
 
 Windows PATH behavior:
@@ -62,14 +62,14 @@ mem init
 3. Save and retrieve one memory:
 
 ```bash
-mem add --thread T-setup --title "Mempack ready" --summary "Initialized memory for this repo"
-mem get "Mempack ready" --format prompt
+mem add --thread T-setup --title "Mem ready" --summary "Initialized memory for this repo"
+mem get "Mem ready" --format prompt
 ```
 
 4. Connect Codex MCP:
 
 ```bash
-codex mcp add mempack -- mem mcp --require-repo
+codex mcp add mem -- mem mcp --require-repo
 codex mcp list
 ```
 
@@ -134,13 +134,13 @@ Full command syntax: `docs/cli.md`
 ## MCP Tool Surface
 
 Primary tools:
-- `mempack_get_initial_context`
-- `mempack_get_context`
-- `mempack_explain`
-- `mempack_add_memory`
-- `mempack_update_memory`
-- `mempack_link_memories`
-- `mempack_checkpoint`
+- `mem_get_initial_context`
+- `mem_get_context`
+- `mem_explain`
+- `mem_add_memory`
+- `mem_update_memory`
+- `mem_link_memories`
+- `mem_checkpoint`
 
 Write mode behavior:
 - `ask`: default when writes are enabled; requires explicit confirmation
@@ -150,14 +150,14 @@ Write mode behavior:
 ## Configuration
 
 Global config path:
-- `XDG_CONFIG_HOME/mempack/config.toml` (default `~/.config/mempack/config.toml`)
+- `XDG_CONFIG_HOME/mem/config.toml` (default `~/.config/mem/config.toml`)
 
 Repo override path:
 - `.mempack/config.json`
 
 Data directory precedence:
 1. `--data-dir <path>`
-2. `MEMPACK_DATA_DIR=<path>`
+2. `MEM_DATA_DIR=<path>`
 3. `data_dir` in `config.toml`
 
 Minimal example:
@@ -179,7 +179,7 @@ Detailed diagrams and architecture contracts live in `ARCHITECTURE.md`.
 ```mermaid
 flowchart TD
     CLI["CLI<br/>`mem ...`"]
-    MCP["MCP Tools<br/>`mempack_*`"]
+    MCP["MCP Tools<br/>`mem_*` (legacy `mempack_*`)"]
     EXT["VS Code/Cursor<br/>Extension"]
 
     APP["App Orchestrator<br/>`internal/app`"]
@@ -240,7 +240,7 @@ npx @vscode/vsce package
 
 ## License
 
-Mempack is licensed under MIT. See `LICENSE`.
+Mem is licensed under MIT. See `LICENSE`.
 
 ## Release History
 

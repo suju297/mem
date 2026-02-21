@@ -2,28 +2,30 @@
 set -euo pipefail
 
 BIN_NAME="mem"
-REPO="${MEMPACK_REPO:-}"
-VERSION="${MEMPACK_VERSION:-latest}"
-INSTALL_DIR="${MEMPACK_INSTALL_DIR:-}"
-VERIFY_CHECKSUMS="${MEMPACK_VERIFY_CHECKSUMS:-1}"
-ADD_TO_PATH="${MEMPACK_ADD_TO_PATH:-0}"
-PATH_RC_FILE="${MEMPACK_PATH_RC_FILE:-}"
+REPO="${MEM_REPO:-${MEMPACK_REPO:-}}"
+VERSION="${MEM_VERSION:-${MEMPACK_VERSION:-latest}}"
+INSTALL_DIR="${MEM_INSTALL_DIR:-${MEMPACK_INSTALL_DIR:-}}"
+VERIFY_CHECKSUMS="${MEM_VERIFY_CHECKSUMS:-${MEMPACK_VERIFY_CHECKSUMS:-1}}"
+ADD_TO_PATH="${MEM_ADD_TO_PATH:-${MEMPACK_ADD_TO_PATH:-0}}"
+PATH_RC_FILE="${MEM_PATH_RC_FILE:-${MEMPACK_PATH_RC_FILE:-}}"
 
 usage() {
   cat <<'EOF'
-Install mempack from GitHub Releases.
+Install mem from GitHub Releases.
 
 Usage:
   install.sh --repo <owner/repo> [--version <tag>] [--install-dir <dir>] [--bin-name <name>] [--add-to-path]
 
 Environment overrides:
+  MEM_REPO, MEM_VERSION, MEM_INSTALL_DIR, MEM_ADD_TO_PATH, MEM_PATH_RC_FILE
+  Legacy aliases are still supported:
   MEMPACK_REPO, MEMPACK_VERSION, MEMPACK_INSTALL_DIR, MEMPACK_ADD_TO_PATH, MEMPACK_PATH_RC_FILE
 
 Examples:
-  ./install.sh --repo owner/mempack
-  MEMPACK_REPO=owner/mempack ./install.sh
-  ./install.sh --repo owner/mempack --version v0.2.0
-  ./install.sh --repo owner/mempack --add-to-path
+  ./install.sh --repo owner/mem
+  MEM_REPO=owner/mem ./install.sh
+  ./install.sh --repo owner/mem --version v0.2.0
+  ./install.sh --repo owner/mem --add-to-path
 
 Notes:
   - This script supports macOS, Linux, and Git-Bash/MSYS/Cygwin on Windows.
@@ -91,7 +93,7 @@ persist_path_entry() {
 
   {
     echo ""
-    echo "# mempack installer PATH update"
+    echo "# mem installer PATH update"
     echo "$line"
   } >> "$rc_file"
 
@@ -153,7 +155,7 @@ if [[ -z "$REPO" ]] && command -v git >/dev/null 2>&1; then
 fi
 
 if [[ -z "$REPO" ]]; then
-  echo "error: repo not set. Use --repo <owner/repo> or set MEMPACK_REPO." >&2
+  echo "error: repo not set. Use --repo <owner/repo> or set MEM_REPO." >&2
   exit 1
 fi
 
@@ -192,23 +194,34 @@ if [[ -z "$INSTALL_DIR" ]]; then
   fi
 fi
 
-asset="mempack_${os}_${arch}.${archive_ext}"
+asset="mem_${os}_${arch}.${archive_ext}"
+legacy_asset="mempack_${os}_${arch}.${archive_ext}"
 if [[ "$VERSION" == "latest" ]]; then
   url="https://github.com/${REPO}/releases/latest/download/${asset}"
+  legacy_url="https://github.com/${REPO}/releases/latest/download/${legacy_asset}"
   checksums_url="https://github.com/${REPO}/releases/latest/download/checksums.txt"
 else
   url="https://github.com/${REPO}/releases/download/${VERSION}/${asset}"
+  legacy_url="https://github.com/${REPO}/releases/download/${VERSION}/${legacy_asset}"
   checksums_url="https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt"
 fi
 
 tmpdir="$(mktemp -d)"
 trap 'rm -rf "$tmpdir"' EXIT
 archive="$tmpdir/$asset"
+asset_used="$asset"
 downloaded_release=0
 if download_file "$url" "$archive"; then
   downloaded_release=1
 else
-  echo "warning: release asset not found (${asset}); falling back to source build" >&2
+  archive="$tmpdir/$legacy_asset"
+  asset_used="$legacy_asset"
+  if download_file "$legacy_url" "$archive"; then
+    downloaded_release=1
+    echo "warning: using legacy release asset name (${legacy_asset})" >&2
+  else
+    echo "warning: release asset not found (${asset}, ${legacy_asset}); falling back to source build" >&2
+  fi
 fi
 
 if [[ "$downloaded_release" == "1" ]] && [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
@@ -218,7 +231,7 @@ if [[ "$downloaded_release" == "1" ]] && [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
   fi
 
   if [[ -n "${checksums_path:-}" ]] && [[ -f "$checksums_path" ]]; then
-    expected="$(awk -v file="$asset" '$2==file {print $1}' "$checksums_path")"
+    expected="$(awk -v file="$asset_used" '$2==file {print $1}' "$checksums_path")"
     if [[ -n "$expected" ]]; then
       if command -v sha256sum >/dev/null 2>&1; then
         actual="$(sha256sum "$archive" | awk '{print $1}')"
@@ -230,11 +243,11 @@ if [[ "$downloaded_release" == "1" ]] && [[ "$VERIFY_CHECKSUMS" != "0" ]]; then
       if [[ -z "$actual" ]]; then
         echo "warning: sha256 tool not found; skipping checksum verification" >&2
       elif [[ "$actual" != "$expected" ]]; then
-        echo "error: checksum mismatch for $asset" >&2
+        echo "error: checksum mismatch for $asset_used" >&2
         exit 1
       fi
     else
-      echo "warning: checksum entry not found for $asset; skipping verification" >&2
+      echo "warning: checksum entry not found for $asset_used; skipping verification" >&2
     fi
   else
     echo "warning: checksums.txt not found; skipping verification" >&2
@@ -251,7 +264,7 @@ if [[ "$downloaded_release" == "1" ]]; then
       powershell.exe -NoProfile -Command \
         "Expand-Archive -Path '$archive' -DestinationPath '$tmpdir' -Force" >/dev/null
     else
-      echo "error: unzip, bsdtar, or powershell.exe required to extract $asset" >&2
+      echo "error: unzip, bsdtar, or powershell.exe required to extract $asset_used" >&2
       exit 1
     fi
   else

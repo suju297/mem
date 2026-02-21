@@ -9,7 +9,7 @@ flowchart TB
     CFG["Config files<br/>&lt;config_dir&gt;/config.toml<br/>&lt;config_dir&gt;/mcp.manager.json"]:::fs
     DATA["Repo DB file<br/>&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::fs
     WAL["SQLite sidecars<br/>memory.db-wal / memory.db-shm"]:::fs
-    SHARE["Share bundle<br/>&lt;repo_root&gt;/mempack-share/<br/>manifest.json, memories.jsonl, README.md"]:::xfer
+    SHARE["Share bundle<br/>&lt;repo_root&gt;/mem-share/<br/>manifest.json, memories.jsonl, README.md"]:::xfer
   end
 
   subgraph SQL["SQLite Logical Groups"]

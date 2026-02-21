@@ -37,7 +37,7 @@ extract_id() {
 run_mem() {
   (
     cd "$SANDBOX_REPO"
-    MEMPACK_DATA_DIR="$SANDBOX_DATA_DIR" \
+    MEM_DATA_DIR="$SANDBOX_DATA_DIR" \
       XDG_CONFIG_HOME="$SANDBOX_XDG_CONFIG" \
       XDG_CACHE_HOME="$SANDBOX_XDG_CACHE" \
       "$MEM_BIN" "$@"
@@ -56,7 +56,7 @@ setup_sandbox() {
 
   if ! git -C "$SANDBOX_REPO" rev-parse --verify HEAD >/dev/null 2>&1; then
     cat > "$SANDBOX_REPO/README.md" <<'TXT'
-# Mempack Sandbox Memory Eval Repo
+# Mem Sandbox Memory Eval Repo
 
 This repo is intentionally local-only and ignored by git in the parent project.
 TXT
@@ -138,12 +138,12 @@ run_mcp_suite() {
 
   local mcp_log="$RUN_DIR/mcp_e2e.log"
 
-  # Single source of truth: use the same MEMPACK_DATA_DIR as CLI suite.
+  # Single source of truth: use the same MEM_DATA_DIR as CLI suite.
   run_mem init --no-agents >/dev/null
 
   (
     cd "$PROJECT_ROOT"
-    MEMPACK_DATA_DIR="$SANDBOX_DATA_DIR" \
+    MEM_DATA_DIR="$SANDBOX_DATA_DIR" \
     XDG_CONFIG_HOME="$SANDBOX_XDG_CONFIG" \
     XDG_CACHE_HOME="$SANDBOX_XDG_CACHE" \
     MEM_BIN="$MEM_BIN" \
@@ -168,7 +168,7 @@ Environment overrides:
   MEM_BIN                    mem binary path (default: mem)
   MEMORY_SANDBOX_ROOT        root dir (default: <repo>/sandbox/memory-eval)
   MEMORY_SANDBOX_REPO        sandbox git repo path
-  MEMORY_SANDBOX_DATA_DIR    single mempack data root for both CLI and MCP
+  MEMORY_SANDBOX_DATA_DIR    single mem data root for both CLI and MCP
   MEMORY_SANDBOX_XDG_CONFIG  isolated config dir for sandbox runs
   MEMORY_SANDBOX_XDG_CACHE   isolated cache dir for sandbox runs
   MEMORY_SANDBOX_EVIDENCE_DIR evidence output directory

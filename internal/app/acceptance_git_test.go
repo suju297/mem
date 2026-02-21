@@ -145,7 +145,7 @@ func TestAcceptanceMCPContextMetaAndSources(t *testing.T) {
 
 	req := mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": "delta99", "format": "json"},
 		},
 	}

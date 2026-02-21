@@ -1,4 +1,4 @@
-# Mempack Storage and Schema
+# Mem Storage and Schema
 
 This document covers on-disk layout, SQLite tables/columns, and artifact flows.
 
@@ -13,7 +13,7 @@ Implementation source of truth:
 
 Data root resolution order:
 1. `--data-dir`
-2. `MEMPACK_DATA_DIR`
+2. `MEM_DATA_DIR`
 3. `data_dir` in `config.toml`
 
 Per-repo database:
@@ -25,9 +25,9 @@ Config and manager state:
 - `<config_dir>/mcp.manager.json` (manager control-plane metadata: `port`, `token`, `pid`)
 
 Share bundle files (repo-local):
-- `<repo_root>/mempack-share/manifest.json`
-- `<repo_root>/mempack-share/memories.jsonl`
-- `<repo_root>/mempack-share/README.md`
+- `<repo_root>/mem-share/manifest.json`
+- `<repo_root>/mem-share/memories.jsonl`
+- `<repo_root>/mem-share/README.md`
 
 ## SQLite Tables and Columns
 

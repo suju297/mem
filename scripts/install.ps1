@@ -56,7 +56,8 @@ function Add-UserPathEntry {
 }
 
 $arch = Resolve-Arch
-$asset = "mempack_windows_${arch}.zip"
+$asset = "mem_windows_${arch}.zip"
+$legacyAsset = "mempack_windows_${arch}.zip"
 
 if ($Version -eq "latest") {
     $base = "https://github.com/$Repo/releases/latest/download"
@@ -65,19 +66,28 @@ if ($Version -eq "latest") {
 }
 
 $assetUrl = "$base/$asset"
+$legacyAssetUrl = "$base/$legacyAsset"
 $checksumsUrl = "$base/checksums.txt"
 
-$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("mempack-install-" + [Guid]::NewGuid().ToString("N"))
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("mem-install-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Path $tmp | Out-Null
 
 try {
     $archive = Join-Path $tmp $asset
+    $assetUsed = $asset
     $downloadedRelease = $true
     try {
         Invoke-WebRequest -Uri $assetUrl -OutFile $archive
     } catch {
-        $downloadedRelease = $false
-        Write-Warning "Release asset not found ($asset). Falling back to source build."
+        $archive = Join-Path $tmp $legacyAsset
+        $assetUsed = $legacyAsset
+        try {
+            Invoke-WebRequest -Uri $legacyAssetUrl -OutFile $archive
+            Write-Warning "Using legacy release asset name ($legacyAsset)."
+        } catch {
+            $downloadedRelease = $false
+            Write-Warning "Release assets not found ($asset, $legacyAsset). Falling back to source build."
+        }
     }
 
     $binFile = "$BinName.exe"
@@ -88,15 +98,15 @@ try {
             $checksumsPath = Join-Path $tmp "checksums.txt"
             try {
                 Invoke-WebRequest -Uri $checksumsUrl -OutFile $checksumsPath
-                $line = Select-String -Path $checksumsPath -Pattern " $asset$" | Select-Object -First 1
+                $line = Select-String -Path $checksumsPath -Pattern " $assetUsed$" | Select-Object -First 1
                 if ($line) {
                     $expected = ($line.Line -split "\s+")[0]
                     $actual = (Get-FileHash -Algorithm SHA256 -Path $archive).Hash.ToLowerInvariant()
                     if ($actual -ne $expected.ToLowerInvariant()) {
-                        throw "Checksum mismatch for $asset"
+                        throw "Checksum mismatch for $assetUsed"
                     }
                 } else {
-                    Write-Warning "No checksum entry found for $asset; continuing"
+                    Write-Warning "No checksum entry found for $assetUsed; continuing"
                 }
             } catch {
                 Write-Warning "Checksum verification skipped: $($_.Exception.Message)"

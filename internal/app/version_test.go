@@ -22,7 +22,7 @@ func TestVersionCommand(t *testing.T) {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
 	got := strings.TrimSpace(out.String())
-	want := "mempack v0.2.3 (abc1234)"
+	want := "mem v0.2.3 (abc1234)"
 	if got != want {
 		t.Fatalf("unexpected version output: %q (want %q)", got, want)
 	}

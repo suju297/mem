@@ -277,7 +277,7 @@ func buildContextPackWithTrace(query string, opts ContextOptions, timings *getTi
 
 	result := pack.ContextPack{
 		Version:        "1.0",
-		Tool:           "mempack",
+		Tool:           "mem",
 		Repo:           pack.RepoInfo{RepoID: repoInfo.ID, GitRoot: repoInfo.GitRoot, Head: repoInfo.Head, Branch: repoInfo.Branch},
 		Workspace:      workspace,
 		SearchMeta:     searchMeta,

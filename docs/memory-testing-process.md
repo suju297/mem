@@ -1,6 +1,6 @@
 # Memory Testing Process (Sandbox + Benchmarks)
 
-This process gives a repeatable way to test Mempack memory behavior in an isolated sandbox repo, then scale to benchmark-style evaluation.
+This process gives a repeatable way to test Mem memory behavior in an isolated sandbox repo, then scale to benchmark-style evaluation.
 
 ## 1) Sandbox isolation
 
@@ -9,8 +9,8 @@ Default sandbox paths (all git-ignored):
 - `sandbox/memory-eval/data`
 - `sandbox/memory-eval/evidence`
 
-The sandbox uses a dedicated `MEMPACK_DATA_DIR`, so test writes do not pollute your normal memory store.
-This same `MEMPACK_DATA_DIR` is used by both CLI and MCP suites as the single data-root source of truth.
+The sandbox uses a dedicated `MEM_DATA_DIR`, so test writes do not pollute your normal memory store.
+This same `MEM_DATA_DIR` is used by both CLI and MCP suites as the single data-root source of truth.
 The harness also isolates `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` under sandbox paths so repo-cache state from your global setup cannot leak into tests.
 
 ## 2) Tiered evaluation strategy
@@ -41,8 +41,8 @@ scripts/memory_sandbox_eval.sh mcp
 
 What it validates:
 - MCP server startup and tool registration
-- read flow (`mempack_get_context`, `mempack_explain`)
-- write flow (`mempack_add_memory`, `mempack_update_memory`, `mempack_link_memories`, `mempack_checkpoint`)
+- read flow (`mem_get_context`, `mem_explain`)
+- write flow (`mem_add_memory`, `mem_update_memory`, `mem_link_memories`, `mem_checkpoint`)
 
 Output:
 - `mcp_e2e.log` in `sandbox/memory-eval/evidence/<run_id>/`
@@ -88,46 +88,46 @@ scripts/memory_sandbox_eval.sh all
 If you want sandbox data outside the repo:
 
 ```bash
-MEMORY_SANDBOX_ROOT="$HOME/mempack-sandbox" scripts/memory_sandbox_eval.sh all
+MEMORY_SANDBOX_ROOT="$HOME/mem-sandbox" scripts/memory_sandbox_eval.sh all
 ```
 
 ## 6) Complete external sandbox scoring run (2026-02-18)
 
 Requested paths:
 - main repo: `/Users/sujendragharat/Library/CloudStorage/GoogleDrive-sgharat298@gmail.com/My Drive/MacExternalCloud/Documents/Projects/memory`
-- sandbox root: `/Users/sujendragharat/mempack-sandbox`
-- sandbox repo: `/Users/sujendragharat/mempack-sandbox/repo`
+- sandbox root: `/Users/sujendragharat/mem-sandbox`
+- sandbox repo: `/Users/sujendragharat/mem-sandbox/repo`
 - mem binary: `/Users/sujendragharat/go/bin/mem`
 
 Command:
 
 ```bash
 cd "/Users/sujendragharat/Library/CloudStorage/GoogleDrive-sgharat298@gmail.com/My Drive/MacExternalCloud/Documents/Projects/memory"
-MEM_BIN=/Users/sujendragharat/go/bin/mem MEMORY_SANDBOX_ROOT="/Users/sujendragharat/mempack-sandbox" scripts/memory_sandbox_eval.sh all
+MEM_BIN=/Users/sujendragharat/go/bin/mem MEMORY_SANDBOX_ROOT="/Users/sujendragharat/mem-sandbox" scripts/memory_sandbox_eval.sh all
 ```
 
 Output:
 
 ```text
-Sandbox repo ready: /Users/sujendragharat/mempack-sandbox/repo
-Sandbox data dir:   /Users/sujendragharat/mempack-sandbox/data
-Sandbox config dir: /Users/sujendragharat/mempack-sandbox/xdg/config
-Evidence root:      /Users/sujendragharat/mempack-sandbox/evidence
+Sandbox repo ready: /Users/sujendragharat/mem-sandbox/repo
+Sandbox data dir:   /Users/sujendragharat/mem-sandbox/data
+Sandbox config dir: /Users/sujendragharat/mem-sandbox/xdg/config
+Evidence root:      /Users/sujendragharat/mem-sandbox/evidence
 CLI suite PASS
-CLI evidence: /Users/sujendragharat/mempack-sandbox/evidence/20260218T221215Z
+CLI evidence: /Users/sujendragharat/mem-sandbox/evidence/20260218T221215Z
 MCP suite PASS
-MCP evidence: /Users/sujendragharat/mempack-sandbox/evidence/20260218T221215Z/mcp_e2e.log
+MCP evidence: /Users/sujendragharat/mem-sandbox/evidence/20260218T221215Z/mcp_e2e.log
 ```
 
 Command:
 
 ```bash
-cd "/Users/sujendragharat/mempack-sandbox/repo"
-MEMPACK_DATA_DIR="/Users/sujendragharat/mempack-sandbox/data" XDG_CONFIG_HOME="/Users/sujendragharat/mempack-sandbox/xdg/config" XDG_CACHE_HOME="/Users/sujendragharat/mempack-sandbox/xdg/cache" /Users/sujendragharat/go/bin/mem get "sbx-gamma" --format json
+cd "/Users/sujendragharat/mem-sandbox/repo"
+MEM_DATA_DIR="/Users/sujendragharat/mem-sandbox/data" XDG_CONFIG_HOME="/Users/sujendragharat/mem-sandbox/xdg/config" XDG_CACHE_HOME="/Users/sujendragharat/mem-sandbox/xdg/cache" /Users/sujendragharat/go/bin/mem get "sbx-gamma" --format json
 ```
 
 Key retrieval checks from output:
-- `repo.git_root` = `/Users/sujendragharat/mempack-sandbox/repo`
+- `repo.git_root` = `/Users/sujendragharat/mem-sandbox/repo`
 - query = `sbx-gamma`
 - newest linked memories for run `20260218T221215Z` are present:
   - `M-20260218-221216-eb63b480` (Sandbox A, gamma token)
@@ -136,7 +136,7 @@ Key retrieval checks from output:
 Evidence validation command:
 
 ```bash
-LATEST=$(ls -1 /Users/sujendragharat/mempack-sandbox/evidence | sort | tail -n 1); echo "$LATEST"; echo '---'; sed -n '1,200p' "/Users/sujendragharat/mempack-sandbox/evidence/$LATEST/cli_report.txt"; echo '---'; sed -n '1,80p' "/Users/sujendragharat/mempack-sandbox/evidence/$LATEST/mcp_e2e.log"
+LATEST=$(ls -1 /Users/sujendragharat/mem-sandbox/evidence | sort | tail -n 1); echo "$LATEST"; echo '---'; sed -n '1,200p' "/Users/sujendragharat/mem-sandbox/evidence/$LATEST/cli_report.txt"; echo '---'; sed -n '1,80p' "/Users/sujendragharat/mem-sandbox/evidence/$LATEST/mcp_e2e.log"
 ```
 
 Output:
@@ -147,8 +147,8 @@ Output:
 status: PASS
 run_id: 20260218T221215Z
 thread: T-SANDBOX-EVAL
-sandbox_repo: /Users/sujendragharat/mempack-sandbox/repo
-sandbox_data_dir: /Users/sujendragharat/mempack-sandbox/data
+sandbox_repo: /Users/sujendragharat/mem-sandbox/repo
+sandbox_data_dir: /Users/sujendragharat/mem-sandbox/data
 memory_a: M-20260218-221216-eb63b480
 memory_b: M-20260218-221216-137790f7
 assertions:
@@ -165,13 +165,13 @@ Final score summary:
 {
   "reliability_score": 100,
   "isolation_check": "PASS",
-  "data_root": "/Users/sujendragharat/mempack-sandbox/data",
-  "latest_evidence_dir": "/Users/sujendragharat/mempack-sandbox/evidence/20260218T221215Z",
+  "data_root": "/Users/sujendragharat/mem-sandbox/data",
+  "latest_evidence_dir": "/Users/sujendragharat/mem-sandbox/evidence/20260218T221215Z",
   "final_status": "PASS",
   "checks": {
     "cli_status": "PASS",
     "mcp_status": "PASS",
-    "repo_git_root": "/Users/sujendragharat/mempack-sandbox/repo"
+    "repo_git_root": "/Users/sujendragharat/mem-sandbox/repo"
   }
 }
 ```

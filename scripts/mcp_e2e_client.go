@@ -28,8 +28,11 @@ func main() {
 	defer cancel()
 
 	env := []string{}
+	if v := os.Getenv("MEM_DATA_DIR"); v != "" {
+		env = append(env, "MEM_DATA_DIR="+v)
+	}
 	if v := os.Getenv("MEMPACK_DATA_DIR"); v != "" {
-		env = append(env, "MEMPACK_DATA_DIR="+v)
+		env = append(env, "MEM_DATA_DIR="+v)
 	}
 	if v := os.Getenv("XDG_CONFIG_HOME"); v != "" {
 		env = append(env, "XDG_CONFIG_HOME="+v)
@@ -82,6 +85,13 @@ func main() {
 	if err != nil {
 		fail("list tools", err)
 	}
+	requireTool(toolsRes.Tools, "mem_get_context")
+	requireTool(toolsRes.Tools, "mem_get_initial_context")
+	requireTool(toolsRes.Tools, "mem_explain")
+	requireTool(toolsRes.Tools, "mem_add_memory")
+	requireTool(toolsRes.Tools, "mem_update_memory")
+	requireTool(toolsRes.Tools, "mem_link_memories")
+	requireTool(toolsRes.Tools, "mem_checkpoint")
 	requireTool(toolsRes.Tools, "mempack_get_context")
 	requireTool(toolsRes.Tools, "mempack_get_initial_context")
 	requireTool(toolsRes.Tools, "mempack_explain")
@@ -91,7 +101,7 @@ func main() {
 	requireTool(toolsRes.Tools, "mempack_checkpoint")
 
 	initCtxRes, err := c.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{Name: "mempack_get_initial_context", Arguments: map[string]any{"repo": repoDir}},
+		Params: mcp.CallToolParams{Name: "mem_get_initial_context", Arguments: map[string]any{"repo": repoDir}},
 	})
 	if err != nil {
 		fail("get_initial_context", err)
@@ -106,7 +116,7 @@ func main() {
 
 	ctxRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": query, "format": "json", "repo": repoDir},
 		},
 	})
@@ -122,7 +132,7 @@ func main() {
 	}
 
 	explainRes, err := c.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{Name: "mempack_explain", Arguments: map[string]any{"query": query, "repo": repoDir}},
+		Params: mcp.CallToolParams{Name: "mem_explain", Arguments: map[string]any{"query": query, "repo": repoDir}},
 	})
 	if err != nil {
 		fail("explain", err)
@@ -133,7 +143,7 @@ func main() {
 
 	addRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "mempack_add_memory",
+			Name: "mem_add_memory",
 			Arguments: map[string]any{
 				"thread":    "T-E2E",
 				"title":     "MCP E2E",
@@ -158,7 +168,7 @@ func main() {
 
 	oldQueryRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": "file_src_old_ts", "format": "json", "repo": repoDir},
 		},
 	})
@@ -174,7 +184,7 @@ func main() {
 
 	updateRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "mempack_update_memory",
+			Name: "mem_update_memory",
 			Arguments: map[string]any{
 				"id":        id,
 				"entities":  "file_src_new_ts,ext_ts",
@@ -197,7 +207,7 @@ func main() {
 
 	oldAfterUpdateRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": "file_src_old_ts", "format": "json", "repo": repoDir},
 		},
 	})
@@ -213,7 +223,7 @@ func main() {
 
 	newAfterUpdateRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": "file_src_new_ts", "format": "json", "repo": repoDir},
 		},
 	})
@@ -229,7 +239,7 @@ func main() {
 
 	relatedRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "mempack_add_memory",
+			Name: "mem_add_memory",
 			Arguments: map[string]any{
 				"thread":    "T-E2E",
 				"title":     "MCP E2E Related",
@@ -254,7 +264,7 @@ func main() {
 
 	linkRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "mempack_link_memories",
+			Name: "mem_link_memories",
 			Arguments: map[string]any{
 				"from_id":   id,
 				"rel":       "supersedes",
@@ -273,7 +283,7 @@ func main() {
 
 	unscopedRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "mempack_get_context",
+			Name:      "mem_get_context",
 			Arguments: map[string]any{"query": "file_src_new_ts", "format": "json"},
 		},
 	})
@@ -289,7 +299,7 @@ func main() {
 
 	ckRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "mempack_checkpoint",
+			Name: "mem_checkpoint",
 			Arguments: map[string]any{
 				"reason":     "MCP E2E",
 				"state_json": "{\"goal\":\"ship\"}",

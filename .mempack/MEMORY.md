@@ -1,7 +1,7 @@
-# Mempack Instructions (Repo Memory)
-<!-- mempack:managed -->
+# Mem Instructions (Repo Memory)
+<!-- mem:managed -->
 
-Purpose: Use Mempack to fetch and persist repo-scoped context (state, decisions, evidence). If these instructions conflict with system/tool rules, system/tool rules win.
+Purpose: Use Mem to fetch and persist repo-scoped context (state, decisions, evidence). If these instructions conflict with system/tool rules, system/tool rules win.
 
 ## MCP-first rule
 - Use MCP tools for both read and write operations whenever MCP is available.
@@ -9,7 +9,7 @@ Purpose: Use Mempack to fetch and persist repo-scoped context (state, decisions,
 
 ## Do this at task start (required)
 1) Fetch context for the current task.
-   - MCP (preferred): call `mempack_get_context(query="<task>")`
+   - MCP (preferred): call `mem_get_context(query="<task>")`
    - Fallback: ask the user to run `mem get "<task>" --format prompt`
 
 2) If you change direction or discover new constraints, fetch again.
@@ -27,29 +27,29 @@ Purpose: Use Mempack to fetch and persist repo-scoped context (state, decisions,
 
 - Create memory (decision/gotcha/plan):
   - MCP (write tools enabled by default in ask mode):
-    `mempack_add_memory(title="<title>", summary="<text>", thread="<T-ID>", tags="<csv>", entities="<csv>", confirmed=true)`
+    `mem_add_memory(title="<title>", summary="<text>", thread="<T-ID>", tags="<csv>", entities="<csv>", confirmed=true)`
   - CLI fallback:
     `mem add --title "<title>" --summary "<text>" [--thread <T-ID>] [--tags <csv>] [--entities <csv>]`
   - Note: summary may be empty only for session-style memories (tag includes `session`).
 
 - Update existing memory/session (preferred over supersede for annotation):
   - MCP:
-    `mempack_update_memory(id="<M-ID>", summary="<text>", tags_add="<csv>", tags_remove="<csv>", entities_add="<csv>", confirmed=true)`
+    `mem_update_memory(id="<M-ID>", summary="<text>", tags_add="<csv>", tags_remove="<csv>", entities_add="<csv>", confirmed=true)`
   - CLI fallback:
     `mem update <M-ID> [--title <title>] [--summary <text>] [--tags <csv>] [--tags-add <csv>] [--tags-remove <csv>] [--entities <csv>] [--entities-add <csv>] [--entities-remove <csv>]`
 
 - Session capture (MCP-first, deterministic, no prompt):
   - Preferred MCP flow:
-    `mempack_add_memory(title="<session-title>", summary="", tags="session,needs_summary", entities="<csv>", thread="<T-ID>", confirmed=true)`
+    `mem_add_memory(title="<session-title>", summary="", tags="session,needs_summary", entities="<csv>", thread="<T-ID>", confirmed=true)`
     and use update only for later burst merges:
-    `mempack_update_memory(id="<M-ID>", entities_add="<csv>", confirmed=true)`
+    `mem_update_memory(id="<M-ID>", entities_add="<csv>", confirmed=true)`
   - CLI helper (fallback/automation):
     `mem session upsert --title "<session-title>" --tags "session,needs_summary" --entities "<csv>" [--summary ""] [--thread <T-ID>]`
   - Use this for zero-friction auto sessions.
 
 - Checkpoint (snapshot of current truth/state):
   - MCP:
-    `mempack_checkpoint(reason="<why>", state_json="<json>", thread="<T-ID>", confirmed=true)`
+    `mem_checkpoint(reason="<why>", state_json="<json>", thread="<T-ID>", confirmed=true)`
   - CLI fallback:
     `mem checkpoint --reason "<why>" --state-json '<json>' [--thread <T-ID>]`
 
@@ -69,7 +69,7 @@ To auto-write (no confirmation): use `--write-mode auto` or set `mcp_write_mode=
 
 ## Debugging retrieval
 - Use explain when results look wrong:
-  - MCP: `mempack_explain(query="<task>")`
+  - MCP: `mem_explain(query="<task>")`
   - CLI: `mem explain "<task>"`
 
 ## Ingesting evidence (optional, when needed)

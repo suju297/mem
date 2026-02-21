@@ -182,7 +182,7 @@ PY
   echo "Test 3 debug timings:"
   cat "$tmpdir/get3.debug"
 
-  db_path=$(find "$XDG_DATA_HOME/mempack/repos" -name memory.db | head -n 1)
+  db_path=$(find "$XDG_DATA_HOME/mem/repos" -name memory.db | head -n 1)
   db_size_kb=$(du -k "$db_path" | awk '{print $1}')
 
   echo "Test 3 results: memories=1000 chunks_added=$chunks_added get_memories=$get_memories get_chunks=$get_chunks db_size_kb=$db_size_kb"

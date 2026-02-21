@@ -359,7 +359,7 @@ export class MempackClient {
         if (entitiesCsv) {
           toolArgs.entities = entitiesCsv;
         }
-        const res = await this.mcpToolCall(cwd, "mempack_add_memory", toolArgs);
+        const res = await this.mcpToolCall(cwd, "mem_add_memory", toolArgs);
         if (res.isError) {
           throw new Error(this.extractFirstText(res) || "MCP add_memory failed");
         }
@@ -458,7 +458,7 @@ export class MempackClient {
         if (entitiesRemove) {
           toolArgs.entities_remove = entitiesRemove;
         }
-        const res = await this.mcpToolCall(cwd, "mempack_update_memory", toolArgs);
+        const res = await this.mcpToolCall(cwd, "mem_update_memory", toolArgs);
         if (res.isError) {
           throw new Error(this.extractFirstText(res) || "MCP update_memory failed");
         }
@@ -518,7 +518,7 @@ export class MempackClient {
         if (threadId && threadId.trim() !== "") {
           toolArgs.thread = threadId.trim();
         }
-        const res = await this.mcpToolCall(cwd, "mempack_checkpoint", toolArgs);
+        const res = await this.mcpToolCall(cwd, "mem_checkpoint", toolArgs);
         if (res.isError) {
           throw new Error(this.extractFirstText(res) || "MCP checkpoint failed");
         }
@@ -545,7 +545,7 @@ export class MempackClient {
       args.workspace = workspace;
     }
     try {
-      const res = await this.mcpToolCall(cwd, "mempack_get_context", args);
+      const res = await this.mcpToolCall(cwd, "mem_get_context", args);
       if (res.isError) {
         throw new Error(this.extractFirstText(res) || "MCP get_context failed");
       }
@@ -582,7 +582,7 @@ export class MempackClient {
       args.workspace = workspace;
     }
     try {
-      const res = await this.mcpToolCall(cwd, "mempack_explain", args);
+      const res = await this.mcpToolCall(cwd, "mem_explain", args);
       if (res.isError) {
         throw new Error(this.extractFirstText(res) || "MCP explain failed");
       }

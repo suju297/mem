@@ -1,6 +1,6 @@
 {
   "name": "mempack",
-  "displayName": "Mempack",
+  "displayName": "Mem",
   "icon": "resources/mempack.png",
   "repository": {
     "type": "git",
@@ -55,131 +55,131 @@
     "commands": [
       {
         "command": "mempack.init",
-        "title": "Mempack: Init (in this repo)"
+        "title": "Mem: Init (in this repo)"
       },
       {
         "command": "mempack.addStub",
-        "title": "Mempack: Add Mempack Stub"
+        "title": "Mem: Add Mem Stub"
       },
       {
         "command": "mempack.doctor",
-        "title": "Mempack: Doctor"
+        "title": "Mem: Doctor"
       },
       {
         "command": "mempack.saveSelection",
-        "title": "Mempack: Save Selection as Memory"
+        "title": "Mem: Save Selection as Memory"
       },
       {
         "command": "mempack.checkpoint",
-        "title": "Mempack: Save Checkpoint"
+        "title": "Mem: Save Checkpoint"
       },
       {
         "command": "mempack.annotateLastSession",
-        "title": "Mempack: Annotate Last Session"
+        "title": "Mem: Annotate Last Session"
       },
       {
         "command": "mempack.annotateSessionFromList",
-        "title": "Mempack: Annotate Session from List"
+        "title": "Mem: Annotate Session from List"
       },
       {
         "command": "mempack.openSessionDiff",
-        "title": "Mempack: Open Session Diff"
+        "title": "Mem: Open Session Diff"
       },
       {
         "command": "mempack.annotateSession",
-        "title": "Mempack: Annotate Session"
+        "title": "Mem: Annotate Session"
       },
       {
         "command": "mempack.markSessionReviewed",
-        "title": "Mempack: Mark Session as Reviewed"
+        "title": "Mem: Mark Session as Reviewed"
       },
       {
         "command": "mempack.copySessionReference",
-        "title": "Mempack: Copy Session Reference"
+        "title": "Mem: Copy Session Reference"
       },
       {
         "command": "mempack.getContext",
         "title": "Get Context",
         "shortTitle": "Search",
-        "category": "Mempack",
+        "category": "Mem",
         "icon": "$(search)"
       },
       {
         "command": "mempack.explain",
-        "title": "Mempack: Explain Search",
-        "category": "Mempack",
+        "title": "Mem: Explain Search",
+        "category": "Mem",
         "icon": "$(debug)"
       },
       {
         "command": "mempack.searchMemories",
-        "title": "Mempack: Search Memories"
+        "title": "Mem: Search Memories"
       },
       {
         "command": "mempack.refresh",
         "title": "Refresh",
         "shortTitle": "Refresh",
-        "category": "Mempack",
+        "category": "Mem",
         "icon": "$(refresh)"
       },
       {
         "command": "mempack.openMemory",
-        "title": "Mempack: Open Memory Details"
+        "title": "Mem: Open Memory Details"
       },
       {
         "command": "mempack.openThreadsUI",
-        "title": "Mempack: Open Threads UI"
+        "title": "Mem: Open Threads UI"
       },
       {
         "command": "mempack.openRecentUI",
-        "title": "Mempack: Open Recent UI"
+        "title": "Mem: Open Recent UI"
       },
       {
         "command": "mempack.copySummary",
-        "title": "Mempack: Copy Summary"
+        "title": "Mem: Copy Summary"
       },
       {
         "command": "mempack.copyPromptSnippet",
-        "title": "Mempack: Copy as Prompt Snippet"
+        "title": "Mem: Copy as Prompt Snippet"
       },
       {
         "command": "mempack.deleteMemory",
-        "title": "Mempack: Delete Memory"
+        "title": "Mem: Delete Memory"
       },
       {
         "command": "mempack.toggleWriteOptIn",
-        "title": "Mempack: Toggle MCP Writes"
+        "title": "Mem: Toggle MCP Writes"
       },
       {
         "command": "mempack.configureMcpWrites",
-        "title": "Mempack: Configure MCP Writes"
+        "title": "Mem: Configure MCP Writes"
       },
       {
         "command": "mempack.configureEmbeddings",
-        "title": "Mempack: Configure Embeddings"
+        "title": "Mem: Configure Embeddings"
       },
       {
         "command": "mempack.configureTokenBudget",
-        "title": "Mempack: Configure Token Budget"
+        "title": "Mem: Configure Token Budget"
       },
       {
         "command": "mempack.configureWorkspace",
-        "title": "Mempack: Configure Workspace"
+        "title": "Mem: Configure Workspace"
       },
       {
         "command": "mempack.configureDefaultThread",
-        "title": "Mempack: Configure Default Thread"
+        "title": "Mem: Configure Default Thread"
       },
       {
         "command": "mempack.configureAssistantFiles",
-        "title": "Mempack: Configure Assistant Files"
+        "title": "Mem: Configure Assistant Files"
       },
       {
         "command": "mempack.toggleIntentCapture",
-        "title": "Mempack: Toggle Intent Capture"
+        "title": "Mem: Toggle Intent Capture"
       },
       {
         "command": "mempack.configureIntentCapture",
-        "title": "Mempack: Configure Intent Capture"
+        "title": "Mem: Configure Intent Capture"
       }
     ],
     "keybindings": [
@@ -209,7 +209,7 @@
       "activitybar": [
         {
           "id": "mempack",
-          "title": "Mempack",
+          "title": "Mem",
           "icon": "resources/mempack-activitybar.png"
         }
       ]
@@ -218,14 +218,14 @@
       "mempack": [
         {
           "id": "mempackView",
-          "name": "Mempack"
+          "name": "Mem"
         }
       ]
     },
     "colors": [
       {
         "id": "mempack.brand",
-        "description": "Mempack brand accent color.",
+        "description": "Mem brand accent color.",
         "defaults": {
           "dark": "#A855F7",
           "light": "#9333EA",
@@ -237,7 +237,7 @@
     "viewsWelcome": [
       {
         "view": "mempackView",
-        "contents": "Mempack is not initialized for this repo yet.\n[Initialize Mempack](command:mempack.init)\n\nYou can choose to write agent instruction files (`.mempack/MEMORY.md` + `AGENTS.md`, plus detected assistant files) or initialize without writing repo files."
+        "contents": "Mem is not initialized for this repo yet.\n[Initialize Mem](command:mempack.init)\n\nYou can choose to write agent instruction files (`.mempack/MEMORY.md` + `AGENTS.md`, plus detected assistant files) or initialize without writing repo files."
       }
     ],
     "menus": {
@@ -295,7 +295,7 @@
       ]
     },
     "configuration": {
-      "title": "Mempack",
+      "title": "Mem",
       "properties": {
         "mempack.binaryPath": {
           "type": "string",

@@ -1,4 +1,4 @@
-Run a strict end-to-end validation for Mempack v0.2.20 (CLI + extension), including the `mem share export/import` flow.
+Run a strict end-to-end validation for Mem v0.2.20 (CLI + extension), including the `mem share export/import` flow.
 
 Hard requirements:
 - Do NOT change source code.
@@ -13,13 +13,13 @@ Hard requirements:
 Paths:
 - Repo under test: /Users/sujendragharat/Library/CloudStorage/GoogleDrive-sgharat298@gmail.com/My Drive/MacExternalCloud/Documents/Projects/memory
 - Temp repos:
-  - A: /tmp/mempack-e2e-0220-A
-  - B: /tmp/mempack-e2e-0220-B
-- Data dir: /tmp/mempack-e2e-0220-data
-- Evidence dir: /tmp/mempack-e2e-0220-evidence
+  - A: /tmp/mem-e2e-0220-A
+  - B: /tmp/mem-e2e-0220-B
+- Data dir: /tmp/mem-e2e-0220-data
+- Evidence dir: /tmp/mem-e2e-0220-evidence
 - Final reports:
-  - /tmp/mempack-e2e-0220-report.json
-  - /tmp/mempack-e2e-0220-PASS_FAIL_REPORT.md
+  - /tmp/mem-e2e-0220-report.json
+  - /tmp/mem-e2e-0220-PASS_FAIL_REPORT.md
 
 Scenarios (must-pass unless marked WARN):
 S0 Preconditions (must-pass)
@@ -37,16 +37,16 @@ S1 Repo setup (must-pass)
 
 S2 MCP strict scoping (must-pass)
 - Start MCP stdio session with `--repo <A> --require-repo --write-mode ask`.
-- Unscoped `mempack_get_context` must error with repo-required message.
-- Scoped `mempack_get_context` must succeed and match repo A id/root.
+- Unscoped `mem_get_context` must error with repo-required message.
+- Scoped `mem_get_context` must succeed and match repo A id/root.
 
 S3 MCP ask-mode write gating (must-pass)
-- `mempack_add_memory` without confirmed => must fail.
+- `mem_add_memory` without confirmed => must fail.
 - Same call with `confirmed=true` => must succeed and return memory id.
 
 S4 MCP update in place (must-pass)
 - Add memory with old entity token.
-- Update same memory via `mempack_update_memory` replacing entities.
+- Update same memory via `mem_update_memory` replacing entities.
 - Assert ID unchanged.
 - Assert old token query returns 0 hits in repo A.
 - Assert new token query returns >=1 hit in repo A.
@@ -63,10 +63,10 @@ S6 Repo isolation (must-pass)
 
 S7 Share export/import/idempotency (must-pass)
 - In repo A, ensure at least 2 active memories exist.
-- Run `mem share export` (default folder `mempack-share`).
+- Run `mem share export` (default folder `mem-share`).
 - In repo B:
-  - `printf '\n' | mem share import --in <A/mempack-share>` => must fail (repo mismatch / canceled).
-  - `printf 'yes\n' | mem share import --in <A/mempack-share>` => must import.
+  - `printf '\n' | mem share import --in <A/mem-share>` => must fail (repo mismatch / canceled).
+  - `printf 'yes\n' | mem share import --in <A/mem-share>` => must import.
   - re-import same bundle => no duplicates; unchanged count should increase; imported should be 0.
 
 S8 Share replace behavior (must-pass)

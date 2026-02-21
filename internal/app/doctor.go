@@ -55,11 +55,11 @@ func runDoctor(args []string, out, errOut io.Writer) int {
 
 func writeDoctorReport(out io.Writer, report health.Report, verbose bool) {
 	if report.OK {
-		fmt.Fprintln(out, "mempack doctor: ok")
+		fmt.Fprintln(out, "mem doctor: ok")
 	} else if report.Error != "" {
-		fmt.Fprintf(out, "mempack doctor: error: %s\n", report.Error)
+		fmt.Fprintf(out, "mem doctor: error: %s\n", report.Error)
 	} else {
-		fmt.Fprintln(out, "mempack doctor: error")
+		fmt.Fprintln(out, "mem doctor: error")
 	}
 
 	if report.Repo.ID != "" {

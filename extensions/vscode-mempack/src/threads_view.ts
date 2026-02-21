@@ -12,7 +12,7 @@ export async function showThreadsPanel(
   if (!panel) {
     panel = vscode.window.createWebviewPanel(
       "mempackThreads",
-      "Mempack Threads",
+      "Mem Threads",
       vscode.ViewColumn.Active,
       {
         enableScripts: true,
@@ -94,7 +94,7 @@ function renderThreadsHtml(context: vscode.ExtensionContext, threads: ThreadItem
   const json = JSON.stringify(data);
   const nonce = String(Date.now());
   const csp = panel?.webview.cspSource ?? "";
-  const title = "Mempack Threads";
+  const title = "Mem Threads";
 
   return `<!DOCTYPE html>
 <html lang="en">

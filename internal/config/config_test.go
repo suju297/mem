@@ -108,7 +108,7 @@ func TestLoadSave(t *testing.T) {
 	if err := cfg3.Save(); err != nil {
 		t.Errorf("Expected Save to create dir, got error: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(tmpDir, "new-config", "mempack", "config.toml")); err != nil {
+	if _, err := os.Stat(filepath.Join(tmpDir, "new-config", "mem", "config.toml")); err != nil {
 		t.Error("Config file not created in new dir")
 	}
 }
