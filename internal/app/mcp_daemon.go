@@ -92,6 +92,7 @@ func buildMCPChildArgs(args []string, fallbackDataDir string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	parsedArgs = applyMCPStartDefaults(parsedArgs)
 	dataDir := strings.TrimSpace(globals.DataDir)
 	if dataDir == "" {
 		dataDir = strings.TrimSpace(fallbackDataDir)
@@ -103,6 +104,23 @@ func buildMCPChildArgs(args []string, fallbackDataDir string) ([]string, error) 
 	childArgs = append(childArgs, "mcp")
 	childArgs = append(childArgs, parsedArgs...)
 	return childArgs, nil
+}
+
+func applyMCPStartDefaults(args []string) []string {
+	if hasMCPRequireRepoFlag(args) {
+		return append([]string{}, args...)
+	}
+	out := append([]string{}, args...)
+	return append(out, "--require-repo")
+}
+
+func hasMCPRequireRepoFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--require-repo" || strings.HasPrefix(arg, "--require-repo=") {
+			return true
+		}
+	}
+	return false
 }
 
 func runMCPStopLocal(out, errOut io.Writer) int {

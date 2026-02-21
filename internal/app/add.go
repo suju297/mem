@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -38,13 +39,32 @@ func runAdd(args []string, out, errOut io.Writer) int {
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
+	titleWasSet := flagWasSet(args, "title")
+	summaryWasSet := flagWasSet(args, "summary")
+	if !titleWasSet && len(positional) > 0 {
+		*title = positional[0]
+		positional = positional[1:]
+	}
+	if !summaryWasSet && len(positional) > 0 {
+		*summary = positional[0]
+		positional = positional[1:]
+	}
 	if len(positional) > 0 {
 		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(positional, " "))
 		return 2
 	}
 
-	if strings.TrimSpace(*title) == "" {
-		fmt.Fprintln(errOut, "missing --title")
+	titleText := strings.TrimSpace(*title)
+	if titleText == "" && isInteractiveTerminal(os.Stdin) {
+		promptedTitle, promptErr := promptText(os.Stdin, errOut, "Title", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "title prompt error: %v\n", promptErr)
+			return 1
+		}
+		titleText = strings.TrimSpace(promptedTitle)
+	}
+	if titleText == "" {
+		fmt.Fprintln(errOut, "missing title (use --title or first positional argument)")
 		return 2
 	}
 	summaryText := strings.TrimSpace(*summary)
@@ -88,8 +108,18 @@ func runAdd(args []string, out, errOut io.Writer) int {
 	tagList := store.ParseTags(*tags)
 	tagList = store.NormalizeTags(tagList)
 	if summaryText == "" && !hasSessionTag(tagList) {
-		fmt.Fprintln(errOut, "missing --summary")
-		return 2
+		if isInteractiveTerminal(os.Stdin) {
+			promptedSummary, promptErr := promptText(os.Stdin, errOut, "Summary", false)
+			if promptErr != nil {
+				fmt.Fprintf(errOut, "summary prompt error: %v\n", promptErr)
+				return 1
+			}
+			summaryText = strings.TrimSpace(promptedSummary)
+		}
+		if summaryText == "" {
+			fmt.Fprintln(errOut, "missing summary (use --summary or second positional argument)")
+			return 2
+		}
 	}
 	tagsJSON := store.TagsToJSON(tagList)
 	tagsText := store.TagsText(tagList)
@@ -109,7 +139,7 @@ func runAdd(args []string, out, errOut io.Writer) int {
 		RepoID:        repoInfo.ID,
 		Workspace:     workspaceName,
 		ThreadID:      threadUsed,
-		Title:         strings.TrimSpace(*title),
+		Title:         titleText,
 		Summary:       summaryText,
 		SummaryTokens: summaryTokens,
 		TagsJSON:      tagsJSON,

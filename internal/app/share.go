@@ -445,36 +445,6 @@ func confirmShareImportRepoMismatch(in io.Reader, errOut io.Writer, sourceRepoID
 	return proceed, nil
 }
 
-func promptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) (bool, error) {
-	reader := bufio.NewReader(in)
-	suffix := "[y/N]"
-	if defaultYes {
-		suffix = "[Y/n]"
-	}
-	for {
-		fmt.Fprintf(out, "%s %s: ", question, suffix)
-		line, err := reader.ReadString('\n')
-		if err != nil && !errors.Is(err, io.EOF) {
-			return false, err
-		}
-
-		answer := strings.ToLower(strings.TrimSpace(line))
-		switch answer {
-		case "":
-			return defaultYes, nil
-		case "y", "yes":
-			return true, nil
-		case "n", "no":
-			return false, nil
-		}
-
-		fmt.Fprintln(out, "Please answer yes or no.")
-		if errors.Is(err, io.EOF) {
-			return defaultYes, nil
-		}
-	}
-}
-
 func writeJSONFile(path string, value any) error {
 	encoded, err := json.MarshalIndent(value, "", "  ")
 	if err != nil {

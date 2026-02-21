@@ -44,18 +44,52 @@ func runCheckpoint(args []string, out, errOut io.Writer) int {
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
-	if len(positional) > 0 {
-		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(positional, " "))
+	reasonWasSet := flagWasSet(args, "reason")
+	stateFileWasSet := flagWasSet(args, "state-file")
+	stateJSONWasSet := flagWasSet(args, "state-json")
+	remaining := append([]string{}, positional...)
+	if !reasonWasSet && len(remaining) > 0 {
+		*reason = remaining[0]
+		remaining = remaining[1:]
+	}
+	if !stateFileWasSet && !stateJSONWasSet && len(remaining) > 0 {
+		*stateJSON = remaining[0]
+		remaining = remaining[1:]
+	}
+	if len(remaining) > 0 {
+		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(remaining, " "))
 		return 2
 	}
 
 	reasonText := strings.TrimSpace(*reason)
+	if reasonText == "" && isInteractiveTerminal(os.Stdin) {
+		promptedReason, promptErr := promptText(os.Stdin, errOut, "Checkpoint reason", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "reason prompt error: %v\n", promptErr)
+			return 1
+		}
+		reasonText = strings.TrimSpace(promptedReason)
+	}
 	if reasonText == "" {
-		fmt.Fprintln(errOut, "missing --reason")
+		fmt.Fprintln(errOut, "missing reason (use --reason or first positional argument)")
 		return 2
 	}
 
-	state, err := loadStatePayload(strings.TrimSpace(*stateFile), strings.TrimSpace(*stateJSON))
+	stateFileValue := strings.TrimSpace(*stateFile)
+	stateJSONValue := strings.TrimSpace(*stateJSON)
+	if stateFileValue == "" && stateJSONValue == "" && isInteractiveTerminal(os.Stdin) {
+		promptedState, promptErr := promptText(os.Stdin, errOut, "State JSON/text (blank for {})", true)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "state prompt error: %v\n", promptErr)
+			return 1
+		}
+		stateJSONValue = strings.TrimSpace(promptedState)
+		if stateJSONValue == "" {
+			stateJSONValue = "{}"
+		}
+	}
+
+	state, err := loadStatePayload(stateFileValue, stateJSONValue)
 	if err != nil {
 		fmt.Fprintf(errOut, "state error: %v\n", err)
 		return 1

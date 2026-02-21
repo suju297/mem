@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -41,26 +42,70 @@ func runLink(args []string, out, errOut io.Writer) int {
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
+	fromWasSet := flagWasSet(args, "from")
+	relWasSet := flagWasSet(args, "rel")
+	toWasSet := flagWasSet(args, "to")
+	if !fromWasSet && len(positional) > 0 {
+		*fromID = positional[0]
+		positional = positional[1:]
+	}
+	if !relWasSet && len(positional) > 0 {
+		*relRaw = positional[0]
+		positional = positional[1:]
+	}
+	if !toWasSet && len(positional) > 0 {
+		*toID = positional[0]
+		positional = positional[1:]
+	}
 	if len(positional) > 0 {
 		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(positional, " "))
 		return 2
 	}
 
 	from := strings.TrimSpace(*fromID)
+	if from == "" && isInteractiveTerminal(os.Stdin) {
+		promptedFrom, promptErr := promptText(os.Stdin, errOut, "From memory id", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "from prompt error: %v\n", promptErr)
+			return 1
+		}
+		from = strings.TrimSpace(promptedFrom)
+	}
 	to := strings.TrimSpace(*toID)
+	if to == "" && isInteractiveTerminal(os.Stdin) {
+		promptedTo, promptErr := promptText(os.Stdin, errOut, "To memory id", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "to prompt error: %v\n", promptErr)
+			return 1
+		}
+		to = strings.TrimSpace(promptedTo)
+	}
+	relInput := strings.TrimSpace(*relRaw)
+	if relInput == "" && isInteractiveTerminal(os.Stdin) {
+		promptedRel, promptErr := promptText(os.Stdin, errOut, "Relation (for example: depends_on)", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "rel prompt error: %v\n", promptErr)
+			return 1
+		}
+		relInput = strings.TrimSpace(promptedRel)
+	}
 	if from == "" {
-		fmt.Fprintln(errOut, "missing --from")
+		fmt.Fprintln(errOut, "missing from id (use --from or first positional argument)")
 		return 2
 	}
 	if to == "" {
-		fmt.Fprintln(errOut, "missing --to")
+		fmt.Fprintln(errOut, "missing to id (use --to or third positional argument)")
 		return 2
 	}
 	if from == to {
 		fmt.Fprintln(errOut, "from and to must differ")
 		return 2
 	}
-	rel, err := normalizeLinkRelation(*relRaw)
+	if relInput == "" {
+		fmt.Fprintln(errOut, "missing relation (use --rel or second positional argument)")
+		return 2
+	}
+	rel, err := normalizeLinkRelation(relInput)
 	if err != nil {
 		fmt.Fprintf(errOut, "invalid --rel: %v\n", err)
 		return 2

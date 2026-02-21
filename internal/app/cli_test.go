@@ -86,10 +86,13 @@ type sessionCountResp struct {
 }
 
 type sessionUpsertResp struct {
-	ID      string `json:"id"`
-	Action  string `json:"action"`
-	Created bool   `json:"created"`
-	Updated bool   `json:"updated"`
+	ID       string `json:"id"`
+	Action   string `json:"action"`
+	Created  bool   `json:"created"`
+	Updated  bool   `json:"updated"`
+	ThreadID string `json:"thread_id"`
+	Title    string `json:"title"`
+	Summary  string `json:"summary"`
 }
 
 func TestCLIShowForgetSupersedeCheckpoint(t *testing.T) {
@@ -711,5 +714,143 @@ func TestGetDeterministicOutput(t *testing.T) {
 	second := runCLI(t, "get", "decision")
 	if !bytes.Equal(first, second) {
 		t.Fatalf("expected byte-identical get output")
+	}
+}
+
+func TestCLIAddPositionalArgs(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	addOut := runCLI(t, "add", "Positional title", "Positional summary")
+	var add addResp
+	if err := json.Unmarshal(addOut, &add); err != nil {
+		t.Fatalf("decode add response: %v", err)
+	}
+	if add.ID == "" {
+		t.Fatalf("expected add id")
+	}
+
+	showOut := runCLI(t, "show", add.ID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode show response: %v", err)
+	}
+	if show.Memory.Title != "Positional title" {
+		t.Fatalf("expected positional title, got %q", show.Memory.Title)
+	}
+	if show.Memory.Summary != "Positional summary" {
+		t.Fatalf("expected positional summary, got %q", show.Memory.Summary)
+	}
+}
+
+func TestCLILinkPositionalArgs(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	firstOut := runCLI(t, "add", "--title", "First", "--summary", "First summary")
+	secondOut := runCLI(t, "add", "--title", "Second", "--summary", "Second summary")
+	var first addResp
+	if err := json.Unmarshal(firstOut, &first); err != nil {
+		t.Fatalf("decode first add: %v", err)
+	}
+	var second addResp
+	if err := json.Unmarshal(secondOut, &second); err != nil {
+		t.Fatalf("decode second add: %v", err)
+	}
+
+	linkOut := runCLI(t, "link", first.ID, "depends_on", second.ID)
+	var link linkResp
+	if err := json.Unmarshal(linkOut, &link); err != nil {
+		t.Fatalf("decode link response: %v", err)
+	}
+	if link.FromID != first.ID || link.ToID != second.ID || link.Rel != "depends_on" {
+		t.Fatalf("unexpected link response: %+v", link)
+	}
+}
+
+func TestCLISupersedePositionalArgs(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	seedOut := runCLI(t, "add", "--title", "Old title", "--summary", "Old summary")
+	var seed addResp
+	if err := json.Unmarshal(seedOut, &seed); err != nil {
+		t.Fatalf("decode seed add: %v", err)
+	}
+
+	supOut := runCLI(t, "supersede", seed.ID, "New positional title", "New positional summary")
+	var sup supersedeResp
+	if err := json.Unmarshal(supOut, &sup); err != nil {
+		t.Fatalf("decode supersede response: %v", err)
+	}
+	if sup.NewID == "" {
+		t.Fatalf("expected new superseded id")
+	}
+
+	showOut := runCLI(t, "show", sup.NewID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode superseded show: %v", err)
+	}
+	if show.Memory.Title != "New positional title" {
+		t.Fatalf("expected new title, got %q", show.Memory.Title)
+	}
+	if show.Memory.Summary != "New positional summary" {
+		t.Fatalf("expected new summary, got %q", show.Memory.Summary)
+	}
+}
+
+func TestCLICheckpointPositionalArgs(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	ckOut := runCLI(t, "checkpoint", "Positional reason", `{"goal":"ship"}`)
+	var ck checkpointResp
+	if err := json.Unmarshal(ckOut, &ck); err != nil {
+		t.Fatalf("decode checkpoint response: %v", err)
+	}
+	if ck.StateID == "" || ck.MemoryID == "" {
+		t.Fatalf("expected checkpoint ids, got %+v", ck)
+	}
+
+	showOut := runCLI(t, "show", ck.MemoryID)
+	var show showResp
+	if err := json.Unmarshal(showOut, &show); err != nil {
+		t.Fatalf("decode checkpoint memory: %v", err)
+	}
+	if show.Memory.Summary != "Positional reason" {
+		t.Fatalf("expected checkpoint reason summary, got %q", show.Memory.Summary)
+	}
+}
+
+func TestCLISessionUpsertPositionalArgs(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	out := runCLI(t, "session", "upsert", "Session: positional", "captured summary", "--format", "json")
+	var resp sessionUpsertResp
+	if err := json.Unmarshal(out, &resp); err != nil {
+		t.Fatalf("decode session upsert response: %v", err)
+	}
+	if resp.Title != "Session: positional" {
+		t.Fatalf("expected positional title, got %q", resp.Title)
+	}
+	if resp.Summary != "captured summary" {
+		t.Fatalf("expected positional summary, got %q", resp.Summary)
 	}
 }

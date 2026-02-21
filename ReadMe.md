@@ -11,14 +11,14 @@ Data is persisted in local SQLite under your configured `data_dir`.
 
 ## Documentation Map
 
-Use this as the docs entrypoint:
+Reference:
 - Getting started + troubleshooting: `docs/onboarding.md`
 - Full CLI syntax reference: `docs/cli.md`
 - Architecture + runtime diagrams: `ARCHITECTURE.md`
 - Sandbox evaluation/testing process: `docs/memory-testing-process.md`
 - VS Code/Cursor extension: `extensions/vscode-mempack/README.md`
 
-## Minimum Viable Quick Start (5 minutes)
+## Quick Start
 
 1. Install CLI from GitHub Releases:
 
@@ -65,14 +65,14 @@ mem add --thread T-setup --title "Mempack ready" --summary "Initialized memory f
 mem get "Mempack ready" --format prompt
 ```
 
-4. Connect Codex MCP (recommended):
+4. Connect Codex MCP:
 
 ```bash
 codex mcp add mempack -- mem mcp --require-repo
 codex mcp list
 ```
 
-5. Optional daemon lifecycle commands:
+5. Daemon lifecycle commands:
 
 ```bash
 mem mcp start
@@ -80,7 +80,7 @@ mem mcp status
 mem mcp stop
 ```
 
-## Repo Scoping (Most Important Safety Rule)
+## Repo Scoping
 
 Wrong-repo retrieval happens when calls are not explicitly scoped.
 
@@ -130,7 +130,7 @@ mem add --title "Auth plan" --summary "Use middleware"
 mem mcp status
 ```
 
-Full Docopt-style syntax: `docs/cli.md`
+Full command syntax: `docs/cli.md`
 
 ## MCP Tool Surface
 
@@ -173,7 +173,7 @@ embedding_provider = "auto"
 embedding_model = "nomic-embed-text"
 ```
 
-## Architecture At A Glance
+## Architecture
 
 Detailed diagrams and architecture contracts live in `ARCHITECTURE.md`.
 

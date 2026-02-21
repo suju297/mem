@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -44,14 +45,50 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
-
-	id := strings.TrimSpace(strings.Join(positional, " "))
+	titleWasSet := flagWasSet(args, "title")
+	summaryWasSet := flagWasSet(args, "summary")
+	remaining := append([]string{}, positional...)
+	id := ""
+	if len(remaining) > 0 {
+		id = remaining[0]
+		remaining = remaining[1:]
+	}
+	if !titleWasSet && len(remaining) > 0 {
+		*title = remaining[0]
+		remaining = remaining[1:]
+	}
+	if !summaryWasSet && len(remaining) > 0 {
+		*summary = remaining[0]
+		remaining = remaining[1:]
+	}
+	if len(remaining) > 0 {
+		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(remaining, " "))
+		return 2
+	}
+	id = strings.TrimSpace(id)
+	if id == "" && isInteractiveTerminal(os.Stdin) {
+		promptedID, promptErr := promptText(os.Stdin, errOut, "Memory id to supersede", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "id prompt error: %v\n", promptErr)
+			return 1
+		}
+		id = strings.TrimSpace(promptedID)
+	}
 	if id == "" {
 		fmt.Fprintln(errOut, "missing id")
 		return 2
 	}
-	if strings.TrimSpace(*title) == "" {
-		fmt.Fprintln(errOut, "missing --title")
+	titleText := strings.TrimSpace(*title)
+	if titleText == "" && isInteractiveTerminal(os.Stdin) {
+		promptedTitle, promptErr := promptText(os.Stdin, errOut, "New title", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "title prompt error: %v\n", promptErr)
+			return 1
+		}
+		titleText = strings.TrimSpace(promptedTitle)
+	}
+	if titleText == "" {
+		fmt.Fprintln(errOut, "missing title (use --title or second positional argument)")
 		return 2
 	}
 	summaryText := strings.TrimSpace(*summary)
@@ -108,8 +145,18 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 	}
 	entityList = store.NormalizeEntities(entityList)
 	if summaryText == "" && !hasSessionTag(tagList) {
-		fmt.Fprintln(errOut, "missing --summary")
-		return 2
+		if isInteractiveTerminal(os.Stdin) {
+			promptedSummary, promptErr := promptText(os.Stdin, errOut, "New summary", false)
+			if promptErr != nil {
+				fmt.Fprintf(errOut, "summary prompt error: %v\n", promptErr)
+				return 1
+			}
+			summaryText = strings.TrimSpace(promptedSummary)
+		}
+		if summaryText == "" {
+			fmt.Fprintln(errOut, "missing summary (use --summary or third positional argument)")
+			return 2
+		}
 	}
 	tagsJSON := store.TagsToJSON(tagList)
 	tagsText := store.TagsText(tagList)
@@ -127,7 +174,7 @@ func runSupersede(args []string, out, errOut io.Writer) int {
 		RepoID:        repoInfo.ID,
 		Workspace:     workspaceName,
 		ThreadID:      thread,
-		Title:         strings.TrimSpace(*title),
+		Title:         titleText,
 		Summary:       summaryText,
 		SummaryTokens: summaryTokens,
 		TagsJSON:      tagsJSON,

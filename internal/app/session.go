@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"time"
 
@@ -71,6 +72,16 @@ func runSessionUpsert(args []string, out, errOut io.Writer) int {
 	if err := fs.Parse(flagArgs); err != nil {
 		return 2
 	}
+	titleWasSet := flagWasSet(args, "title")
+	summaryWasSet := flagWasSet(args, "summary")
+	if !titleWasSet && len(positional) > 0 {
+		*title = positional[0]
+		positional = positional[1:]
+	}
+	if !summaryWasSet && len(positional) > 0 {
+		*summary = positional[0]
+		positional = positional[1:]
+	}
 	if len(positional) > 0 {
 		fmt.Fprintf(errOut, "unexpected args: %s\n", strings.Join(positional, " "))
 		return 2
@@ -79,8 +90,17 @@ func runSessionUpsert(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "unsupported format: %s\n", *format)
 		return 2
 	}
-	if strings.TrimSpace(*title) == "" {
-		fmt.Fprintln(errOut, "missing --title")
+	titleValue := strings.TrimSpace(*title)
+	if titleValue == "" && isInteractiveTerminal(os.Stdin) {
+		promptedTitle, promptErr := promptText(os.Stdin, errOut, "Session title", false)
+		if promptErr != nil {
+			fmt.Fprintf(errOut, "title prompt error: %v\n", promptErr)
+			return 1
+		}
+		titleValue = strings.TrimSpace(promptedTitle)
+	}
+	if titleValue == "" {
+		fmt.Fprintln(errOut, "missing title (use --title or first positional argument)")
 		return 2
 	}
 	if *mergeWindowMS < 0 || *minGapMS < 0 {
@@ -109,7 +129,6 @@ func runSessionUpsert(args []string, out, errOut io.Writer) int {
 	defer st.Close()
 
 	now := time.Now().UTC()
-	titleValue := strings.TrimSpace(*title)
 	summaryValue := strings.TrimSpace(*summary)
 	tagList := store.NormalizeTags(store.ParseTags(*tags))
 	if !hasSessionTag(tagList) {

@@ -52,10 +52,14 @@ mem [--data-dir <path>] sessions [--needs-summary] [--count] [--limit <n>] [--wo
 
 ```text
 mem [--data-dir <path>] add --title <title> --summary <summary> [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
+mem [--data-dir <path>] add <title> [summary] [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
 mem [--data-dir <path>] update <id> [--title <title>] [--summary <summary>] [--tags <csv>] [--tags-add <csv>] [--tags-remove <csv>] [--entities <csv>] [--entities-add <csv>] [--entities-remove <csv>] [--workspace <name>] [--repo <id|path>]
 mem [--data-dir <path>] supersede <id> --title <title> --summary <summary> [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
+mem [--data-dir <path>] supersede <id> [title] [summary] [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
 mem [--data-dir <path>] link --from <id> --rel <relation> --to <id> [--workspace <name>] [--repo <id|path>]
+mem [--data-dir <path>] link <from_id> <relation> <to_id> [--workspace <name>] [--repo <id|path>]
 mem [--data-dir <path>] checkpoint --reason <text> (--state-file <path> | --state-json <json>) [--thread <id>] [--workspace <name>] [--repo <id|path>]
+mem [--data-dir <path>] checkpoint <reason> [state_json] [--state-file <path>] [--thread <id>] [--workspace <name>] [--repo <id|path>]
 mem [--data-dir <path>] forget <id> [--workspace <name>] [--repo <id|path>]
 ```
 
@@ -72,6 +76,7 @@ mem [--data-dir <path>] embed status [--workspace <name>] [--repo <id|path>]
 
 ```text
 mem [--data-dir <path>] session upsert --title <title> [--summary <summary>] [--thread <id>] [--tags <csv>] [--entities <csv>] [--merge-window-ms <n>] [--min-gap-ms <n>] [--workspace <name>] [--repo <id|path>] [--format json]
+mem [--data-dir <path>] session upsert <title> [summary] [--thread <id>] [--tags <csv>] [--entities <csv>] [--merge-window-ms <n>] [--min-gap-ms <n>] [--workspace <name>] [--repo <id|path>] [--format json]
 mem [--data-dir <path>] share export [--repo <id|path>] [--workspace <name>] [--out <dir>]
 mem [--data-dir <path>] share import [--repo <id|path>] [--workspace <name>] [--in <dir>] [--replace]
 ```
