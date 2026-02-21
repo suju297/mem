@@ -58,14 +58,16 @@ mem sessions [--needs-summary] [--count] [--limit <n>] [json] [scope]
 
 ```text
 mem add <title> [summary] [write-meta] [scope]
+mem add --title <title> --summary <summary> [write-meta] [scope]
 mem update <id> [--title <title>] [--summary <summary>] [--tags <csv>|--tags-add <csv>|--tags-remove <csv>] [--entities <csv>|--entities-add <csv>|--entities-remove <csv>] [scope]
 mem supersede <id> [title] [summary] [write-meta] [scope]
+mem supersede <id> --title <title> --summary <summary> [write-meta] [scope]
 mem link <from_id> <relation> <to_id> [scope]
+mem link --from <id> --rel <relation> --to <id> [scope]
 mem checkpoint <reason> [state_json] [--state-file <path>] [--thread <id>] [scope]
+mem checkpoint --reason <text> (--state-file <path> | --state-json <json>) [--thread <id>] [scope]
 mem forget <id> [scope]
 ```
-
-Flag-based equivalents for `add`, `supersede`, `link`, and `checkpoint` are also supported.
 
 ### ![Ingest/Embed](https://img.shields.io/badge/-F59E0B?style=flat-square) Ingest and Embeddings
 
@@ -80,13 +82,10 @@ mem embed status [scope]
 
 ```text
 mem session upsert <title> [summary] [write-meta] [--merge-window-ms <n>] [--min-gap-ms <n>] [json] [scope]
+mem session upsert --title <title> [--summary <summary>] [write-meta] [--merge-window-ms <n>] [--min-gap-ms <n>] [json] [scope]
 mem share export [--out <dir>] [scope]
 mem share import [--in <dir>] [--replace] [scope]
 ```
-
-`session upsert` also accepts explicit `--title` and `--summary` flags.
-
-`share import` prompts for confirmation if `source_repo_id` differs from the current repo in interactive terminals.
 
 ### ![MCP](https://img.shields.io/badge/-EF4444?style=flat-square) MCP
 
@@ -98,18 +97,11 @@ mem mcp status
 mem mcp manager [--port <n>] [--token <token>] [--idle-seconds <n>]
 mem mcp manager status [--json]
 ```
-
-Where:
-- `[mcp-runtime]` = `[--repo <id|path>] [--require-repo[=true|false]] [--debug] [--repair]`
-- `[mcp-write]` = `[--allow-write] [--write-mode ask|auto|off]`
+`[mcp-runtime]` = `[--repo <id|path>] [--require-repo[=true|false]] [--debug] [--repair]`
+`[mcp-write]` = `[--allow-write] [--write-mode ask|auto|off]`
 
 ### ![Templates](https://img.shields.io/badge/-6B7280?style=flat-square) Templates
 
 ```text
 mem template [agents] [--write] [--assistants agents|claude|gemini|all] [--memory|--no-memory]
 ```
-
-## Notes
-
-- Use `mem --help` for the latest command list.
-- Use `mem <command> --help` for command-specific flags and examples.

@@ -83,9 +83,7 @@ mem mcp stop
 
 ## Repo Scoping
 
-Wrong-repo retrieval happens when calls are not explicitly scoped.
-
-Use one of these patterns:
+Repo scoping options:
 - Pass `repo=<workspaceRoot>` on every MCP tool call.
 - Start MCP with `--repo /path/to/repo`.
 - Enable strict mode with `--require-repo` (or `mcp_require_repo = true`).
@@ -213,9 +211,9 @@ flowchart TD
 Extension implementation and usage are documented in:
 - `extensions/vscode-mempack/README.md`
 
-Extension behavior:
-- Extension MCP lifecycle/status should reflect CLI/daemon state (single source of truth).
-- Status UI is read-only visibility; control flows through CLI-backed commands.
+Extension control model:
+- Extension status reflects CLI/daemon state.
+- MCP lifecycle control uses CLI-backed commands.
 
 ## Development
 
@@ -246,4 +244,4 @@ Mempack is licensed under MIT. See `LICENSE`.
 
 ## Release History
 
-Use git history/tags for release details until a dedicated changelog file is added.
+Release details are available in git tags and commit history.
