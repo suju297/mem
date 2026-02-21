@@ -5,37 +5,29 @@ flowchart TB
   classDef xfer fill:#ECFDF5,stroke:#16A34A,stroke-width:1.8px,color:#052E16
 
   subgraph HOST["Host Filesystem"]
-    DATA["&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::fs
-    WAL["memory.db-wal / memory.db-shm"]:::fs
-    CFG["&lt;config_dir&gt;/config.toml<br/>&lt;config_dir&gt;/mcp.manager.json"]:::fs
-    SHARE["&lt;repo_root&gt;/mempack-share/<br/>manifest.json, memories.jsonl, README.md"]:::xfer
+    direction LR
+    CFG["Config files<br/>&lt;config_dir&gt;/config.toml<br/>&lt;config_dir&gt;/mcp.manager.json"]:::fs
+    DATA["Repo DB file<br/>&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::fs
+    WAL["SQLite sidecars<br/>memory.db-wal / memory.db-shm"]:::fs
+    SHARE["Share bundle<br/>&lt;repo_root&gt;/mempack-share/<br/>manifest.json, memories.jsonl, README.md"]:::xfer
   end
 
-  subgraph SQL["SQLite Logical Model"]
-    REPOS["repos"]:::db
-    STATE["state_current + state_history"]:::db
-    THREADS["threads"]:::db
-    MEM["memories"]:::db
-    ART["artifacts"]:::db
-    CHUNK["chunks"]:::db
-    LINK["links"]:::db
-    EMB["embeddings + embedding_queue"]:::db
-    FTS["memories_fts + chunks_fts"]:::fts
+  subgraph SQL["SQLite Logical Groups"]
+    direction LR
+    CORE["Schema in memory.db"]:::db
+    SCOPE["Scope + state<br/>repos, state_current, state_history, threads"]:::db
+    CONTENT["Knowledge content<br/>memories, artifacts, chunks, links"]:::db
+    EMB["Embeddings<br/>embeddings, embedding_queue"]:::db
     META["meta"]:::db
+    SEARCH["Search index<br/>memories_fts, chunks_fts"]:::fts
   end
 
-  DATA --> REPOS
-  DATA --> STATE
-  DATA --> THREADS
-  DATA --> MEM
-  DATA --> ART
-  DATA --> CHUNK
-  DATA --> LINK
-  DATA --> EMB
-  DATA --> FTS
-  DATA --> META
-  MEM --> FTS
-  CHUNK --> FTS
-  ART --> CHUNK
-  SHARE -. "import/export" .- MEM
+  CFG -. "selects data_dir + runtime config" .-> DATA
+  DATA --> CORE
+  CORE --> SCOPE
+  CORE --> CONTENT
+  CORE --> EMB
+  CORE --> META
   DATA --> WAL
+  CONTENT --> SEARCH
+  SHARE -. "share export/import" .- DATA

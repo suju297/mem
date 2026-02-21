@@ -68,7 +68,7 @@ Scope: retrieval orchestration in `internal/app` and store/embed integrations.
 
 <p align="center">
   <a href="docs/diagrams/architecture-l3-retrieval-components.png">
-    <img src="docs/diagrams/architecture-l3-retrieval-components.png" alt="L3 Retrieval Components" width="480" />
+    <img src="docs/diagrams/architecture-l3-retrieval-components.png" alt="L3 Retrieval Components" width="860" />
   </a>
 </p>
 
@@ -86,49 +86,11 @@ Primary files:
 Audience: maintainers changing persistence, ingest, or share behavior.
 Scope: data root layout, SQLite logical model, and artifact paths.
 
-```mermaid
-flowchart TB
-  classDef fs fill:#ECFEFF,stroke:#0E7490,stroke-width:1.8px,color:#083344
-  classDef db fill:#FAF5FF,stroke:#9333EA,stroke-width:1.8px,color:#3B0764
-  classDef fts fill:#FEFCE8,stroke:#CA8A04,stroke-width:1.8px,color:#422006
-  classDef xfer fill:#ECFDF5,stroke:#16A34A,stroke-width:1.8px,color:#052E16
-
-  subgraph HOST["Host Filesystem"]
-    DATA["&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::fs
-    WAL["memory.db-wal / memory.db-shm"]:::fs
-    CFG["&lt;config_dir&gt;/config.toml<br/>&lt;config_dir&gt;/mcp.manager.json"]:::fs
-    SHARE["&lt;repo_root&gt;/mempack-share/<br/>manifest.json, memories.jsonl, README.md"]:::xfer
-  end
-
-  subgraph SQL["SQLite Logical Model"]
-    REPOS["repos"]:::db
-    STATE["state_current + state_history"]:::db
-    THREADS["threads"]:::db
-    MEM["memories"]:::db
-    ART["artifacts"]:::db
-    CHUNK["chunks"]:::db
-    LINK["links"]:::db
-    EMB["embeddings + embedding_queue"]:::db
-    FTS["memories_fts + chunks_fts"]:::fts
-    META["meta"]:::db
-  end
-
-  DATA --> REPOS
-  DATA --> STATE
-  DATA --> THREADS
-  DATA --> MEM
-  DATA --> ART
-  DATA --> CHUNK
-  DATA --> LINK
-  DATA --> EMB
-  DATA --> FTS
-  DATA --> META
-  MEM --> FTS
-  CHUNK --> FTS
-  ART --> CHUNK
-  SHARE -. "import/export" .- MEM
-  DATA --> WAL
-```
+<p align="center">
+  <a href="docs/diagrams/architecture-l3-storage-birds-eye.png">
+    <img src="docs/diagrams/architecture-l3-storage-birds-eye.png" alt="L3.5 Storage Bird's-Eye" width="920" />
+  </a>
+</p>
 
 Source: `docs/diagrams/src/l3-storage-birds-eye.mmd`
 

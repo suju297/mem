@@ -1,15 +1,15 @@
-flowchart TB
+flowchart LR
   classDef step fill:#F0F9FF,stroke:#0284C7,stroke-width:1.8px,color:#082F49
   classDef gate fill:#FEFCE8,stroke:#CA8A04,stroke-width:1.8px,color:#422006
   classDef out fill:#ECFDF5,stroke:#16A34A,stroke-width:1.8px,color:#052E16
 
   Q["Query + Options"]:::step --> R["Resolve Repo + Workspace"]:::step
   R --> S["Load State"]:::step
-  S --> F["FTS Search<br/>Memories + Chunks"]:::step
+  S --> F["FTS Search (memories + chunks)"]:::step
   F --> V{"Embeddings available?"}:::gate
   V -->|"Yes"| E["Vector Search"]:::step
   V -->|"No"| RK["Rank BM25 results"]:::step
-  E --> RK["Rank + Fuse<br/>RRF + recency + safety + thread"]:::step
-  RK --> O["Orphan filtering<br/>(unless include-orphans)"]:::step
+  E --> RK["Rank + Fuse (RRF + recency + safety + thread)"]:::step
+  RK --> O["Orphan filtering (unless include-orphans)"]:::step
   O --> B["Apply token budget"]:::step
-  B --> C["Assemble ContextPack<br/>prompt + structured JSON"]:::out
+  B --> C["Assemble ContextPack (prompt + structured JSON)"]:::out
