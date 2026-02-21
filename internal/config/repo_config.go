@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 type RepoConfig struct {
@@ -15,6 +17,21 @@ type RepoConfig struct {
 	EmbeddingModel    *string `json:"embedding_model,omitempty"`
 	TokenBudget       *int    `json:"token_budget,omitempty"`
 	DefaultThread     *string `json:"default_thread,omitempty"`
+}
+
+type repoConfigCacheEntry struct {
+	LoadedAt time.Time
+	ModTime  time.Time
+	Size     int64
+	Exists   bool
+	Config   RepoConfig
+}
+
+var repoConfigCache = struct {
+	mu      sync.RWMutex
+	entries map[string]repoConfigCacheEntry
+}{
+	entries: map[string]repoConfigCacheEntry{},
 }
 
 func RepoConfigPath(root string) string {
@@ -30,21 +47,72 @@ func LoadRepoConfig(root string) (RepoConfig, bool, error) {
 	if path == "" {
 		return RepoConfig{}, false, nil
 	}
-	data, err := os.ReadFile(path)
+
+	stat, err := os.Stat(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			cacheRepoConfig(path, repoConfigCacheEntry{
+				LoadedAt: time.Now(),
+				Exists:   false,
+			})
 			return RepoConfig{}, false, nil
 		}
 		return RepoConfig{}, false, err
 	}
+
+	if cached, ok := readRepoConfigCache(path); ok {
+		if cached.Exists && cached.ModTime.Equal(stat.ModTime()) && cached.Size == stat.Size() {
+			return cached.Config, true, nil
+		}
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			cacheRepoConfig(path, repoConfigCacheEntry{
+				LoadedAt: time.Now(),
+				Exists:   false,
+			})
+			return RepoConfig{}, false, nil
+		}
+		return RepoConfig{}, false, err
+	}
+
 	if len(strings.TrimSpace(string(data))) == 0 {
+		cacheRepoConfig(path, repoConfigCacheEntry{
+			LoadedAt: time.Now(),
+			ModTime:  stat.ModTime(),
+			Size:     stat.Size(),
+			Exists:   true,
+			Config:   RepoConfig{},
+		})
 		return RepoConfig{}, true, nil
 	}
 	var cfg RepoConfig
 	if err := json.Unmarshal(data, &cfg); err != nil {
 		return RepoConfig{}, false, err
 	}
+	cacheRepoConfig(path, repoConfigCacheEntry{
+		LoadedAt: time.Now(),
+		ModTime:  stat.ModTime(),
+		Size:     stat.Size(),
+		Exists:   true,
+		Config:   cfg,
+	})
 	return cfg, true, nil
+}
+
+func readRepoConfigCache(path string) (repoConfigCacheEntry, bool) {
+	repoConfigCache.mu.RLock()
+	defer repoConfigCache.mu.RUnlock()
+	entry, ok := repoConfigCache.entries[path]
+	return entry, ok
+}
+
+func cacheRepoConfig(path string, entry repoConfigCacheEntry) {
+	repoConfigCache.mu.Lock()
+	defer repoConfigCache.mu.Unlock()
+	repoConfigCache.entries[path] = entry
 }
 
 func ApplyRepoOverrides(cfg *Config, root string) error {

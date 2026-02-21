@@ -53,6 +53,10 @@ func runMCP(args []string, out, errOut io.Writer) int {
 	}
 
 	cfg, cfgErr := loadConfig()
+	cfgBase := config.Config{}
+	if cfgErr == nil {
+		cfgBase = cloneConfig(cfg)
+	}
 	autoRepair := *repair
 	if cfgErr == nil && cfg.MCPAutoRepair {
 		autoRepair = true
@@ -99,6 +103,15 @@ func runMCP(args []string, out, errOut io.Writer) int {
 	}
 
 	srv := server.NewMCPServer(*name, *version, server.WithToolCapabilities(false))
+	var rt *mcpRuntime
+	if cfgErr == nil {
+		rt = newMCPRuntime(cfgBase)
+		setActiveMCPRuntime(rt)
+		defer func() {
+			setActiveMCPRuntime(nil)
+			_ = rt.close()
+		}()
+	}
 	tools := registerMCPTools(srv, writeCfg, requireRepoEffective)
 	modeLabel := "write=disabled"
 	if writeCfg.Allowed {

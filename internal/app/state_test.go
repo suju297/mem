@@ -31,7 +31,7 @@ func TestLoadStateWarnsOnDBError(t *testing.T) {
 		t.Fatalf("close store: %v", err)
 	}
 
-	stateRaw, _, _, warning, err := loadState(repo.Info{ID: "r1", GitRoot: root}, "default", st)
+	stateRaw, _, _, _, warning, err := loadState(repo.Info{ID: "r1", GitRoot: root}, "default", st)
 	if err != nil {
 		t.Fatalf("loadState error: %v", err)
 	}

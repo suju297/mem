@@ -13,12 +13,30 @@ import (
 )
 
 func loadConfig() (config.Config, error) {
+	if rt := activeMCPRuntime(); rt != nil {
+		return rt.configCopy(), nil
+	}
 	return config.Load()
 }
 
 func openStore(cfg config.Config, repoID string) (*store.Store, error) {
 	path := cfg.RepoDBPath(repoID)
 	return store.Open(path)
+}
+
+func openStoreForRequest(cfg config.Config, repoID string) (*store.Store, func(), error) {
+	if rt := activeMCPRuntime(); rt != nil {
+		st, err := rt.openStore(cfg, repoID)
+		if err != nil {
+			return nil, nil, err
+		}
+		return st, func() {}, nil
+	}
+	st, err := openStore(cfg, repoID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return st, func() { _ = st.Close() }, nil
 }
 
 type repoResolveOptions struct {
@@ -33,89 +51,22 @@ func resolveRepoWithOptions(cfg *config.Config, repoOverride string, opts repoRe
 	if cfg == nil {
 		return repo.Info{}, fmt.Errorf("config is nil")
 	}
-	if repoOverride != "" {
-		if info, err := detectRepoPath(repoOverride); err == nil {
-			if updateRepoCache(cfg, info) {
-				_ = cfg.SaveRepoState()
-			}
-			return finalizeRepo(cfg, info)
-		}
-		if reporesolve.LooksLikePath(repoOverride) {
-			if info, err := repoFromRoot(cfg, repoOverride); err == nil {
-				if updateRepoCache(cfg, info) {
-					_ = cfg.SaveRepoState()
-				}
-				return finalizeRepo(cfg, info)
-			}
-		}
-		return repoFromID(cfg, repoOverride)
-	}
-
-	cwd, err := os.Getwd()
+	info, _, err := reporesolve.Resolve(cfg, repoOverride, reporesolve.ResolveOptions{
+		RequireRepo:            opts.RequireRepo,
+		AllowNonStrictFallback: true,
+		PersistCache:           true,
+	})
 	if err != nil {
 		return repo.Info{}, err
 	}
-
-	// Fast path: check if cwd is inside a known cached git_root
-	// This avoids the expensive git rev-parse --show-toplevel call
-	if root, repoID := cachedRepoForCwd(cfg, cwd); repoID != "" {
-		// Use InfoFromCache with needsFreshHead=true for 1 git call
-		// instead of DetectFromRoot which also does 1 git call but this is clearer
-		info, err := repo.InfoFromCache(repoID, root, "", "", true)
-		if err == nil {
-			return finalizeRepo(cfg, info)
-		}
-		// Fall through to full detection on error
+	finalized, err := finalizeRepo(cfg, info)
+	if err != nil {
+		return repo.Info{}, err
 	}
-
-	// Need to detect git root - this is 1 git call
-	info, err := repo.DetectBaseStrict(cwd)
-	if err == nil {
-		// Check if we have this root cached - skip origin lookup entirely
-		if cachedID, ok := cfg.RepoCache[info.GitRoot]; ok && cachedID != "" {
-			info.ID = cachedID
-			return finalizeRepo(cfg, info)
-		}
-
-		// If cache is missing, attempt to locate an existing repo DB by root.
-		// This prevents repo_id churn when paths differ only by symlinks (e.g. /tmp vs /private/tmp),
-		// and also makes new installs find existing repos without requiring mem use.
-		if existing, err := repoFromRoot(cfg, info.GitRoot); err == nil && existing.ID != "" {
-			if updateRepoCache(cfg, existing) {
-				_ = cfg.SaveRepoState()
-			}
-			return finalizeRepo(cfg, existing)
-		}
-
-		// New repo - need origin lookup for ID computation
-		info, err = repo.PopulateOriginAndID(info)
-		if err != nil {
-			return repo.Info{}, err
-		}
-		if updateRepoCache(cfg, info) {
-			_ = cfg.SaveRepoState()
-		}
-		return finalizeRepo(cfg, info)
+	if rt := activeMCPRuntime(); rt != nil {
+		rt.mergeRepoState(*cfg)
 	}
-
-	if opts.RequireRepo {
-		return repo.Info{}, fmt.Errorf("repo not specified and could not detect repo from current directory. Fix: pass repo in the MCP call (workspace root), or start server with mem mcp --repo /path/to/repo")
-	}
-
-	// Fall back to non-strict detection (allows non-git dirs) before using active repo.
-	info, err = repo.Detect(cwd)
-	if err == nil {
-		if updateRepoCache(cfg, info) {
-			_ = cfg.SaveRepoState()
-		}
-		return finalizeRepo(cfg, info)
-	}
-
-	if cfg.ActiveRepo != "" {
-		return repoFromID(cfg, cfg.ActiveRepo)
-	}
-
-	return repo.Info{}, err
+	return finalized, nil
 }
 
 func repoFromID(cfg *config.Config, repoID string) (repo.Info, error) {

@@ -170,7 +170,23 @@ func (w *Watcher) dropPendingPath(relPath string) {
 }
 
 func (w *Watcher) emit(event Event) {
-	w.events <- event
+	select {
+	case w.events <- event:
+		return
+	default:
+	}
+
+	// Channel is full: drop one oldest queued event to make room for the newest.
+	select {
+	case <-w.events:
+	default:
+	}
+
+	select {
+	case w.events <- event:
+	default:
+		// Still full; drop the newest event rather than blocking fsnotify processing.
+	}
 }
 
 func (w *Watcher) addDirRecursive(path string) error {

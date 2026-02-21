@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -40,19 +41,54 @@ func startEmbeddingWorker(ctx context.Context, cfg config.Config, repoID string)
 	}
 
 	go func() {
+		var (
+			embedder      embed.Provider
+			nextResolveAt time.Time
+			resolveDelay  = embedQueueIdleDelay
+			st            *store.Store
+		)
+		defer func() {
+			if st != nil {
+				_ = st.Close()
+			}
+		}()
+
 		for {
 			if ctx.Err() != nil {
 				return
 			}
-			embedder, status := embed.Resolve(cfg)
-			if embedder == nil || !status.Enabled {
-				if !sleepWithContext(ctx, embedQueueErrorDelay) {
-					return
+
+			if st == nil {
+				opened, err := openStore(cfg, repoID)
+				if err != nil {
+					if !sleepWithContext(ctx, embedQueueErrorDelay) {
+						return
+					}
+					continue
 				}
-				continue
+				st = opened
 			}
 
-			delay := runEmbeddingWorkerIteration(embedder, cfg, repoID, model)
+			now := time.Now()
+			if embedder == nil || now.After(nextResolveAt) {
+				resolved, status := embed.Resolve(cfg)
+				if resolved == nil || !status.Enabled {
+					nextResolveAt = now.Add(resolveDelay)
+					resolveDelay = time.Duration(math.Min(float64(resolveDelay*2), float64(2*time.Minute)))
+					if !sleepWithContext(ctx, embedQueueErrorDelay) {
+						return
+					}
+					continue
+				}
+				embedder = resolved
+				resolveDelay = embedQueueIdleDelay
+				nextResolveAt = now.Add(30 * time.Second)
+			}
+
+			delay := runEmbeddingWorkerIteration(embedder, st, repoID, model)
+			if delay == embedQueueErrorDelay {
+				embedder = nil
+			}
 			if delay > 0 && !sleepWithContext(ctx, delay) {
 				return
 			}
@@ -60,12 +96,10 @@ func startEmbeddingWorker(ctx context.Context, cfg config.Config, repoID string)
 	}()
 }
 
-func runEmbeddingWorkerIteration(embedder embed.Provider, cfg config.Config, repoID, model string) (delay time.Duration) {
-	st, err := openStore(cfg, repoID)
-	if err != nil {
+func runEmbeddingWorkerIteration(embedder embed.Provider, st *store.Store, repoID, model string) (delay time.Duration) {
+	if st == nil {
 		return embedQueueErrorDelay
 	}
-	defer st.Close()
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			recordEmbeddingWorkerStatus(st, model, fmt.Sprintf("panic: %v", recovered))

@@ -15,6 +15,7 @@ type ExplainReport struct {
 	Query          string               `json:"query"`
 	Repo           pack.RepoInfo        `json:"repo"`
 	Workspace      string               `json:"workspace"`
+	StateSource    string               `json:"state_source,omitempty"`
 	MatchedThreads []pack.MatchedThread `json:"matched_threads"`
 	Memories       []ExplainMemory      `json:"memories"`
 	Chunks         []ExplainChunk       `json:"chunks"`

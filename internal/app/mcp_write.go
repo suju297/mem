@@ -106,11 +106,11 @@ func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mc
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	st, err := openStore(cfg, repoInfo.ID)
+	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
 	}
-	defer st.Close()
+	defer releaseStore()
 
 	if err := st.EnsureRepo(repoInfo); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store repo error: %v", err)), nil
@@ -211,11 +211,11 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
 	}
 
-	st, err := openStore(cfg, repoInfo.ID)
+	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
 	}
-	defer st.Close()
+	defer releaseStore()
 
 	updateInput, err := makeUpdateMemoryInput(
 		repoInfo.ID,
@@ -303,11 +303,11 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
 	}
 
-	st, err := openStore(cfg, repoInfo.ID)
+	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
 	}
-	defer st.Close()
+	defer releaseStore()
 
 	if err := st.EnsureRepo(repoInfo); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store repo error: %v", err)), nil
@@ -318,16 +318,30 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 	if _, err := ensureMemoryExistsForLink(st, repoInfo.ID, workspace, toID, "to"); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
+	wouldCycle, err := st.WouldCreateLinkCycle(repoInfo.ID, workspace, fromID, toID)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("link validation error: %v", err)), nil
+	}
+	if wouldCycle {
+		return mcp.NewToolResultError("link would create a cycle"), nil
+	}
 
 	createdAt := time.Now().UTC()
-	if err := st.AddLink(store.Link{
+	created, err := st.AddLinkIfMissing(store.Link{
 		FromID:    fromID,
 		Rel:       rel,
 		ToID:      toID,
 		Weight:    1,
 		CreatedAt: createdAt,
-	}); err != nil {
+	})
+	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("link error: %v", err)), nil
+	}
+	status := "exists"
+	text := fmt.Sprintf("Memory link already exists: %s --%s--> %s", fromID, rel, toID)
+	if created {
+		status = "linked"
+		text = fmt.Sprintf("Memory link saved: %s --%s--> %s", fromID, rel, toID)
 	}
 
 	result := map[string]any{
@@ -336,11 +350,12 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 		"to_id":      toID,
 		"weight":     1,
 		"created_at": createdAt.Format(time.RFC3339Nano),
-		"status":     "linked",
+		"created":    created,
+		"status":     status,
 	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
-			mcp.TextContent{Type: "text", Text: fmt.Sprintf("Memory link saved: %s --%s--> %s", fromID, rel, toID)},
+			mcp.TextContent{Type: "text", Text: text},
 		},
 		StructuredContent: result,
 	}, nil
@@ -402,11 +417,11 @@ func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg m
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	st, err := openStore(cfg, repoInfo.ID)
+	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
 	}
-	defer st.Close()
+	defer releaseStore()
 
 	now := time.Now().UTC()
 	stateID := store.NewID("S")

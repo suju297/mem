@@ -82,25 +82,27 @@ func ParseQuery(q string) ParsedQuery {
 }
 
 func detectTimeHint(lower string) (*TimeHint, float64) {
-	now := time.Now().UTC()
+	now := time.Now()
+	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	startOfYesterday := startOfToday.Add(-24 * time.Hour)
 
 	switch {
 	case containsToken(lower, "today"):
-		return &TimeHint{Relative: "today", After: now.Truncate(24 * time.Hour)}, 3.0
+		return &TimeHint{Relative: "today", After: startOfToday.UTC()}, 3.0
 	case containsToken(lower, "yesterday"):
-		return &TimeHint{Relative: "yesterday", After: now.Add(-24 * time.Hour).Truncate(24 * time.Hour)}, 2.5
+		return &TimeHint{Relative: "yesterday", After: startOfYesterday.UTC()}, 2.5
 	case strings.Contains(lower, "this week"):
-		return &TimeHint{Relative: "this week", After: now.Add(-7 * 24 * time.Hour)}, 2.0
+		return &TimeHint{Relative: "this week", After: now.Add(-7 * 24 * time.Hour).UTC()}, 2.0
 	case strings.Contains(lower, "last week"):
-		return &TimeHint{Relative: "last week", After: now.Add(-14 * 24 * time.Hour)}, 1.8
+		return &TimeHint{Relative: "last week", After: now.Add(-14 * 24 * time.Hour).UTC()}, 1.8
 	case containsToken(lower, "recent"):
-		return &TimeHint{Relative: "recent", After: now.Add(-7 * 24 * time.Hour)}, 2.0
+		return &TimeHint{Relative: "recent", After: now.Add(-7 * 24 * time.Hour).UTC()}, 2.0
 	case containsToken(lower, "latest"):
-		return &TimeHint{Relative: "recent", After: now.Add(-3 * 24 * time.Hour)}, 2.5
+		return &TimeHint{Relative: "recent", After: now.Add(-3 * 24 * time.Hour).UTC()}, 2.5
 	case containsToken(lower, "just"):
-		return &TimeHint{Relative: "recent", After: now.Add(-24 * time.Hour)}, 2.5
+		return &TimeHint{Relative: "recent", After: now.Add(-24 * time.Hour).UTC()}, 2.5
 	case hasNewRecencyIntent(lower):
-		return &TimeHint{Relative: "recent", After: now.Add(-7 * 24 * time.Hour)}, 1.5
+		return &TimeHint{Relative: "recent", After: now.Add(-7 * 24 * time.Hour).UTC()}, 1.5
 	}
 	return nil, 1.0
 }

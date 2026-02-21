@@ -17,6 +17,7 @@ type LinkResponse struct {
 	ToID      string  `json:"to_id"`
 	Weight    float64 `json:"weight"`
 	CreatedAt string  `json:"created_at"`
+	Created   bool    `json:"created"`
 	Status    string  `json:"status"`
 }
 
@@ -143,17 +144,31 @@ func runLink(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, err.Error())
 		return 1
 	}
+	wouldCycle, err := st.WouldCreateLinkCycle(repoInfo.ID, workspaceName, from, to)
+	if err != nil {
+		fmt.Fprintf(errOut, "link validation error: %v\n", err)
+		return 1
+	}
+	if wouldCycle {
+		fmt.Fprintln(errOut, "link would create a cycle")
+		return 1
+	}
 
 	createdAt := time.Now().UTC()
-	if err := st.AddLink(store.Link{
+	created, err := st.AddLinkIfMissing(store.Link{
 		FromID:    from,
 		Rel:       rel,
 		ToID:      to,
 		Weight:    1,
 		CreatedAt: createdAt,
-	}); err != nil {
+	})
+	if err != nil {
 		fmt.Fprintf(errOut, "link error: %v\n", err)
 		return 1
+	}
+	status := "exists"
+	if created {
+		status = "linked"
 	}
 
 	return writeJSON(out, errOut, LinkResponse{
@@ -162,6 +177,7 @@ func runLink(args []string, out, errOut io.Writer) int {
 		ToID:      to,
 		Weight:    1,
 		CreatedAt: createdAt.Format(time.RFC3339Nano),
-		Status:    "linked",
+		Created:   created,
+		Status:    status,
 	})
 }

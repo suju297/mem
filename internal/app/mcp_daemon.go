@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -202,7 +203,33 @@ func readPID(path string) (int, bool) {
 	if err := proc.Signal(syscall.Signal(0)); err != nil {
 		return pid, false
 	}
+	if !looksLikeMCPProcess(pid) {
+		return pid, false
+	}
 	return pid, true
+}
+
+func looksLikeMCPProcess(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
+	// Best-effort stale PID detection. On unsupported systems/tools, keep legacy behavior.
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "command=").Output()
+	if err != nil {
+		return true
+	}
+	cmdline := strings.ToLower(strings.TrimSpace(string(out)))
+	if cmdline == "" {
+		return false
+	}
+	bin := strings.ToLower(filepath.Base(os.Args[0]))
+	if bin != "" && strings.Contains(cmdline, bin) && strings.Contains(cmdline, " mcp") {
+		return true
+	}
+	return strings.Contains(cmdline, " mcp ")
 }
 
 func lockPIDFile(path string) (*os.File, error) {

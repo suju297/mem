@@ -34,5 +34,8 @@ func ensureMemoryExistsForLink(st *store.Store, repoID, workspace, id, side stri
 	if !mem.DeletedAt.IsZero() {
 		return store.Memory{}, fmt.Errorf("%s memory is deleted: %s", side, id)
 	}
+	if strings.TrimSpace(mem.SupersededBy) != "" {
+		return store.Memory{}, fmt.Errorf("%s memory is superseded: %s", side, id)
+	}
 	return mem, nil
 }

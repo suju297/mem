@@ -84,36 +84,12 @@ func (s *Store) GetMemory(repoID, workspace, id string) (Memory, error) {
 		WHERE repo_id = ? AND workspace = ? AND id = ?
 	`, repoID, normalizeWorkspace(workspace), id)
 
-	var mem Memory
-	var createdAt string
-	var deletedAt sql.NullString
-	var threadID sql.NullString
-	var summaryTokens sql.NullInt64
-	var tagsJSON sql.NullString
-	var tagsText sql.NullString
-	var entitiesJSON sql.NullString
-	var entitiesText sql.NullString
-	var anchorCommit sql.NullString
-	var supersededBy sql.NullString
-	if err := row.Scan(&mem.ID, &mem.RepoID, &mem.Workspace, &threadID, &mem.Title, &mem.Summary, &summaryTokens, &tagsJSON, &tagsText, &entitiesJSON, &entitiesText, &createdAt, &anchorCommit, &supersededBy, &deletedAt); err != nil {
+	mem, err := scanMemoryFields(row.Scan)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Memory{}, ErrNotFound
 		}
 		return Memory{}, err
-	}
-	mem.ThreadID = threadID.String
-	if summaryTokens.Valid {
-		mem.SummaryTokens = int(summaryTokens.Int64)
-	}
-	mem.TagsJSON = tagsJSON.String
-	mem.TagsText = tagsText.String
-	mem.EntitiesJSON = entitiesJSON.String
-	mem.EntitiesText = entitiesText.String
-	mem.AnchorCommit = anchorCommit.String
-	mem.SupersededBy = supersededBy.String
-	mem.CreatedAt = parseTime(createdAt)
-	if deletedAt.Valid {
-		mem.DeletedAt = parseTime(deletedAt.String)
 	}
 	return mem, nil
 }
@@ -127,44 +103,12 @@ func (s *Store) GetChunk(repoID, workspace, id string) (Chunk, error) {
 		WHERE repo_id = ? AND workspace = ? AND chunk_id = ?
 	`, repoID, normalizeWorkspace(workspace), id)
 
-	var chunk Chunk
-	var createdAt string
-	var deletedAt sql.NullString
-	var threadID sql.NullString
-	var artifactID sql.NullString
-	var locator sql.NullString
-	var text sql.NullString
-	var textHash sql.NullString
-	var textTokens sql.NullInt64
-	var tagsJSON sql.NullString
-	var tagsText sql.NullString
-	var chunkType sql.NullString
-	var symbolName sql.NullString
-	var symbolKind sql.NullString
-	if err := row.Scan(&chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator,
-		&text, &textHash, &textTokens, &tagsJSON, &tagsText,
-		&chunkType, &symbolName, &symbolKind, &createdAt, &deletedAt); err != nil {
+	chunk, err := scanChunkFields(row.Scan)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Chunk{}, ErrNotFound
 		}
 		return Chunk{}, err
-	}
-	chunk.ArtifactID = artifactID.String
-	chunk.ThreadID = threadID.String
-	chunk.Locator = locator.String
-	chunk.Text = text.String
-	chunk.TextHash = textHash.String
-	if textTokens.Valid {
-		chunk.TextTokens = int(textTokens.Int64)
-	}
-	chunk.TagsJSON = tagsJSON.String
-	chunk.TagsText = tagsText.String
-	chunk.ChunkType = chunkType.String
-	chunk.SymbolName = symbolName.String
-	chunk.SymbolKind = symbolKind.String
-	chunk.CreatedAt = parseTime(createdAt)
-	if deletedAt.Valid {
-		chunk.DeletedAt = parseTime(deletedAt.String)
 	}
 	return chunk, nil
 }
@@ -194,33 +138,9 @@ func (s *Store) GetMemoriesByIDs(repoID, workspace string, ids []string) ([]Memo
 
 	var memories []Memory
 	for rows.Next() {
-		var mem Memory
-		var createdAt string
-		var deletedAt sql.NullString
-		var threadID sql.NullString
-		var summaryTokens sql.NullInt64
-		var tagsJSON sql.NullString
-		var tagsText sql.NullString
-		var entitiesJSON sql.NullString
-		var entitiesText sql.NullString
-		var anchorCommit sql.NullString
-		var supersededBy sql.NullString
-		if err := rows.Scan(&mem.ID, &mem.RepoID, &mem.Workspace, &threadID, &mem.Title, &mem.Summary, &summaryTokens, &tagsJSON, &tagsText, &entitiesJSON, &entitiesText, &createdAt, &anchorCommit, &supersededBy, &deletedAt); err != nil {
+		mem, err := scanMemoryFields(rows.Scan)
+		if err != nil {
 			return nil, err
-		}
-		mem.ThreadID = threadID.String
-		if summaryTokens.Valid {
-			mem.SummaryTokens = int(summaryTokens.Int64)
-		}
-		mem.TagsJSON = tagsJSON.String
-		mem.TagsText = tagsText.String
-		mem.EntitiesJSON = entitiesJSON.String
-		mem.EntitiesText = entitiesText.String
-		mem.AnchorCommit = anchorCommit.String
-		mem.SupersededBy = supersededBy.String
-		mem.CreatedAt = parseTime(createdAt)
-		if deletedAt.Valid {
-			mem.DeletedAt = parseTime(deletedAt.String)
 		}
 		memories = append(memories, mem)
 	}
@@ -245,33 +165,9 @@ func (s *Store) ListActiveMemories(repoID, workspace string) ([]Memory, error) {
 
 	var memories []Memory
 	for rows.Next() {
-		var mem Memory
-		var createdAt string
-		var deletedAt sql.NullString
-		var threadID sql.NullString
-		var summaryTokens sql.NullInt64
-		var tagsJSON sql.NullString
-		var tagsText sql.NullString
-		var entitiesJSON sql.NullString
-		var entitiesText sql.NullString
-		var anchorCommit sql.NullString
-		var supersededBy sql.NullString
-		if err := rows.Scan(&mem.ID, &mem.RepoID, &mem.Workspace, &threadID, &mem.Title, &mem.Summary, &summaryTokens, &tagsJSON, &tagsText, &entitiesJSON, &entitiesText, &createdAt, &anchorCommit, &supersededBy, &deletedAt); err != nil {
+		mem, err := scanMemoryFields(rows.Scan)
+		if err != nil {
 			return nil, err
-		}
-		mem.ThreadID = threadID.String
-		if summaryTokens.Valid {
-			mem.SummaryTokens = int(summaryTokens.Int64)
-		}
-		mem.TagsJSON = tagsJSON.String
-		mem.TagsText = tagsText.String
-		mem.EntitiesJSON = entitiesJSON.String
-		mem.EntitiesText = entitiesText.String
-		mem.AnchorCommit = anchorCommit.String
-		mem.SupersededBy = supersededBy.String
-		mem.CreatedAt = parseTime(createdAt)
-		if deletedAt.Valid {
-			mem.DeletedAt = parseTime(deletedAt.String)
 		}
 		memories = append(memories, mem)
 	}
@@ -333,41 +229,9 @@ func (s *Store) GetChunksByIDs(repoID, workspace string, ids []string) ([]Chunk,
 
 	var chunks []Chunk
 	for rows.Next() {
-		var chunk Chunk
-		var createdAt string
-		var deletedAt sql.NullString
-		var textHash sql.NullString
-		var textTokens sql.NullInt64
-		var tagsJSON sql.NullString
-		var tagsText sql.NullString
-		var artifactID sql.NullString
-		var threadID sql.NullString
-		var locator sql.NullString
-		var text sql.NullString
-		var chunkType sql.NullString
-		var symbolName sql.NullString
-		var symbolKind sql.NullString
-		if err := rows.Scan(&chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator,
-			&text, &textHash, &textTokens, &tagsJSON, &tagsText,
-			&chunkType, &symbolName, &symbolKind, &createdAt, &deletedAt); err != nil {
+		chunk, err := scanChunkFields(rows.Scan)
+		if err != nil {
 			return nil, err
-		}
-		chunk.ArtifactID = artifactID.String
-		chunk.ThreadID = threadID.String
-		chunk.Locator = locator.String
-		chunk.Text = text.String
-		chunk.TextHash = textHash.String
-		if textTokens.Valid {
-			chunk.TextTokens = int(textTokens.Int64)
-		}
-		chunk.TagsJSON = tagsJSON.String
-		chunk.TagsText = tagsText.String
-		chunk.ChunkType = chunkType.String
-		chunk.SymbolName = symbolName.String
-		chunk.SymbolKind = symbolKind.String
-		chunk.CreatedAt = parseTime(createdAt)
-		if deletedAt.Valid {
-			chunk.DeletedAt = parseTime(deletedAt.String)
 		}
 		chunks = append(chunks, chunk)
 	}

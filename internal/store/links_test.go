@@ -6,6 +6,26 @@ import (
 	"time"
 )
 
+func addLinkTestMemory(t *testing.T, st *Store, repoID, workspace, id string, createdAt time.Time) {
+	t.Helper()
+	if _, err := st.AddMemory(AddMemoryInput{
+		ID:            id,
+		RepoID:        repoID,
+		Workspace:     workspace,
+		ThreadID:      "T-LINK",
+		Title:         id,
+		Summary:       "summary",
+		SummaryTokens: 1,
+		TagsJSON:      "[]",
+		TagsText:      "",
+		EntitiesJSON:  "[]",
+		EntitiesText:  "",
+		CreatedAt:     createdAt,
+	}); err != nil {
+		t.Fatalf("add memory %s: %v", id, err)
+	}
+}
+
 func TestForgetAndPurgeMemoryCleanupLinks(t *testing.T) {
 	dir := t.TempDir()
 	st, err := Open(filepath.Join(dir, "memory.db"))
@@ -122,5 +142,86 @@ func TestListLinksForIDsFiltersSupersededEndpoints(t *testing.T) {
 	}
 	if links, err := st.ListLinksForIDs([]string{"M-FROM", "M-TO"}); err != nil || len(links) != 0 {
 		t.Fatalf("expected link to be filtered when endpoint is superseded, got len=%d err=%v", len(links), err)
+	}
+}
+
+func TestAddLinkIfMissingCreatedStatus(t *testing.T) {
+	dir := t.TempDir()
+	st, err := Open(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	repoID := "r1"
+	workspace := "default"
+	now := time.Now().UTC()
+	addLinkTestMemory(t, st, repoID, workspace, "M-A", now)
+	addLinkTestMemory(t, st, repoID, workspace, "M-B", now.Add(time.Second))
+
+	created, err := st.AddLinkIfMissing(Link{
+		FromID: "M-A",
+		Rel:    "depends_on",
+		ToID:   "M-B",
+		Weight: 1,
+	})
+	if err != nil {
+		t.Fatalf("first AddLinkIfMissing: %v", err)
+	}
+	if !created {
+		t.Fatalf("expected first AddLinkIfMissing call to create link")
+	}
+
+	created, err = st.AddLinkIfMissing(Link{
+		FromID: "M-A",
+		Rel:    "depends_on",
+		ToID:   "M-B",
+		Weight: 1,
+	})
+	if err != nil {
+		t.Fatalf("second AddLinkIfMissing: %v", err)
+	}
+	if created {
+		t.Fatalf("expected second AddLinkIfMissing call to report existing link")
+	}
+}
+
+func TestWouldCreateLinkCycle(t *testing.T) {
+	dir := t.TempDir()
+	st, err := Open(filepath.Join(dir, "memory.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	repoID := "r1"
+	workspace := "default"
+	now := time.Now().UTC()
+	addLinkTestMemory(t, st, repoID, workspace, "M-A", now)
+	addLinkTestMemory(t, st, repoID, workspace, "M-B", now.Add(time.Second))
+	addLinkTestMemory(t, st, repoID, workspace, "M-C", now.Add(2*time.Second))
+	addLinkTestMemory(t, st, repoID, workspace, "M-D", now.Add(3*time.Second))
+
+	if err := st.AddLink(Link{FromID: "M-A", Rel: "depends_on", ToID: "M-B", Weight: 1, CreatedAt: now.Add(4 * time.Second)}); err != nil {
+		t.Fatalf("add link A->B: %v", err)
+	}
+	if err := st.AddLink(Link{FromID: "M-B", Rel: "depends_on", ToID: "M-C", Weight: 1, CreatedAt: now.Add(5 * time.Second)}); err != nil {
+		t.Fatalf("add link B->C: %v", err)
+	}
+
+	cycle, err := st.WouldCreateLinkCycle(repoID, workspace, "M-C", "M-A")
+	if err != nil {
+		t.Fatalf("WouldCreateLinkCycle C->A: %v", err)
+	}
+	if !cycle {
+		t.Fatalf("expected C->A to be detected as cycle")
+	}
+
+	cycle, err = st.WouldCreateLinkCycle(repoID, workspace, "M-C", "M-D")
+	if err != nil {
+		t.Fatalf("WouldCreateLinkCycle C->D: %v", err)
+	}
+	if cycle {
+		t.Fatalf("expected C->D to be non-cyclic")
 	}
 }

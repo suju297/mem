@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -223,26 +222,13 @@ func (s *Store) searchMemoriesWithQuery(repoID, workspace, query string, limit i
 	details := make(map[int64]Memory, len(rowIDs))
 	for fetchRows.Next() {
 		var rowid int64
-		var mem Memory
-		var createdAt string
-		var threadID sql.NullString
-		var summaryTokens sql.NullInt64
-		var tagsJSON sql.NullString
-		var entitiesJSON sql.NullString
-		var anchorCommit sql.NullString
-		var supersededBy sql.NullString
-		if err := fetchRows.Scan(&rowid, &mem.ID, &mem.RepoID, &mem.Workspace, &threadID, &mem.Title, &mem.Summary, &summaryTokens, &tagsJSON, &entitiesJSON, &createdAt, &anchorCommit, &supersededBy); err != nil {
+		mem, err := scanMemorySearchFields(func(dest ...any) error {
+			args := append([]any{&rowid}, dest...)
+			return fetchRows.Scan(args...)
+		})
+		if err != nil {
 			return nil, stats, err
 		}
-		mem.ThreadID = threadID.String
-		if summaryTokens.Valid {
-			mem.SummaryTokens = int(summaryTokens.Int64)
-		}
-		mem.TagsJSON = tagsJSON.String
-		mem.EntitiesJSON = entitiesJSON.String
-		mem.AnchorCommit = anchorCommit.String
-		mem.SupersededBy = supersededBy.String
-		mem.CreatedAt = parseTime(createdAt)
 		details[rowid] = mem
 	}
 	if err := fetchRows.Err(); err != nil {
@@ -372,38 +358,13 @@ func (s *Store) searchChunksWithQuery(repoID, workspace, query string, limit int
 	details := make(map[int64]Chunk, len(rowIDs))
 	for fetchRows.Next() {
 		var rowid int64
-		var chunk Chunk
-		var createdAt string
-		var artifactID sql.NullString
-		var threadID sql.NullString
-		var locator sql.NullString
-		var text sql.NullString
-		var textHash sql.NullString
-		var textTokens sql.NullInt64
-		var tagsJSON sql.NullString
-		var tagsText sql.NullString
-		var chunkType sql.NullString
-		var symbolName sql.NullString
-		var symbolKind sql.NullString
-		if err := fetchRows.Scan(&rowid, &chunk.ID, &chunk.RepoID, &chunk.Workspace, &artifactID, &threadID, &locator,
-			&text, &textHash, &textTokens, &tagsJSON, &tagsText,
-			&chunkType, &symbolName, &symbolKind, &createdAt); err != nil {
+		chunk, err := scanChunkSearchFields(func(dest ...any) error {
+			args := append([]any{&rowid}, dest...)
+			return fetchRows.Scan(args...)
+		})
+		if err != nil {
 			return nil, stats, err
 		}
-		chunk.ArtifactID = artifactID.String
-		chunk.ThreadID = threadID.String
-		chunk.Locator = locator.String
-		chunk.Text = text.String
-		chunk.TextHash = textHash.String
-		if textTokens.Valid {
-			chunk.TextTokens = int(textTokens.Int64)
-		}
-		chunk.TagsJSON = tagsJSON.String
-		chunk.TagsText = tagsText.String
-		chunk.ChunkType = chunkType.String
-		chunk.SymbolName = symbolName.String
-		chunk.SymbolKind = symbolKind.String
-		chunk.CreatedAt = parseTime(createdAt)
 		details[rowid] = chunk
 	}
 	if err := fetchRows.Err(); err != nil {

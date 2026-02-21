@@ -1,14 +1,7 @@
 package app
 
 import (
-	"errors"
-	"fmt"
-	"math"
-	"strings"
-
 	"mempack/internal/pack"
-	"mempack/internal/store"
-	"mempack/internal/token"
 )
 
 type ExplainOptions struct {
@@ -19,106 +12,20 @@ type ExplainOptions struct {
 }
 
 func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error) {
-	cfg, err := loadConfig()
+	trace := retrievalTrace{}
+	contextPack, err := buildContextPackWithTrace(query, ContextOptions{
+		RepoOverride:   opts.RepoOverride,
+		Workspace:      opts.Workspace,
+		IncludeOrphans: opts.IncludeOrphans,
+		RequireRepo:    opts.RequireRepo,
+	}, nil, &trace)
 	if err != nil {
-		return ExplainReport{}, fmt.Errorf("config error: %v", err)
-	}
-	workspace := resolveWorkspace(cfg, opts.Workspace)
-
-	repoInfo, err := resolveRepoWithOptions(&cfg, strings.TrimSpace(opts.RepoOverride), repoResolveOptions{
-		RequireRepo: opts.RequireRepo,
-	})
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("repo detection error: %v", err)
+		return ExplainReport{}, err
 	}
 
-	st, err := openStore(cfg, repoInfo.ID)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("store open error: %v", err)
-	}
-	defer st.Close()
-
-	if err := st.EnsureRepo(repoInfo); err != nil {
-		return ExplainReport{}, fmt.Errorf("store repo error: %v", err)
-	}
-
-	stateRaw, stateTokens, _, _, err := loadState(repoInfo, workspace, st)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("state error: %v", err)
-	}
-
-	parsed := store.ParseQuery(query)
-
-	memResults, _, err := st.SearchMemories(repoInfo.ID, workspace, query, cfg.MemoriesK*5)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("memory search error: %v", err)
-	}
-
-	chunkResults, _, err := st.SearchChunks(repoInfo.ID, workspace, query, cfg.ChunksK*5)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("chunk search error: %v", err)
-	}
-
-	bm25Empty := len(memResults) == 0 && len(chunkResults) == 0
-	vectorMinSimilarity := cfg.EmbeddingMinSimilarity
-	vectorMemLimit := cfg.MemoriesK * 5
-	vectorChunkLimit := cfg.ChunksK * 5
-	if bm25Empty {
-		vectorMinSimilarity = math.Max(0, vectorMinSimilarity-0.1)
-		vectorMemLimit *= 2
-		vectorChunkLimit *= 2
-	}
-
-	vectorMemResults, vectorStatus := vectorSearchMemories(cfg, st, repoInfo.ID, workspace, query, vectorMemLimit)
-	vectorMemFiltered := filterVectorResults(vectorMemResults, vectorMinSimilarity)
-	vectorMemOnly, err := loadVectorOnlyMemories(st, repoInfo.ID, workspace, memResults, vectorMemFiltered)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("vector memory load error: %v", err)
-	}
-
-	rankOpts := RankOptions{
-		IncludeOrphans:    opts.IncludeOrphans,
-		VectorResults:     vectorMemResults,
-		RecencyMultiplier: parsed.BoostRecency,
-	}
-	if parsed.TimeHint != nil {
-		rankOpts.TimeFilter = &parsed.TimeHint.After
-	}
-	rankedMemories, matchedThreads, matchedThreadIDs, _, err := rankMemories(query, memResults, vectorMemOnly, repoInfo, rankOpts)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("ranking error: %v", err)
-	}
-	vectorChunkResults, _ := vectorSearchChunks(cfg, st, repoInfo.ID, workspace, query, vectorChunkLimit)
-	vectorChunkFiltered := filterVectorResults(vectorChunkResults, vectorMinSimilarity)
-	vectorChunkOnly, err := loadVectorOnlyChunks(st, repoInfo.ID, workspace, chunkResults, vectorChunkFiltered)
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("vector chunk load error: %v", err)
-	}
-	chunkRankOpts := RankOptions{
-		VectorResults:     vectorChunkResults,
-		RecencyMultiplier: parsed.BoostRecency,
-	}
-	if parsed.TimeHint != nil {
-		chunkRankOpts.TimeFilter = &parsed.TimeHint.After
-	}
-	rankedChunks := rankChunks(chunkResults, vectorChunkOnly, vectorChunkResults, matchedThreadIDs, chunkRankOpts)
-
-	var counter TokenCounter
-	budget, err := applyBudget(cfg, counter, stateRaw, stateTokens, rankedMemories, rankedChunks)
-	if errors.Is(err, ErrTokenizerRequired) {
-		counter, err = token.New(cfg.Tokenizer)
-		if err != nil {
-			return ExplainReport{}, fmt.Errorf("tokenizer error: %v", err)
-		}
-		budget, err = applyBudget(cfg, counter, stateRaw, stateTokens, rankedMemories, rankedChunks)
-	}
-	if err != nil {
-		return ExplainReport{}, fmt.Errorf("budget error: %v", err)
-	}
-
-	memExplain := make([]ExplainMemory, 0, len(rankedMemories))
-	for _, mem := range rankedMemories {
-		_, included := budget.IncludedMemoryIDs[mem.Memory.ID]
+	memExplain := make([]ExplainMemory, 0, len(trace.RankedMemories))
+	for _, mem := range trace.RankedMemories {
+		_, included := trace.Budget.IncludedMemoryIDs[mem.Memory.ID]
 		memExplain = append(memExplain, ExplainMemory{
 			ID:           mem.Memory.ID,
 			ThreadID:     mem.Memory.ThreadID,
@@ -139,9 +46,9 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 		})
 	}
 
-	chunkExplain := make([]ExplainChunk, 0, len(rankedChunks))
-	for _, chunk := range rankedChunks {
-		_, included := budget.IncludedChunkIDs[chunk.Chunk.ID]
+	chunkExplain := make([]ExplainChunk, 0, len(trace.RankedChunks))
+	for _, chunk := range trace.RankedChunks {
+		_, included := trace.Budget.IncludedChunkIDs[chunk.Chunk.ID]
 		chunkExplain = append(chunkExplain, ExplainChunk{
 			ID:           chunk.Chunk.ID,
 			ThreadID:     chunk.Chunk.ThreadID,
@@ -161,23 +68,20 @@ func buildExplainReport(query string, opts ExplainOptions) (ExplainReport, error
 
 	report := ExplainReport{
 		Query:          query,
-		Repo:           pack.RepoInfo{RepoID: repoInfo.ID, GitRoot: repoInfo.GitRoot, Head: repoInfo.Head, Branch: repoInfo.Branch},
-		Workspace:      workspace,
-		MatchedThreads: matchedThreads,
+		Repo:           pack.RepoInfo{RepoID: contextPack.Repo.RepoID, GitRoot: contextPack.Repo.GitRoot, Head: contextPack.Repo.Head, Branch: contextPack.Repo.Branch},
+		Workspace:      contextPack.Workspace,
+		StateSource:    trace.StateSource,
+		MatchedThreads: trace.MatchedThreads,
 		Memories:       memExplain,
 		Chunks:         chunkExplain,
 		Vector: VectorExplain{
-			Provider:      vectorStatus.Provider,
-			Model:         vectorStatus.Model,
-			Enabled:       vectorStatus.Enabled,
-			MinSimilarity: vectorStatus.MinSimilarity,
-			Error:         vectorStatus.Error,
+			Provider:      trace.VectorMemStatus.Provider,
+			Model:         trace.VectorMemStatus.Model,
+			Enabled:       trace.VectorMemStatus.Enabled,
+			MinSimilarity: trace.VectorMemStatus.MinSimilarity,
+			Error:         trace.VectorMemStatus.Error,
 		},
-		Budget: pack.BudgetInfo{
-			Tokenizer:   cfg.Tokenizer,
-			TargetTotal: cfg.TokenBudget,
-			UsedTotal:   budget.UsedTokens,
-		},
+		Budget: contextPack.Budget,
 	}
 
 	return report, nil

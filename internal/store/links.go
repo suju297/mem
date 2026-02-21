@@ -16,11 +16,16 @@ type Link struct {
 }
 
 func (s *Store) AddLink(link Link) error {
+	_, err := s.AddLinkIfMissing(link)
+	return err
+}
+
+func (s *Store) AddLinkIfMissing(link Link) (bool, error) {
 	fromID := strings.TrimSpace(link.FromID)
 	rel := strings.TrimSpace(link.Rel)
 	toID := strings.TrimSpace(link.ToID)
 	if fromID == "" || rel == "" || toID == "" {
-		return fmt.Errorf("link requires from_id, rel, to_id")
+		return false, fmt.Errorf("link requires from_id, rel, to_id")
 	}
 
 	createdAt := link.CreatedAt
@@ -28,7 +33,7 @@ func (s *Store) AddLink(link Link) error {
 		createdAt = time.Now().UTC()
 	}
 
-	_, err := s.db.Exec(`
+	res, err := s.db.Exec(`
 		INSERT INTO links (from_id, rel, to_id, weight, created_at)
 		SELECT ?, ?, ?, ?, ?
 		WHERE NOT EXISTS (
@@ -37,7 +42,61 @@ func (s *Store) AddLink(link Link) error {
 			WHERE from_id = ? AND rel = ? AND to_id = ?
 		)
 	`, fromID, rel, toID, link.Weight, createdAt.UTC().Format(time.RFC3339Nano), fromID, rel, toID)
-	return err
+	if err != nil {
+		return false, err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return rows > 0, nil
+}
+
+func (s *Store) WouldCreateLinkCycle(repoID, workspace, fromID, toID string) (bool, error) {
+	repoID = strings.TrimSpace(repoID)
+	workspace = normalizeWorkspace(workspace)
+	fromID = strings.TrimSpace(fromID)
+	toID = strings.TrimSpace(toID)
+	if repoID == "" || fromID == "" || toID == "" {
+		return false, nil
+	}
+	if fromID == toID {
+		return true, nil
+	}
+
+	row := s.db.QueryRow(`
+		WITH RECURSIVE walk(id) AS (
+			SELECT ?
+			UNION
+			SELECT l.to_id
+			FROM links l
+			JOIN walk w ON l.from_id = w.id
+			JOIN memories m_from
+				ON m_from.id = l.from_id
+				AND m_from.repo_id = ?
+				AND m_from.workspace = ?
+				AND m_from.deleted_at IS NULL
+				AND (m_from.superseded_by IS NULL OR m_from.superseded_by = '')
+			JOIN memories m_to
+				ON m_to.id = l.to_id
+				AND m_to.repo_id = ?
+				AND m_to.workspace = ?
+				AND m_to.deleted_at IS NULL
+				AND (m_to.superseded_by IS NULL OR m_to.superseded_by = '')
+		)
+		SELECT 1
+		FROM walk
+		WHERE id = ?
+		LIMIT 1
+	`, toID, repoID, workspace, repoID, workspace, fromID)
+	var found int
+	if err := row.Scan(&found); err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
+		}
+		return false, err
+	}
+	return found == 1, nil
 }
 
 func (s *Store) ListLinksForIDs(ids []string) ([]Link, error) {

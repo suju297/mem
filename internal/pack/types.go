@@ -9,6 +9,7 @@ type ContextPack struct {
 	Workspace      string          `json:"workspace"`
 	SearchMeta     SearchMeta      `json:"search_meta,omitempty"`
 	State          json.RawMessage `json:"state"`
+	StateSource    string          `json:"state_source,omitempty"`
 	MatchedThreads []MatchedThread `json:"matched_threads"`
 	TopMemories    []MemoryItem    `json:"top_memories"`
 	TopChunks      []ChunkItem     `json:"top_chunks"`

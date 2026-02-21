@@ -46,17 +46,17 @@ func handleGetInitialContext(ctx context.Context, request mcp.CallToolRequest, r
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
 	}
 
-	st, err := openStore(cfg, repoInfo.ID)
+	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
 	}
-	defer st.Close()
+	defer releaseStore()
 
 	if err := st.EnsureRepo(repoInfo); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("store repo error: %v", err)), nil
 	}
 
-	stateRaw, stateTokens, _, _, err := loadState(repoInfo, workspace, st)
+	stateRaw, stateTokens, _, _, _, err := loadState(repoInfo, workspace, st)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("state error: %v", err)), nil
 	}

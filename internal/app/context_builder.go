@@ -22,7 +22,21 @@ type ContextOptions struct {
 	RequireRepo      bool
 }
 
+type retrievalTrace struct {
+	MatchedThreads    []pack.MatchedThread
+	RankedMemories    []RankedMemory
+	RankedChunks      []RankedChunk
+	VectorMemStatus   VectorSearchStatus
+	VectorChunkStatus VectorSearchStatus
+	Budget            BudgetResult
+	StateSource       string
+}
+
 func buildContextPack(query string, opts ContextOptions, timings *getTimings) (pack.ContextPack, error) {
+	return buildContextPackWithTrace(query, opts, timings, nil)
+}
+
+func buildContextPackWithTrace(query string, opts ContextOptions, timings *getTimings, trace *retrievalTrace) (pack.ContextPack, error) {
 	var t getTimings
 	configStart := time.Now()
 	cfg, err := loadConfig()
@@ -45,19 +59,19 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 	t.RepoDetect = time.Since(repoStart)
 
 	storeStart := time.Now()
-	st, err := openStore(cfg, repoInfo.ID)
+	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("store open error: %v", err)
 	}
 	t.StoreOpen = time.Since(storeStart)
-	defer st.Close()
+	defer releaseStore()
 
 	if err := st.EnsureRepo(repoInfo); err != nil {
 		return pack.ContextPack{}, fmt.Errorf("store repo error: %v", err)
 	}
 
 	stateStart := time.Now()
-	stateRaw, stateTokens, stateUpdatedAt, stateWarning, err := loadState(repoInfo, workspace, st)
+	stateRaw, stateTokens, stateUpdatedAt, stateSource, stateWarning, err := loadState(repoInfo, workspace, st)
 	if err != nil {
 		return pack.ContextPack{}, fmt.Errorf("state error: %v", err)
 	}
@@ -268,6 +282,7 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 		Workspace:      workspace,
 		SearchMeta:     searchMeta,
 		State:          budget.State,
+		StateSource:    stateSource,
 		MatchedThreads: matchedThreads,
 		TopMemories:    topMemories,
 		TopChunks:      dedupedChunks,
@@ -289,6 +304,15 @@ func buildContextPack(query string, opts ContextOptions, timings *getTimings) (p
 
 	if timings != nil {
 		*timings = t
+	}
+	if trace != nil {
+		trace.MatchedThreads = matchedThreads
+		trace.RankedMemories = rankedMemories
+		trace.RankedChunks = rankedChunks
+		trace.VectorMemStatus = vectorMemStatus
+		trace.VectorChunkStatus = vectorChunkStatus
+		trace.Budget = budget
+		trace.StateSource = stateSource
 	}
 	return result, nil
 }

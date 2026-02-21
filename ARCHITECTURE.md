@@ -139,6 +139,14 @@ Repo resolution order (no explicit override):
 
 With explicit `--repo` / MCP `repo`, override is used first.
 
+State resolution order:
+1. `state_current` row in SQLite
+2. `<repo>/.mempack/state.json`
+3. `<repo>/STATE.md`
+4. empty `{}` state
+
+Context responses expose `state_source` to indicate which source was used.
+
 ## 10) Cross-Cutting Concerns
 
 - Safety: write-mode gating, secret/injection checks, explicit context rules.
