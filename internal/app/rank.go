@@ -12,18 +12,19 @@ import (
 )
 
 type RankedMemory struct {
-	Memory       store.Memory
-	BM25         float64
-	FTSScore     float64
-	FTSRank      int
-	VectorScore  float64
-	VectorRank   int
-	RRFScore     float64
-	RecencyBonus float64
-	ThreadBonus  float64
-	FinalScore   float64
-	Orphaned     bool
-	Superseded   bool
+	Memory        store.Memory
+	BM25          float64
+	FTSScore      float64
+	FTSRank       int
+	VectorScore   float64
+	VectorRank    int
+	RRFScore      float64
+	RecencyBonus  float64
+	ThreadBonus   float64
+	SafetyPenalty float64
+	FinalScore    float64
+	Orphaned      bool
+	Superseded    bool
 }
 
 type RankedChunk struct {
@@ -160,7 +161,10 @@ func rankMemories(query string, results []store.MemoryResult, vectorOnly []store
 		if mem.Memory.SupersededBy != "" {
 			mem.Superseded = true
 		}
-		mem.FinalScore = mem.RRFScore + mem.RecencyBonus + mem.ThreadBonus
+		if containsPromptInjectionPhrase(mem.Memory.Title) || containsPromptInjectionPhrase(mem.Memory.Summary) {
+			mem.SafetyPenalty = -100.0
+		}
+		mem.FinalScore = mem.RRFScore + mem.RecencyBonus + mem.ThreadBonus + mem.SafetyPenalty
 		if opts.TimeFilter != nil && mem.Memory.CreatedAt.Before(*opts.TimeFilter) {
 			mem.FinalScore -= 2.0
 		}

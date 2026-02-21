@@ -32,22 +32,23 @@ type VectorExplain struct {
 }
 
 type ExplainMemory struct {
-	ID           string  `json:"id"`
-	ThreadID     string  `json:"thread_id,omitempty"`
-	Title        string  `json:"title"`
-	AnchorCommit string  `json:"anchor_commit,omitempty"`
-	BM25         float64 `json:"bm25"`
-	FTSScore     float64 `json:"fts_score"`
-	FTSRank      int     `json:"fts_rank"`
-	VectorScore  float64 `json:"vector_score"`
-	VectorRank   int     `json:"vector_rank"`
-	RRFScore     float64 `json:"rrf_score"`
-	RecencyBonus float64 `json:"recency_bonus"`
-	ThreadBonus  float64 `json:"thread_bonus"`
-	Superseded   bool    `json:"superseded"`
-	Orphaned     bool    `json:"orphaned"`
-	FinalScore   float64 `json:"final_score"`
-	Included     bool    `json:"included"`
+	ID            string  `json:"id"`
+	ThreadID      string  `json:"thread_id,omitempty"`
+	Title         string  `json:"title"`
+	AnchorCommit  string  `json:"anchor_commit,omitempty"`
+	BM25          float64 `json:"bm25"`
+	FTSScore      float64 `json:"fts_score"`
+	FTSRank       int     `json:"fts_rank"`
+	VectorScore   float64 `json:"vector_score"`
+	VectorRank    int     `json:"vector_rank"`
+	RRFScore      float64 `json:"rrf_score"`
+	RecencyBonus  float64 `json:"recency_bonus"`
+	ThreadBonus   float64 `json:"thread_bonus"`
+	SafetyPenalty float64 `json:"safety_penalty,omitempty"`
+	Superseded    bool    `json:"superseded"`
+	Orphaned      bool    `json:"orphaned"`
+	FinalScore    float64 `json:"final_score"`
+	Included      bool    `json:"included"`
 }
 
 type ExplainChunk struct {

@@ -197,6 +197,19 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 	entitiesRemove := strings.TrimSpace(request.GetString("entities_remove", ""))
 	workspace := strings.TrimSpace(request.GetString("workspace", ""))
 	repoOverride := strings.TrimSpace(request.GetString("repo", ""))
+	if flags.Title {
+		if pattern, ok := detectSensitive(title); ok {
+			return mcp.NewToolResultError(fmt.Sprintf("potential secret detected (%s); redact and retry", pattern)), nil
+		}
+	}
+	if flags.Summary {
+		if pattern, ok := detectSensitive(summary); ok {
+			return mcp.NewToolResultError(fmt.Sprintf("potential secret detected (%s); redact and retry", pattern)), nil
+		}
+	}
+	if (flags.Title && containsInjection(title)) || (flags.Summary && containsInjection(summary)) {
+		return mcp.NewToolResultError("title/summary contains unsafe phrases; remove and retry"), nil
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
