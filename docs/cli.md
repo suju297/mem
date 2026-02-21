@@ -3,14 +3,20 @@
 ## Usage
 
 ```text
-mem [--data-dir <path>] <command> [options]
+mem [global-flags] <command> [args] [flags]
 mem <command> --help
 mem --version
 ```
 
-## Global Option
+## Global Flags
 
-- `--data-dir <path>`: overrides data root (`MEMPACK_DATA_DIR` / config).
+- `--data-dir <path>`
+
+## Shared Flag Sets
+
+- `[scope]` = `[--repo <id|path>] [--workspace <name>]`
+- `[write-meta]` = `[--thread <id>] [--tags <csv>] [--entities <csv>]`
+- `[json]` = `[--format json]`
 
 ## Command Catalog
 
@@ -29,81 +35,79 @@ mem --version
 ### Setup
 
 ```text
-mem [--data-dir <path>] init [--no-agents] [--assistants agents|claude|gemini|all]
-mem [--data-dir <path>] doctor [--repo <id|path>] [--json] [--repair] [--verbose]
-mem [--data-dir <path>] repos [--format table|json] [--full-paths]
-mem [--data-dir <path>] use <repo_id|path>
+mem init [--no-agents] [--assistants agents|claude|gemini|all]
+mem doctor [--repo <id|path>] [--json] [--repair] [--verbose]
+mem repos [--format table|json] [--full-paths]
+mem use <repo_id|path>
 mem version | mem --version | mem -v
 ```
 
 ### Retrieval
 
 ```text
-mem [--data-dir <path>] get <query> [--workspace <name>] [--include-orphans] [--cluster] [--repo <id|path>] [--debug]
-mem [--data-dir <path>] explain <query> [--workspace <name>] [--include-orphans] [--repo <id|path>]
-mem [--data-dir <path>] show <id> [--format json] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] threads [--workspace <name>] [--repo <id|path>] [--format json]
-mem [--data-dir <path>] thread <thread_id> [--limit <n>] [--workspace <name>] [--repo <id|path>] [--format json]
-mem [--data-dir <path>] recent [--limit <n>] [--workspace <name>] [--repo <id|path>] [--format json]
-mem [--data-dir <path>] sessions [--needs-summary] [--count] [--limit <n>] [--workspace <name>] [--repo <id|path>] [--format json]
+mem get <query> [--include-orphans] [--cluster] [--debug] [scope]
+mem explain <query> [--include-orphans] [scope]
+mem show <id> [json] [scope]
+mem threads [json] [scope]
+mem thread <thread_id> [--limit <n>] [json] [scope]
+mem recent [--limit <n>] [json] [scope]
+mem sessions [--needs-summary] [--count] [--limit <n>] [json] [scope]
 ```
 
 ### Writes
 
 ```text
-mem [--data-dir <path>] add --title <title> --summary <summary> [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] add <title> [summary] [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] update <id> [--title <title>] [--summary <summary>] [--tags <csv>] [--tags-add <csv>] [--tags-remove <csv>] [--entities <csv>] [--entities-add <csv>] [--entities-remove <csv>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] supersede <id> --title <title> --summary <summary> [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] supersede <id> [title] [summary] [--thread <id>] [--tags <csv>] [--entities <csv>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] link --from <id> --rel <relation> --to <id> [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] link <from_id> <relation> <to_id> [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] checkpoint --reason <text> (--state-file <path> | --state-json <json>) [--thread <id>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] checkpoint <reason> [state_json] [--state-file <path>] [--thread <id>] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] forget <id> [--workspace <name>] [--repo <id|path>]
+mem add <title> [summary] [write-meta] [scope]
+mem add --title <title> --summary <summary> [write-meta] [scope]
+mem update <id> [--title <title>] [--summary <summary>] [--tags <csv>|--tags-add <csv>|--tags-remove <csv>] [--entities <csv>|--entities-add <csv>|--entities-remove <csv>] [scope]
+mem supersede <id> [title] [summary] [write-meta] [scope]
+mem supersede <id> --title <title> --summary <summary> [write-meta] [scope]
+mem link <from_id> <relation> <to_id> [scope]
+mem link --from <id> --rel <relation> --to <id> [scope]
+mem checkpoint <reason> [state_json] [--state-file <path>] [--thread <id>] [scope]
+mem checkpoint --reason <text> (--state-file <path> | --state-json <json>) [--thread <id>] [scope]
+mem forget <id> [scope]
 ```
 
 ### Ingest and Embeddings
 
 ```text
-mem [--data-dir <path>] ingest <path> --thread <id> [--watch] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] ingest-artifact <path> --thread <id> [--watch] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] embed [--kind memory|chunk|all] [--workspace <name>] [--repo <id|path>]
-mem [--data-dir <path>] embed status [--workspace <name>] [--repo <id|path>]
+mem ingest <path> --thread <id> [--watch] [scope]
+mem ingest-artifact <path> --thread <id> [--watch] [scope]
+mem embed [--kind memory|chunk|all] [scope]
+mem embed status [scope]
 ```
 
 ### Session and Sharing
 
 ```text
-mem [--data-dir <path>] session upsert --title <title> [--summary <summary>] [--thread <id>] [--tags <csv>] [--entities <csv>] [--merge-window-ms <n>] [--min-gap-ms <n>] [--workspace <name>] [--repo <id|path>] [--format json]
-mem [--data-dir <path>] session upsert <title> [summary] [--thread <id>] [--tags <csv>] [--entities <csv>] [--merge-window-ms <n>] [--min-gap-ms <n>] [--workspace <name>] [--repo <id|path>] [--format json]
-mem [--data-dir <path>] share export [--repo <id|path>] [--workspace <name>] [--out <dir>]
-mem [--data-dir <path>] share import [--repo <id|path>] [--workspace <name>] [--in <dir>] [--replace]
+mem session upsert <title> [summary] [write-meta] [--merge-window-ms <n>] [--min-gap-ms <n>] [json] [scope]
+mem session upsert --title <title> [--summary <summary>] [write-meta] [--merge-window-ms <n>] [--min-gap-ms <n>] [json] [scope]
+mem share export [--out <dir>] [scope]
+mem share import [--in <dir>] [--replace] [scope]
 ```
 
-Notes:
-- If `source_repo_id` differs from the current repo, interactive terminals prompt for confirmation.
-- For non-interactive runs, pipe an answer (`printf 'yes\n' | mem share import`).
+`share import` prompts for confirmation if `source_repo_id` differs from the current repo in interactive terminals.
 
 ### MCP
 
 ```text
-mem [--data-dir <path>] mcp [--stdio] [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
-mem [--data-dir <path>] mcp start [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
-mem [--data-dir <path>] mcp stop [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
-mem [--data-dir <path>] mcp status [--repo <id|path>] [--require-repo] [--allow-write] [--write-mode ask|auto|off] [--debug] [--repair]
-mem [--data-dir <path>] mcp manager [--port <n>] [--token <token>] [--idle-seconds <n>]
-mem [--data-dir <path>] mcp manager status [--json]
+mem mcp [--stdio] [mcp-runtime] [mcp-write]
+mem mcp start [mcp-runtime] [mcp-write]
+mem mcp stop
+mem mcp status
+mem mcp manager [--port <n>] [--token <token>] [--idle-seconds <n>]
+mem mcp manager status [--json]
 ```
 
-Notes:
-- `mem mcp` is raw stdio mode for MCP clients.
-- For manual terminal control, use `mem mcp start`, `mem mcp status`, and `mem mcp stop`.
+Where:
+- `[mcp-runtime]` = `[--repo <id|path>] [--require-repo[=true|false]] [--debug] [--repair]`
+- `[mcp-write]` = `[--allow-write] [--write-mode ask|auto|off]`
 
 ### Templates
 
 ```text
-mem [--data-dir <path>] template [agents] [--write] [--assistants agents|claude|gemini|all] [--memory|--no-memory]
+mem template [agents] [--write] [--assistants agents|claude|gemini|all] [--memory|--no-memory]
 ```
 
 ## Notes
