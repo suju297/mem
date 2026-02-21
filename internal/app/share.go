@@ -60,17 +60,16 @@ type shareExportResponse struct {
 }
 
 type shareImportResponse struct {
-	Mode              string `json:"mode"`
-	RepoID            string `json:"repo_id"`
-	Workspace         string `json:"workspace"`
-	BundleDir         string `json:"bundle_dir"`
-	SourceRepoID      string `json:"source_repo_id"`
-	AllowRepoMismatch bool   `json:"allow_repo_mismatch"`
-	Replace           bool   `json:"replace"`
-	Imported          int    `json:"imported"`
-	Updated           int    `json:"updated"`
-	Unchanged         int    `json:"unchanged"`
-	Deleted           int    `json:"deleted"`
+	Mode         string `json:"mode"`
+	RepoID       string `json:"repo_id"`
+	Workspace    string `json:"workspace"`
+	BundleDir    string `json:"bundle_dir"`
+	SourceRepoID string `json:"source_repo_id"`
+	Replace      bool   `json:"replace"`
+	Imported     int    `json:"imported"`
+	Updated      int    `json:"updated"`
+	Unchanged    int    `json:"unchanged"`
+	Deleted      int    `json:"deleted"`
 }
 
 func runShare(args []string, out, errOut io.Writer) int {
@@ -208,13 +207,11 @@ func runShareImport(args []string, out, errOut io.Writer) int {
 	workspace := fs.String("workspace", "", "Workspace name")
 	inDir := fs.String("in", "", "Input directory (default: mempack-share in repo root)")
 	replace := fs.Bool("replace", false, "Replace previously imported shared memories from the same source")
-	allowRepoMismatch := fs.Bool("allow-repo-mismatch", false, "Allow importing when source_repo_id differs from current repo")
 	positional, flagArgs, err := splitFlagArgs(args, map[string]flagSpec{
-		"repo":                {RequiresValue: true},
-		"workspace":           {RequiresValue: true},
-		"in":                  {RequiresValue: true},
-		"replace":             {},
-		"allow-repo-mismatch": {},
+		"repo":      {RequiresValue: true},
+		"workspace": {RequiresValue: true},
+		"in":        {RequiresValue: true},
+		"replace":   {},
 	})
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
@@ -257,9 +254,15 @@ func runShareImport(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "manifest missing source_repo_id")
 		return 1
 	}
-	if manifest.SourceRepoID != repoInfo.ID && !*allowRepoMismatch {
-		fmt.Fprintf(errOut, "repo mismatch: bundle source_repo_id=%s current_repo_id=%s (use --allow-repo-mismatch to continue)\n", manifest.SourceRepoID, repoInfo.ID)
-		return 1
+	if manifest.SourceRepoID != repoInfo.ID {
+		proceed, confirmErr := confirmShareImportRepoMismatch(os.Stdin, errOut, manifest.SourceRepoID, repoInfo.ID)
+		if confirmErr != nil {
+			fmt.Fprintf(errOut, "repo mismatch: confirmation error: %v\n", confirmErr)
+			return 1
+		}
+		if !proceed {
+			return 1
+		}
 	}
 
 	records, err := readShareMemoryRecords(memoriesPath)
@@ -404,17 +407,16 @@ func runShareImport(args []string, out, errOut io.Writer) int {
 	}
 
 	resp := shareImportResponse{
-		Mode:              "import",
-		RepoID:            repoInfo.ID,
-		Workspace:         workspaceName,
-		BundleDir:         bundleDir,
-		SourceRepoID:      manifest.SourceRepoID,
-		AllowRepoMismatch: *allowRepoMismatch,
-		Replace:           *replace,
-		Imported:          importedCount,
-		Updated:           updatedCount,
-		Unchanged:         unchangedCount,
-		Deleted:           deletedCount,
+		Mode:         "import",
+		RepoID:       repoInfo.ID,
+		Workspace:    workspaceName,
+		BundleDir:    bundleDir,
+		SourceRepoID: manifest.SourceRepoID,
+		Replace:      *replace,
+		Imported:     importedCount,
+		Updated:      updatedCount,
+		Unchanged:    unchangedCount,
+		Deleted:      deletedCount,
 	}
 	return writeJSON(out, errOut, resp)
 }
@@ -428,6 +430,49 @@ func resolveShareDir(repoRoot, raw string) string {
 		return filepath.Clean(value)
 	}
 	return filepath.Join(repoRoot, value)
+}
+
+func confirmShareImportRepoMismatch(in io.Reader, errOut io.Writer, sourceRepoID, currentRepoID string) (bool, error) {
+	message := fmt.Sprintf("repo mismatch: bundle source_repo_id=%s current_repo_id=%s", sourceRepoID, currentRepoID)
+	fmt.Fprintln(errOut, message)
+	proceed, err := promptYesNo(in, errOut, "Continue import anyway?", false)
+	if err != nil {
+		return false, err
+	}
+	if !proceed {
+		fmt.Fprintln(errOut, "share import canceled.")
+	}
+	return proceed, nil
+}
+
+func promptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) (bool, error) {
+	reader := bufio.NewReader(in)
+	suffix := "[y/N]"
+	if defaultYes {
+		suffix = "[Y/n]"
+	}
+	for {
+		fmt.Fprintf(out, "%s %s: ", question, suffix)
+		line, err := reader.ReadString('\n')
+		if err != nil && !errors.Is(err, io.EOF) {
+			return false, err
+		}
+
+		answer := strings.ToLower(strings.TrimSpace(line))
+		switch answer {
+		case "":
+			return defaultYes, nil
+		case "y", "yes":
+			return true, nil
+		case "n", "no":
+			return false, nil
+		}
+
+		fmt.Fprintln(out, "Please answer yes or no.")
+		if errors.Is(err, io.EOF) {
+			return defaultYes, nil
+		}
+	}
 }
 
 func writeJSONFile(path string, value any) error {
@@ -587,8 +632,10 @@ Run from the target repo root:
 
   mem share import
 
-If the bundle came from another repo id (fork/rename/migration), use:
+If the bundle came from another repo id (fork/rename/migration),
+Mempack will ask for confirmation before importing across repo ids.
+For non-interactive usage (scripts/CI), pipe a response:
 
-  mem share import --allow-repo-mismatch
+  printf 'yes\n' | mem share import
 `
 }

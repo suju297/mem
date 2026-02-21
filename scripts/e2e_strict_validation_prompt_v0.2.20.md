@@ -65,14 +65,14 @@ S7 Share export/import/idempotency (must-pass)
 - In repo A, ensure at least 2 active memories exist.
 - Run `mem share export` (default folder `mempack-share`).
 - In repo B:
-  - `mem share import --in <A/mempack-share>` without allow mismatch => must fail (repo mismatch).
-  - same with `--allow-repo-mismatch` => must import.
+  - `printf '\n' | mem share import --in <A/mempack-share>` => must fail (repo mismatch / canceled).
+  - `printf 'yes\n' | mem share import --in <A/mempack-share>` => must import.
   - re-import same bundle => no duplicates; unchanged count should increase; imported should be 0.
 
 S8 Share replace behavior (must-pass)
 - In repo B create one local (non-shared) memory.
 - Edit exported bundle (`memories.jsonl` + manifest memory_count) to keep only one shared record.
-- Run `mem share import --allow-repo-mismatch --replace`.
+- Run `printf 'yes\n' | mem share import --replace`.
 - Assert:
   - stale shared records removed,
   - kept shared record still present,

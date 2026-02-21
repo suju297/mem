@@ -1,12 +1,73 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func runCLIWithInput(t *testing.T, input string, args ...string) []byte {
+	t.Helper()
+
+	pipeReader, pipeWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdin pipe: %v", err)
+	}
+	if _, err := pipeWriter.WriteString(input); err != nil {
+		t.Fatalf("write stdin pipe: %v", err)
+	}
+	if err := pipeWriter.Close(); err != nil {
+		t.Fatalf("close stdin writer: %v", err)
+	}
+
+	origStdin := os.Stdin
+	os.Stdin = pipeReader
+	defer func() {
+		os.Stdin = origStdin
+		_ = pipeReader.Close()
+	}()
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	code := Run(args, &out, &errOut)
+	if code != 0 {
+		t.Fatalf("command failed (%d): %s", code, errOut.String())
+	}
+	return bytes.TrimSpace(out.Bytes())
+}
+
+func runCLIExpectErrorWithInput(t *testing.T, input string, args ...string) string {
+	t.Helper()
+
+	pipeReader, pipeWriter, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("create stdin pipe: %v", err)
+	}
+	if _, err := pipeWriter.WriteString(input); err != nil {
+		t.Fatalf("write stdin pipe: %v", err)
+	}
+	if err := pipeWriter.Close(); err != nil {
+		t.Fatalf("close stdin writer: %v", err)
+	}
+
+	origStdin := os.Stdin
+	os.Stdin = pipeReader
+	defer func() {
+		os.Stdin = origStdin
+		_ = pipeReader.Close()
+	}()
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	code := Run(args, &out, &errOut)
+	if code == 0 {
+		t.Fatalf("expected command to fail, got success")
+	}
+	return errOut.String()
+}
 
 func TestCLIShareExportImportIdempotent(t *testing.T) {
 	base := t.TempDir()
@@ -64,12 +125,12 @@ func TestCLIShareExportImportIdempotent(t *testing.T) {
 	}
 
 	withCwd(t, targetRepo)
-	errOut := runCLIExpectError(t, "share", "import", "--in", exported.BundleDir)
+	errOut := runCLIExpectErrorWithInput(t, "\n", "share", "import", "--in", exported.BundleDir)
 	if !strings.Contains(errOut, "repo mismatch") {
 		t.Fatalf("expected repo mismatch error, got: %s", errOut)
 	}
 
-	importOut := runCLI(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch")
+	importOut := runCLIWithInput(t, "yes\n", "share", "import", "--in", exported.BundleDir)
 	var imported shareImportResponse
 	if err := json.Unmarshal(importOut, &imported); err != nil {
 		t.Fatalf("decode share import response: %v", err)
@@ -101,7 +162,7 @@ func TestCLIShareExportImportIdempotent(t *testing.T) {
 		}
 	}
 
-	reimportOut := runCLI(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch")
+	reimportOut := runCLIWithInput(t, "yes\n", "share", "import", "--in", exported.BundleDir)
 	var reimported shareImportResponse
 	if err := json.Unmarshal(reimportOut, &reimported); err != nil {
 		t.Fatalf("decode reimport response: %v", err)
@@ -150,7 +211,7 @@ func TestCLIShareImportReplaceRemovesStaleSharedMemories(t *testing.T) {
 	}
 
 	withCwd(t, targetRepo)
-	_ = runCLI(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch")
+	_ = runCLIWithInput(t, "yes\n", "share", "import", "--in", exported.BundleDir)
 
 	keepRecord := exportedRecords[0]
 	if err := writeJSONLines(memoriesPath, []shareMemoryRecord{keepRecord}); err != nil {
@@ -166,7 +227,7 @@ func TestCLIShareImportReplaceRemovesStaleSharedMemories(t *testing.T) {
 		t.Fatalf("rewrite manifest: %v", err)
 	}
 
-	replaceOut := runCLI(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch", "--replace")
+	replaceOut := runCLIWithInput(t, "yes\n", "share", "import", "--in", exported.BundleDir, "--replace")
 	var replaceResp shareImportResponse
 	if err := json.Unmarshal(replaceOut, &replaceResp); err != nil {
 		t.Fatalf("decode replace response: %v", err)
@@ -232,7 +293,7 @@ func TestCLIShareImportReplaceKeepsReceiverLocalMemories(t *testing.T) {
 		t.Fatalf("decode local-only add response: %v", err)
 	}
 
-	_ = runCLI(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch")
+	_ = runCLIWithInput(t, "yes\n", "share", "import", "--in", exported.BundleDir)
 
 	keepRecord := exportedRecords[0]
 	if err := writeJSONLines(memoriesPath, []shareMemoryRecord{keepRecord}); err != nil {
@@ -248,7 +309,7 @@ func TestCLIShareImportReplaceKeepsReceiverLocalMemories(t *testing.T) {
 		t.Fatalf("rewrite manifest: %v", err)
 	}
 
-	_ = runCLI(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch", "--replace")
+	_ = runCLIWithInput(t, "yes\n", "share", "import", "--in", exported.BundleDir, "--replace")
 
 	// Local, receiver-authored memory should remain even when replacing shared imports.
 	localShow := runCLI(t, "show", localOnlyAdd.ID)
@@ -303,7 +364,7 @@ func TestCLIShareImportRejectsInvalidManifest(t *testing.T) {
 	}
 
 	withCwd(t, targetRepo)
-	errOut := runCLIExpectError(t, "share", "import", "--in", exported.BundleDir, "--allow-repo-mismatch")
+	errOut := runCLIExpectError(t, "share", "import", "--in", exported.BundleDir)
 	if !strings.Contains(errOut, "manifest missing source_repo_id") {
 		t.Fatalf("expected source_repo_id validation error, got: %s", errOut)
 	}
@@ -368,5 +429,45 @@ func TestCLIShareExportSkipsSupersededAndDeleted(t *testing.T) {
 	}
 	if _, ok := recordIDs[deletedAdd.ID]; ok {
 		t.Fatalf("did not expect deleted id %s in export", deletedAdd.ID)
+	}
+}
+
+func TestPromptYesNoAcceptsAffirmative(t *testing.T) {
+	var out bytes.Buffer
+	ok, err := promptYesNo(strings.NewReader("yes\n"), &out, "Continue import anyway?", false)
+	if err != nil {
+		t.Fatalf("prompt yes/no error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected affirmative response")
+	}
+	if !strings.Contains(out.String(), "Continue import anyway? [y/N]: ") {
+		t.Fatalf("expected prompt text, got %q", out.String())
+	}
+}
+
+func TestPromptYesNoDefaultsToNo(t *testing.T) {
+	var out bytes.Buffer
+	ok, err := promptYesNo(strings.NewReader("\n"), &out, "Continue import anyway?", false)
+	if err != nil {
+		t.Fatalf("prompt yes/no error: %v", err)
+	}
+	if ok {
+		t.Fatalf("expected blank response to default to no")
+	}
+}
+
+func TestPromptYesNoRepromptsOnInvalidInput(t *testing.T) {
+	var out bytes.Buffer
+	ok, err := promptYesNo(strings.NewReader("maybe\ny\n"), &out, "Continue import anyway?", false)
+	if err != nil {
+		t.Fatalf("prompt yes/no error: %v", err)
+	}
+	if !ok {
+		t.Fatalf("expected response to succeed after retry")
+	}
+	text := out.String()
+	if !strings.Contains(text, "Please answer yes or no.") {
+		t.Fatalf("expected validation warning in %q", text)
 	}
 }

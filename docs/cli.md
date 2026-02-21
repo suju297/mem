@@ -73,8 +73,12 @@ mem [--data-dir <path>] embed status [--workspace <name>] [--repo <id|path>]
 ```text
 mem [--data-dir <path>] session upsert --title <title> [--summary <summary>] [--thread <id>] [--tags <csv>] [--entities <csv>] [--merge-window-ms <n>] [--min-gap-ms <n>] [--workspace <name>] [--repo <id|path>] [--format json]
 mem [--data-dir <path>] share export [--repo <id|path>] [--workspace <name>] [--out <dir>]
-mem [--data-dir <path>] share import [--repo <id|path>] [--workspace <name>] [--in <dir>] [--replace] [--allow-repo-mismatch]
+mem [--data-dir <path>] share import [--repo <id|path>] [--workspace <name>] [--in <dir>] [--replace]
 ```
+
+Notes:
+- If `source_repo_id` differs from the current repo, interactive terminals prompt for confirmation.
+- For non-interactive runs, pipe an answer (`printf 'yes\n' | mem share import`).
 
 ### MCP
 
