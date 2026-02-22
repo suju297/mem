@@ -576,7 +576,7 @@ func allowedExtension(path string) bool {
 	switch lower {
 	case ".md", ".txt", ".rst", ".log", ".json", ".yaml", ".yml", ".toml":
 		return true
-	case ".py", ".go", ".js", ".ts", ".tsx", ".java", ".kt", ".rs", ".c", ".cpp", ".h", ".cs", ".sql", ".sh":
+	case ".py", ".go", ".js", ".jsx", ".ts", ".tsx", ".mts", ".cts", ".java", ".kt", ".rs", ".c", ".cpp", ".h", ".cs", ".sql", ".sh":
 		return true
 	default:
 		return false
