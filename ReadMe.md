@@ -174,45 +174,20 @@ embedding_model = "nomic-embed-text"
 
 ## Architecture
 
-Detailed diagrams and architecture contracts live in `ARCHITECTURE.md`.
+Use this README for a quick mental model, and `ARCHITECTURE.md` for implementation-level boundaries and contracts.
 
-Canonical rendered views:
+### At a Glance (L1)
 
 ![L1 System Context](docs/diagrams/architecture-l1-system-context.png)
 
-![L2 Runtime and Persistence Boundaries](docs/diagrams/architecture-l2-container-view.png)
+This view shows external clients (CLI, MCP tools, extension) and the core local runtime/storage shape.
 
-![L3 Retrieval Pipeline Components](docs/diagrams/architecture-l3-retrieval-components.png)
+### Detailed Views
 
-```mermaid
-flowchart TD
-    CLI["CLI<br/>`mem ...`"]
-    MCP["MCP Tools<br/>`mem_*` (legacy `mempack_*`)"]
-    EXT["VS Code/Cursor<br/>Extension"]
-
-    APP["App Orchestrator<br/>`internal/app`"]
-    CFG["Config + Repo Resolution<br/>`internal/config`, `internal/repo*`"]
-    STORE["SQLite Store<br/>`internal/store`"]
-    FTS["FTS Search Index<br/>SQLite FTS5"]
-    EMBED["Embedding Layer<br/>`internal/embed` (optional)"]
-
-    CLI --> APP
-    MCP --> APP
-    EXT --> APP
-    APP --> CFG
-    APP --> STORE
-    STORE --> FTS
-    APP --> EMBED
-    EMBED -. vectors .-> STORE
-
-    classDef edge fill:#E8F1FF,stroke:#2D6CDF,color:#0B2545,stroke-width:1.5px;
-    classDef core fill:#E9FFF3,stroke:#1B8A5A,color:#0C3B2E,stroke-width:1.5px;
-    classDef data fill:#FFF3E8,stroke:#C96A12,color:#4A2A00,stroke-width:1.5px;
-
-    class CLI,MCP,EXT edge;
-    class APP,CFG core;
-    class STORE,FTS,EMBED data;
-```
+- L2 runtime and persistence boundaries: `docs/diagrams/architecture-l2-container-view.png`
+- L3 retrieval pipeline components: `docs/diagrams/architecture-l3-retrieval-components.png`
+- L3.5 storage topology: `docs/diagrams/architecture-l3-storage-birds-eye.png`
+- Full narrative and invariants: `ARCHITECTURE.md`
 
 ## VS Code/Cursor Extension
 
