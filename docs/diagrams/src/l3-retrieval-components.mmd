@@ -1,15 +1,40 @@
-flowchart LR
-  classDef step fill:#F0F9FF,stroke:#0284C7,stroke-width:1.8px,color:#082F49
-  classDef gate fill:#FEFCE8,stroke:#CA8A04,stroke-width:1.8px,color:#422006
-  classDef out fill:#ECFDF5,stroke:#16A34A,stroke-width:1.8px,color:#052E16
+%%{init: {
+  "theme": "base",
+  "flowchart": { "curve": "linear", "nodeSpacing": 42, "rankSpacing": 40 },
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, sans-serif",
+    "lineColor": "#475569",
+    "primaryTextColor": "#0F172A",
+    "fontSize": "16px"
+  }
+}}%%
+flowchart TB
+  classDef step fill:#EAF6FF,stroke:#0284C7,stroke-width:2px,color:#082F49
+  classDef gate fill:#FFF7CC,stroke:#CA8A04,stroke-width:2px,color:#422006
+  classDef io fill:#EAFBF1,stroke:#16A34A,stroke-width:2px,color:#052E16
 
-  Q["Query + Options"]:::step --> R["Resolve Repo + Workspace"]:::step
-  R --> S["Load State"]:::step
-  S --> F["FTS Search (memories + chunks)"]:::step
-  F --> V{"Embeddings available?"}:::gate
-  V -->|"Yes"| E["Vector Search"]:::step
-  V -->|"No"| RK["Rank BM25 results"]:::step
-  E --> RK["Rank + Fuse (RRF + recency + safety + thread)"]:::step
-  RK --> O["Orphan filtering (unless include-orphans)"]:::step
-  O --> B["Apply token budget"]:::step
-  B --> C["Assemble ContextPack (prompt + structured JSON)"]:::out
+  subgraph PIPE["Retrieval Pipeline"]
+    direction TB
+    Q["Input<br/>query + options"]:::io
+    R["Component<br/>resolve repo + workspace"]:::step
+    S["Component<br/>load authoritative state"]:::step
+    L["Component<br/>lexical retrieval (FTS5/BM25)"]:::step
+    G{"Gate<br/>vectors available?"}:::gate
+    E["Component<br/>semantic retrieval (cosine)"]:::step
+    F["Component<br/>rank + fuse (RRF + priors)"]:::step
+    O["Component<br/>orphan filtering"]:::step
+    B["Component<br/>token budget selection"]:::step
+    C["Output<br/>ContextPack JSON + prompt"]:::io
+  end
+
+  Q -->|"resolve scope"| R
+  R -->|"load authoritative state"| S
+  S -->|"run lexical retrieval"| L
+  L -->|"check vector path"| G
+  G -->|"yes: run semantic retrieval"| E
+  G -->|"no: lexical-only ranking"| F
+  L -->|"add lexical candidates"| F
+  E -->|"add semantic candidates"| F
+  F -->|"drop stale branch anchors"| O
+  O -->|"fit token budget"| B
+  B -->|"emit context pack"| C

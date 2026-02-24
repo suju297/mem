@@ -9,6 +9,10 @@ Implementation source of truth:
 - `internal/app/ingest.go`
 - `internal/app/share.go`
 
+## Storage Topology Diagram
+
+![L3.5 Storage Bird's-Eye](diagrams/architecture-l3-storage-birds-eye.png)
+
 ## Storage Layout
 
 Data root resolution order:

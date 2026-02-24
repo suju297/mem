@@ -43,3 +43,6 @@ sandbox/
 
 # Local mempack config
 .mempack/config.json
+
+# Local writing drafts
+substack-artcile.md

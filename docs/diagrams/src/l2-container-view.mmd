@@ -1,22 +1,46 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": { "curve": "linear", "nodeSpacing": 45, "rankSpacing": 45 },
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, sans-serif",
+    "lineColor": "#475569",
+    "primaryTextColor": "#0F172A",
+    "fontSize": "16px"
+  }
+}}%%
 flowchart TB
-  classDef container fill:#ECFEFF,stroke:#0E7490,stroke-width:2px,color:#083344
-  classDef data fill:#FAF5FF,stroke:#9333EA,stroke-width:2px,color:#3B0764
-  classDef cfg fill:#FFF7ED,stroke:#C2410C,stroke-width:2px,color:#431407
+  classDef actor fill:#E8F1FF,stroke:#2563EB,stroke-width:2px,color:#0F172A
+  classDef runtime fill:#E6FAFF,stroke:#0E7490,stroke-width:2px,color:#083344
+  classDef data fill:#F4E8FF,stroke:#7C3AED,stroke-width:2px,color:#2E1065
+  classDef cfg fill:#FFF3E8,stroke:#C2410C,stroke-width:2px,color:#431407
 
-  subgraph HOST["Developer Machine"]
-    EXT["Extension Host<br/>Container"]:::container
-    STDIO["mem process (one-shot stdio MCP)<br/>Container"]:::container
-    DAEMON["mem mcp daemon (background)<br/>Container"]:::container
-    MANAGER["mem mcp manager (localhost TCP)<br/>Container"]:::container
-    CFG["Config + Repo Routing State<br/>XDG config, active_repo, repo_cache"]:::cfg
-    DB["SQLite Repo DB<br/>&lt;data_dir&gt;/repos/&lt;repo_id&gt;/memory.db"]:::data
+  subgraph HOST["Developer Machine Boundary<br/>"]
+    direction TB
+    U([Person<br/>Developer using IDE]):::actor
+    EXT["Runtime Process<br/>Extension Host"]:::runtime
+
+    subgraph RUNTIME["Mem Runtime Processes"]
+      direction LR
+      MANAGER["Runtime Process<br/>mem mcp manager"]:::runtime
+      DAEMON["Runtime Process<br/>mem mcp daemon"]:::runtime
+      STDIO["Runtime Process<br/>mem stdio (per tool call)"]:::runtime
+    end
+
+    subgraph FILES["Local Persistence"]
+      direction LR
+      STATE["State File<br/>manager state + token"]:::cfg
+      DB[("Data Store<br/>SQLite repo DB")]:::data
+      CFG["Config File<br/>runtime config"]:::cfg
+    end
   end
 
-  EXT -->|"spawn per tool call"| STDIO
-  EXT -->|"status/start/stop commands"| MANAGER
-  MANAGER -->|"start/stop/status"| DAEMON
-  STDIO -->|"reads/writes"| DB
-  DAEMON -->|"reads/writes"| DB
-  STDIO -->|"loads config"| CFG
-  DAEMON -->|"loads config"| CFG
-  MANAGER -->|"loads manager info + token"| CFG
+  U -->|"runs extension"| EXT
+  EXT -->|"start/stop/status"| MANAGER
+  EXT -->|"spawn tool call"| STDIO
+  MANAGER -->|"daemon lifecycle control"| DAEMON
+
+  MANAGER -->|"load manager state"| STATE
+  DAEMON -->|"read/write memory"| DB
+  STDIO -->|"read/write memory"| DB
+  DAEMON -->|"load runtime config"| CFG
+  STDIO -->|"load runtime config"| CFG

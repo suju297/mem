@@ -176,6 +176,14 @@ embedding_model = "nomic-embed-text"
 
 Detailed diagrams and architecture contracts live in `ARCHITECTURE.md`.
 
+Canonical rendered views:
+
+![L1 System Context](docs/diagrams/architecture-l1-system-context.png)
+
+![L2 Runtime and Persistence Boundaries](docs/diagrams/architecture-l2-container-view.png)
+
+![L3 Retrieval Pipeline Components](docs/diagrams/architecture-l3-retrieval-components.png)
+
 ```mermaid
 flowchart TD
     CLI["CLI<br/>`mem ...`"]
