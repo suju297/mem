@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -48,6 +50,7 @@ func runMCP(args []string, out, errOut io.Writer) int {
 	requireRepo := fs.Bool("require-repo", false, "Require repo resolution from request/cwd (no active_repo fallback)")
 	writeModeFlag := fs.String("write-mode", "", "Write mode: ask|auto|off (default: config or ask when writes enabled)")
 	forceStdio := fs.Bool("stdio", false, "Force raw MCP stdio mode on interactive terminals")
+	daemonMode := fs.Bool("daemon", false, "Internal: run background MCP daemon")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -102,7 +105,6 @@ func runMCP(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 
-	srv := server.NewMCPServer(*name, *version, server.WithToolCapabilities(false))
 	var rt *mcpRuntime
 	if cfgErr == nil {
 		rt = newMCPRuntime(cfgBase)
@@ -112,11 +114,21 @@ func runMCP(args []string, out, errOut io.Writer) int {
 			_ = rt.close()
 		}()
 	}
-	tools := registerMCPTools(srv, writeCfg, requireRepoEffective)
 	modeLabel := "write=disabled"
 	if writeCfg.Allowed {
 		modeLabel = "write-mode=" + writeCfg.Mode
 	}
+	if *daemonMode {
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+		if cfgErr == nil {
+			startEmbeddingWorker(ctx, cfg, report.Repo.ID)
+		}
+		return runMCPDaemon(ctx, errOut, report, modeLabel)
+	}
+
+	srv := server.NewMCPServer(*name, *version, server.WithToolCapabilities(false))
+	tools := registerMCPTools(srv, writeCfg, requireRepoEffective)
 	if !shouldServeMCPStdio(*forceStdio, isInteractiveTerminal(os.Stdin), isInteractiveTerminal(os.Stdout)) {
 		fmt.Fprintln(errOut, "mcp stdio expects a JSON-RPC client, not an interactive terminal.")
 		fmt.Fprintln(errOut, "Use one of:")
@@ -140,6 +152,13 @@ func runMCP(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "mcp server error: %v\n", err)
 		return 1
 	}
+	return 0
+}
+
+func runMCPDaemon(ctx context.Context, errOut io.Writer, report health.Report, modeLabel string) int {
+	fmt.Fprintf(errOut, "mem mcp daemon: repo=%s db=%s schema=v%d fts=ok (%s)\n",
+		report.Repo.ID, report.DB.Path, report.Schema.UserVersion, modeLabel)
+	<-ctx.Done()
 	return 0
 }
 

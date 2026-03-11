@@ -13,6 +13,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 
 	"mempack/internal/pack"
+	"mempack/internal/repo"
 	"mempack/internal/store"
 )
 
@@ -805,6 +806,59 @@ func TestMCPCheckpointRequiresConfirmation(t *testing.T) {
 	}
 	if stateID, _ := payload["state_id"].(string); stateID == "" {
 		t.Fatalf("expected state_id in response")
+	}
+}
+
+func TestMCPCheckpointRegistersRepoOnFirstWrite(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	info, err := repo.Detect(repoDir)
+	if err != nil {
+		t.Fatalf("detect repo: %v", err)
+	}
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "mem_checkpoint",
+			Arguments: map[string]any{
+				"reason":     "Checkpoint reason",
+				"state_json": `{"goal":"ship"}`,
+				"confirmed":  true,
+			},
+		},
+	}
+	res, err := handleCheckpoint(context.Background(), req, mcpWriteConfig{Allowed: true, Mode: writeModeAsk}, false)
+	if err != nil {
+		t.Fatalf("checkpoint error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected checkpoint to succeed")
+	}
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("config error: %v", err)
+	}
+	st, err := openStore(cfg, info.ID)
+	if err != nil {
+		t.Fatalf("store open error: %v", err)
+	}
+	defer st.Close()
+
+	row, err := st.GetRepo(info.ID)
+	if err != nil {
+		t.Fatalf("expected repo row after checkpoint: %v", err)
+	}
+	expectedRoot, err := filepath.EvalSymlinks(repoDir)
+	if err != nil {
+		t.Fatalf("eval symlinks: %v", err)
+	}
+	if row.GitRoot != expectedRoot {
+		t.Fatalf("expected repo git_root %s, got %s", expectedRoot, row.GitRoot)
 	}
 }
 

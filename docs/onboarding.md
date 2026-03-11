@@ -57,11 +57,21 @@ codex mcp add mem -- mem mcp --require-repo
 codex mcp list
 ```
 
-4. Start MCP:
+4. Start MCP stdio:
 
 ```bash
 mem mcp
 ```
+
+Background daemon lifecycle is separate:
+
+```bash
+mem mcp start
+mem mcp status
+mem mcp stop
+```
+
+`mem mcp manager` remains a separate control-plane process.
 
 5. Seed one memory:
 
@@ -102,6 +112,7 @@ mem mcp
 ```
 What happens:
 - The agent can call `mem_get_context` automatically.
+- Use `mem mcp start|status|stop` only for the local daemon lifecycle.
 Common mistakes:
 - Running MCP globally without `--require-repo`.
 - Forgetting to start the MCP server.

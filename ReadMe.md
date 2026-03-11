@@ -73,7 +73,13 @@ codex mcp add mem -- mem mcp --require-repo
 codex mcp list
 ```
 
-5. Daemon lifecycle commands:
+5. MCP runtime modes:
+
+- `mem mcp` runs the stdio server for a directly attached MCP client.
+- `mem mcp start|status|stop` manage the local background daemon.
+- `mem mcp manager` remains a separate control-plane process.
+
+6. Daemon lifecycle commands:
 
 ```bash
 mem mcp start

@@ -125,6 +125,10 @@ func runCheckpoint(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 	defer st.Close()
+	if err := st.EnsureRepo(repoInfo); err != nil {
+		fmt.Fprintf(errOut, "store repo error: %v\n", err)
+		return 1
+	}
 
 	now := time.Now().UTC()
 	stateID := store.NewID("S")

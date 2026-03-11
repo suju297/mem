@@ -653,6 +653,38 @@ func TestCLIReposAndUse(t *testing.T) {
 	}
 }
 
+func TestCLICheckpointRegistersRepoOnFirstWrite(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	info, err := repo.Detect(repoDir)
+	if err != nil {
+		t.Fatalf("detect repo: %v", err)
+	}
+
+	runCLI(t, "checkpoint", "--reason", "Snapshot", "--state-json", `{"goal":"ship"}`)
+
+	reposJSONOut := runCLI(t, "repos", "--format", "json")
+	var repos []RepoListItem
+	if err := json.Unmarshal(reposJSONOut, &repos); err != nil {
+		t.Fatalf("decode repos json response: %v", err)
+	}
+
+	found := false
+	for _, item := range repos {
+		if item.RepoID == info.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected repos json output to include repo id %s after checkpoint", info.ID)
+	}
+}
+
 func TestCLIThreadFlagsAfterID(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)

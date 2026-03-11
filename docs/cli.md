@@ -99,6 +99,9 @@ mem mcp manager status [--json]
 ```
 `[mcp-runtime]` = `[--repo <id|path>] [--require-repo[=true|false]] [--debug] [--repair]`
 `[mcp-write]` = `[--allow-write] [--write-mode ask|auto|off]`
+`mem mcp` serves stdio for an attached MCP client.
+`mem mcp start|stop|status` manage the local background daemon.
+`mem mcp manager` is a separate control-plane runtime.
 
 ### ![Templates](https://img.shields.io/badge/-6B7280?style=flat-square) Templates
 

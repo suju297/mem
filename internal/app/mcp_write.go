@@ -435,6 +435,9 @@ func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg m
 		return mcp.NewToolResultError(fmt.Sprintf("store open error: %v", err)), nil
 	}
 	defer releaseStore()
+	if err := st.EnsureRepo(repoInfo); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("store repo error: %v", err)), nil
+	}
 
 	now := time.Now().UTC()
 	stateID := store.NewID("S")

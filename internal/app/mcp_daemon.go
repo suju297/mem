@@ -10,7 +10,19 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 )
+
+const (
+	mcpReadyTimeout      = 3 * time.Second
+	mcpReadyStableFor    = 500 * time.Millisecond
+	mcpReadyPollInterval = 50 * time.Millisecond
+	mcpStopTimeout       = 3 * time.Second
+)
+
+var mcpExecPath = func() (string, error) {
+	return exec.LookPath(os.Args[0])
+}
 
 func runMCPStartLocal(args []string, out, errOut io.Writer) int {
 	cfg, err := loadConfig()
@@ -38,7 +50,7 @@ func runMCPStartLocal(args []string, out, errOut io.Writer) int {
 		return 0
 	}
 
-	bin, err := exec.LookPath(os.Args[0])
+	bin, err := mcpExecPath()
 	if err != nil {
 		fmt.Fprintf(errOut, "failed to find mem binary: %v\n", err)
 		return 1
@@ -74,17 +86,25 @@ func runMCPStartLocal(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "failed to start mcp: %v\n", err)
 		return 1
 	}
+	pid := cmd.Process.Pid
 
-	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", cmd.Process.Pid)), 0o644); err != nil {
+	if err := os.WriteFile(pidPath, []byte(fmt.Sprintf("%d\n", pid)), 0o644); err != nil {
 		_ = cmd.Process.Kill()
 		_ = logFile.Close()
 		fmt.Fprintf(errOut, "failed to write pid file: %v\n", err)
 		return 1
 	}
 	_ = logFile.Close()
+	if !waitForMCPReady(pidPath, pid, mcpReadyTimeout) {
+		_ = os.Remove(pidPath)
+		_ = cmd.Process.Kill()
+		_ = cmd.Process.Release()
+		fmt.Fprintf(errOut, "failed to start mcp daemon; see log: %s\n", logPath)
+		return 1
+	}
 	_ = cmd.Process.Release()
 
-	fmt.Fprintf(out, "mem mcp started (pid=%d, log=%s)\n", cmd.Process.Pid, logPath)
+	fmt.Fprintf(out, "mem mcp started (pid=%d, log=%s)\n", pid, logPath)
 	return 0
 }
 
@@ -108,11 +128,23 @@ func buildMCPChildArgs(args []string, fallbackDataDir string) ([]string, error) 
 }
 
 func applyMCPStartDefaults(args []string) []string {
-	if hasMCPRequireRepoFlag(args) {
-		return append([]string{}, args...)
-	}
 	out := append([]string{}, args...)
-	return append(out, "--require-repo")
+	if !hasMCPDaemonFlag(args) {
+		out = append(out, "--daemon")
+	}
+	if !hasMCPRequireRepoFlag(args) {
+		out = append(out, "--require-repo")
+	}
+	return out
+}
+
+func hasMCPDaemonFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--daemon" || arg == "--daemon=true" {
+			return true
+		}
+	}
+	return false
 }
 
 func hasMCPRequireRepoFlag(args []string) bool {
@@ -152,7 +184,13 @@ func runMCPStopLocal(out, errOut io.Writer) int {
 		return 1
 	}
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
-		fmt.Fprintf(errOut, "failed to stop mcp: %v\n", err)
+		if isMCPProcessRunning(pid) {
+			fmt.Fprintf(errOut, "failed to stop mcp: %v\n", err)
+			return 1
+		}
+	}
+	if !waitForProcessExit(pid, mcpStopTimeout) {
+		fmt.Fprintf(errOut, "timed out stopping mcp (pid=%d)\n", pid)
 		return 1
 	}
 	_ = os.Remove(pidPath)
@@ -196,17 +234,60 @@ func readPID(path string) (int, bool) {
 	if err != nil || pid <= 0 {
 		return 0, false
 	}
+	return pid, isMCPProcessRunning(pid)
+}
+
+func isMCPProcessRunning(pid int) bool {
+	if pid <= 0 {
+		return false
+	}
 	proc, err := os.FindProcess(pid)
 	if err != nil {
-		return pid, false
+		return false
 	}
 	if err := proc.Signal(syscall.Signal(0)); err != nil {
-		return pid, false
+		return false
 	}
-	if !looksLikeMCPProcess(pid) {
-		return pid, false
+	if processIsZombie(pid) {
+		return false
 	}
-	return pid, true
+	return looksLikeMCPProcess(pid)
+}
+
+func waitForMCPReady(pidPath string, pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	var readySince time.Time
+	for {
+		currentPID, running := readPID(pidPath)
+		now := time.Now()
+		if running && currentPID == pid {
+			if readySince.IsZero() {
+				readySince = now
+			}
+			if now.Sub(readySince) >= mcpReadyStableFor {
+				return true
+			}
+		} else {
+			readySince = time.Time{}
+		}
+		if !now.Before(deadline) {
+			return false
+		}
+		time.Sleep(mcpReadyPollInterval)
+	}
+}
+
+func waitForProcessExit(pid int, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if !isMCPProcessRunning(pid) {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			return false
+		}
+		time.Sleep(mcpReadyPollInterval)
+	}
 }
 
 func looksLikeMCPProcess(pid int) bool {
@@ -226,10 +307,22 @@ func looksLikeMCPProcess(pid int) bool {
 		return false
 	}
 	bin := strings.ToLower(filepath.Base(os.Args[0]))
-	if bin != "" && strings.Contains(cmdline, bin) && strings.Contains(cmdline, " mcp") {
+	if bin != "" && strings.Contains(cmdline, bin) && strings.Contains(cmdline, " mcp") && strings.Contains(cmdline, "--daemon") {
 		return true
 	}
-	return strings.Contains(cmdline, " mcp ")
+	return strings.Contains(cmdline, " mcp ") && strings.Contains(cmdline, "--daemon")
+}
+
+func processIsZombie(pid int) bool {
+	if pid <= 0 || runtime.GOOS == "windows" {
+		return false
+	}
+	out, err := exec.Command("ps", "-p", strconv.Itoa(pid), "-o", "stat=").Output()
+	if err != nil {
+		return false
+	}
+	status := strings.TrimSpace(string(out))
+	return status != "" && status[0] == 'Z'
 }
 
 func lockPIDFile(path string) (*os.File, error) {
