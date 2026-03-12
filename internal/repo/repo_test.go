@@ -5,6 +5,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+
+	"mem/internal/config"
+	"mem/internal/pathutil"
 )
 
 func TestDetect(t *testing.T) {
@@ -97,6 +100,57 @@ func TestDetectStrictUnbornHEAD(t *testing.T) {
 	}
 	if info.ID == "" {
 		t.Fatalf("expected non-empty ID")
+	}
+}
+
+func TestDetectSupportDirWithoutGit(t *testing.T) {
+	for _, dirName := range []string{config.RepoSupportDirName, config.LegacyRepoSupportDirName} {
+		t.Run(dirName, func(t *testing.T) {
+			tmpDir, err := os.MkdirTemp("", "mem-test-support-root-*")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer os.RemoveAll(tmpDir)
+
+			projectRoot := filepath.Join(tmpDir, "project")
+			nested := filepath.Join(projectRoot, "src", "feature")
+			if err := os.MkdirAll(filepath.Join(projectRoot, dirName), 0o755); err != nil {
+				t.Fatalf("mkdir support dir: %v", err)
+			}
+			if err := os.MkdirAll(nested, 0o755); err != nil {
+				t.Fatalf("mkdir nested dir: %v", err)
+			}
+			wantRoot := pathutil.Canonical(projectRoot)
+
+			info, err := Detect(nested)
+			if err != nil {
+				t.Fatalf("Detect support dir failed: %v", err)
+			}
+			if info.HasGit {
+				t.Fatalf("expected HasGit=false for support-dir project")
+			}
+			if info.GitRoot != wantRoot {
+				t.Fatalf("expected GitRoot %s, got %s", wantRoot, info.GitRoot)
+			}
+			wantID := hashID("p_", wantRoot)
+			if info.ID != wantID {
+				t.Fatalf("expected repo id %s, got %s", wantID, info.ID)
+			}
+
+			strictInfo, err := DetectStrict(nested)
+			if err != nil {
+				t.Fatalf("DetectStrict support dir failed: %v", err)
+			}
+			if strictInfo.HasGit {
+				t.Fatalf("expected strict HasGit=false for support-dir project")
+			}
+			if strictInfo.GitRoot != wantRoot {
+				t.Fatalf("expected strict GitRoot %s, got %s", wantRoot, strictInfo.GitRoot)
+			}
+			if strictInfo.ID != wantID {
+				t.Fatalf("expected strict repo id %s, got %s", wantID, strictInfo.ID)
+			}
+		})
 	}
 }
 

@@ -6,9 +6,12 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"mem/internal/config"
 	"mem/internal/pathutil"
 )
 
@@ -43,6 +46,9 @@ func DetectStrict(cwd string) (Info, error) {
 func DetectBase(cwd string) (Info, error) {
 	root, head, branch, err := gitRootHeadBranch(cwd)
 	if err != nil {
+		if supportRoot := detectSupportRoot(cwd); supportRoot != "" {
+			return fallbackInfo(supportRoot), nil
+		}
 		return fallbackInfo(cwd), nil
 	}
 	return Info{
@@ -56,6 +62,9 @@ func DetectBase(cwd string) (Info, error) {
 func DetectBaseStrict(cwd string) (Info, error) {
 	root, head, branch, err := gitRootHeadBranch(cwd)
 	if err != nil {
+		if supportRoot := detectSupportRoot(cwd); supportRoot != "" {
+			return fallbackInfo(supportRoot), nil
+		}
 		return Info{}, err
 	}
 	return Info{
@@ -162,6 +171,36 @@ func fallbackInfo(cwd string) Info {
 		GitRoot: root,
 		HasGit:  false,
 	}
+}
+
+func detectSupportRoot(cwd string) string {
+	root := pathutil.Canonical(cwd)
+	if strings.TrimSpace(root) == "" || root == "." {
+		if wd, err := os.Getwd(); err == nil {
+			root = pathutil.Canonical(wd)
+		}
+	}
+	for root != "" && root != "." {
+		if hasSupportDir(root) {
+			return root
+		}
+		parent := filepath.Dir(root)
+		if parent == root {
+			break
+		}
+		root = parent
+	}
+	return ""
+}
+
+func hasSupportDir(root string) bool {
+	return pathIsDir(filepath.Join(root, config.RepoSupportDirName)) ||
+		pathIsDir(filepath.Join(root, config.LegacyRepoSupportDirName))
+}
+
+func pathIsDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func computeID(info Info, firstCommit string) string {

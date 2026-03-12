@@ -806,7 +806,7 @@ func TestCLIUsageProfileTotals(t *testing.T) {
 	_ = runCLI(t, "add", "--title", "B", "--summary", "Beta summary")
 	_ = runCLI(t, "get", "beta")
 
-	usageOut := runCLI(t, "usage", "--me")
+	usageOut := runCLI(t, "usage", "--me", "--format", "json")
 	var usage usageReportResp
 	if err := json.Unmarshal(usageOut, &usage); err != nil {
 		t.Fatalf("decode usage response: %v", err)
@@ -819,6 +819,25 @@ func TestCLIUsageProfileTotals(t *testing.T) {
 	}
 	if usage.Overall.RequestCount != 2 {
 		t.Fatalf("expected overall request_count 2, got %d", usage.Overall.RequestCount)
+	}
+}
+
+func TestCLIUsageDefaultTextSummary(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	_ = runCLI(t, "add", "--title", "Alpha", "--summary", "Alpha summary")
+	_ = runCLI(t, "get", "alpha")
+
+	usageOut := string(runCLI(t, "usage"))
+	if !strings.Contains(usageOut, "This repo: 0 tokens saved") {
+		t.Fatalf("expected repo summary in text output, got %q", usageOut)
+	}
+	if !strings.Contains(usageOut, "All your repos: 0 tokens saved") {
+		t.Fatalf("expected overall summary in text output, got %q", usageOut)
 	}
 }
 
@@ -837,6 +856,44 @@ func TestCLIUsageOutsideRepoShowsGuidance(t *testing.T) {
 	want := "current directory is not inside a repo. Run 'mem usage --repo /path/to/repo' for repo usage, or 'mem usage --me' for profile totals."
 	if got != want {
 		t.Fatalf("unexpected usage guidance:\nwant: %s\ngot:  %s", want, got)
+	}
+}
+
+func TestCLIUsageDetectsMemProjectWithoutGit(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	projectRoot := filepath.Join(base, "project")
+	nested := filepath.Join(projectRoot, "src", "feature")
+	if err := os.MkdirAll(filepath.Join(projectRoot, ".mem"), 0o755); err != nil {
+		t.Fatalf("mkdir .mem: %v", err)
+	}
+	if err := os.MkdirAll(nested, 0o755); err != nil {
+		t.Fatalf("mkdir nested dir: %v", err)
+	}
+	withCwd(t, nested)
+
+	info, err := repo.Detect(nested)
+	if err != nil {
+		t.Fatalf("detect project root: %v", err)
+	}
+
+	_ = runCLI(t, "add", "--title", "Alpha", "--summary", "Non git project memory")
+	_ = runCLI(t, "get", "alpha")
+
+	usageOut := runCLI(t, "usage", "--format", "json")
+	var usage usageReportResp
+	if err := json.Unmarshal(usageOut, &usage); err != nil {
+		t.Fatalf("decode usage response: %v", err)
+	}
+	if usage.RepoID != info.ID {
+		t.Fatalf("expected repo_id %s, got %s", info.ID, usage.RepoID)
+	}
+	if usage.Repo == nil {
+		t.Fatalf("expected repo usage details")
+	}
+	if usage.Repo.RequestCount != 1 {
+		t.Fatalf("expected repo request_count 1, got %d", usage.Repo.RequestCount)
 	}
 }
 
