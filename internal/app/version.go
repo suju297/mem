@@ -5,7 +5,7 @@ import "fmt"
 // Version and Commit can be overridden at build time:
 // go build -ldflags "-X mem/internal/app.Version=v0.2.3 -X mem/internal/app.Commit=abcdef0" ./cmd/mem
 var (
-	Version = "v0.2.39"
+	Version = "v0.2.40"
 	Commit  = "dev"
 )
 
