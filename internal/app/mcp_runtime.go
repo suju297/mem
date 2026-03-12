@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
-	"mempack/internal/config"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/store"
 )
 
 type mcpRuntime struct {

@@ -3,7 +3,7 @@ package app
 import (
 	"testing"
 
-	memtoken "mempack/internal/token"
+	memtoken "mem/internal/token"
 )
 
 func testTokenCounter(t *testing.T) *memtoken.Counter {

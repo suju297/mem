@@ -5,8 +5,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/store"
+	"mem/internal/token"
 )
 
 type updateFieldFlags struct {

@@ -5,10 +5,10 @@ import (
 	"os"
 	"strings"
 
-	"mempack/internal/config"
-	"mempack/internal/pathutil"
-	"mempack/internal/repo"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/pathutil"
+	"mem/internal/repo"
+	"mem/internal/store"
 )
 
 type ResolveOptions struct {

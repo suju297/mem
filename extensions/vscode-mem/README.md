@@ -14,11 +14,11 @@ This extension provides a fast, hotkey-first UI for the `mem` CLI:
 Selection text is appended to the summary when saving a memory.
 Embeddings are enabled by default; use "Mem: Configure Embeddings" to toggle or change models.
 If Ollama is missing, the extension will prompt you to install it (recommended).
-MCP write settings follow CLI config precedence: `.mempack/config.json` (repo override) over `~/.config/mempack/config.toml` (global default).
+MCP write settings follow CLI config precedence: `.mem/config.json` (repo override) over `~/.config/mem/config.toml` (global default).
 
 ## Requirements
 
-- `mem` binary installed and on PATH (or set `mempack.binaryPath`).
+- `mem` binary installed and on PATH (or set `mem.binaryPath`).
 - A git repo with `mem init` run at least once.
 
 ## Commands
@@ -44,11 +44,11 @@ MCP write settings follow CLI config precedence: `.mempack/config.json` (repo ov
 
 ## MCP Writes (User Experience)
 
-On first run in a repo with `.mempack/`, the extension shows the current effective MCP write mode from CLI config.
+On first run in a repo with `.mem/`, the extension shows the current effective MCP write mode from CLI config.
 Use **Mem: Configure MCP Writes** to set:
 
-- **Repo override** (`.mempack/config.json`)
-- **Global default** (`~/.config/mempack/config.toml`)
+- **Repo override** (`.mem/config.json`)
+- **Global default** (`~/.config/mem/config.toml`)
 
 Token budget controls how large the `mem get` context output can be. Higher values include more context but produce longer prompts.
 
@@ -65,11 +65,11 @@ Intent capture options:
 
 ## Configuration
 
-- `mempack.binaryPath`
-- `mempack.workspace`
-- `mempack.defaultThread`
-- `mempack.recentLimit`
-- `mempack.commandTimeoutMs`
+- `mem.binaryPath`
+- `mem.workspace`
+- `mem.defaultThread`
+- `mem.recentLimit`
+- `mem.commandTimeoutMs`
 
 ## Build
 

@@ -6,8 +6,8 @@ import (
 	"sort"
 	"time"
 
-	"mempack/internal/config"
-	"mempack/internal/pack"
+	"mem/internal/config"
+	"mem/internal/pack"
 )
 
 type BudgetResult struct {
@@ -15,6 +15,11 @@ type BudgetResult struct {
 	StateTokens       int
 	Memories          []pack.MemoryItem
 	Chunks            []pack.ChunkItem
+	CandidateTokens   int
+	PreBudgetTokens   int
+	TruncatedTokens   int
+	DroppedTokens     int
+	SavedTokens       int
 	UsedTokens        int
 	IncludedMemoryIDs map[string]struct{}
 	IncludedChunkIDs  map[string]struct{}
@@ -37,10 +42,13 @@ type budgetItem struct {
 }
 
 func applyBudget(cfg config.Config, counter TokenCounter, state json.RawMessage, stateTokens int, memories []RankedMemory, chunks []RankedChunk) (BudgetResult, error) {
-	stateJSON, stateTokens, err := normalizeState(cfg, counter, state, stateTokens)
+	stateJSON, stateOriginalTokens, stateTokens, err := normalizeState(cfg, counter, state, stateTokens)
 	if err != nil {
 		return BudgetResult{}, err
 	}
+	candidateTokens := stateOriginalTokens
+	preBudgetTokens := stateTokens
+	truncatedTokens := stateOriginalTokens - stateTokens
 
 	memCount := cfg.MemoriesK
 	if memCount > len(memories) {
@@ -55,10 +63,13 @@ func applyBudget(cfg config.Config, counter TokenCounter, state json.RawMessage,
 	memTokens := make([]int, 0, memCount)
 	for i := 0; i < memCount; i++ {
 		mem := memories[i]
-		truncated, tokens, err := summarizeMemory(counter, mem.Memory.Summary, mem.Memory.SummaryTokens, cfg.MemoryMaxEach)
+		truncated, originalTokens, tokens, err := summarizeMemory(counter, mem.Memory.Summary, mem.Memory.SummaryTokens, cfg.MemoryMaxEach)
 		if err != nil {
 			return BudgetResult{}, err
 		}
+		candidateTokens += originalTokens
+		preBudgetTokens += tokens
+		truncatedTokens += originalTokens - tokens
 		memItems = append(memItems, pack.MemoryItem{
 			ID:           mem.Memory.ID,
 			ThreadID:     mem.Memory.ThreadID,
@@ -73,10 +84,13 @@ func applyBudget(cfg config.Config, counter TokenCounter, state json.RawMessage,
 	chunkTokens := make([]int, 0, chunkCount)
 	for i := 0; i < chunkCount; i++ {
 		chunk := chunks[i]
-		truncated, tokens, err := summarizeChunk(counter, chunk.Chunk.Text, chunk.Chunk.TextTokens, cfg.ChunkMaxEach)
+		truncated, originalTokens, tokens, err := summarizeChunk(counter, chunk.Chunk.Text, chunk.Chunk.TextTokens, cfg.ChunkMaxEach)
 		if err != nil {
 			return BudgetResult{}, err
 		}
+		candidateTokens += originalTokens
+		preBudgetTokens += tokens
+		truncatedTokens += originalTokens - tokens
 		chunkItems = append(chunkItems, pack.ChunkItem{
 			ChunkID:  chunk.Chunk.ID,
 			ThreadID: chunk.Chunk.ThreadID,
@@ -86,13 +100,7 @@ func applyBudget(cfg config.Config, counter TokenCounter, state json.RawMessage,
 		chunkTokens = append(chunkTokens, tokens)
 	}
 
-	usedTokens := stateTokens
-	for _, tokens := range memTokens {
-		usedTokens += tokens
-	}
-	for _, tokens := range chunkTokens {
-		usedTokens += tokens
-	}
+	usedTokens := preBudgetTokens
 
 	items := make([]budgetItem, 0, len(memItems)+len(chunkItems))
 	for i, mem := range memItems {
@@ -148,6 +156,7 @@ func applyBudget(cfg config.Config, counter TokenCounter, state json.RawMessage,
 		}
 		items = items[:len(items)-1]
 	}
+	droppedTokens := preBudgetTokens - usedTokens
 
 	selectedMemories := make([]pack.MemoryItem, 0, len(memItems))
 	includedMemIDs := make(map[string]struct{})
@@ -174,13 +183,18 @@ func applyBudget(cfg config.Config, counter TokenCounter, state json.RawMessage,
 		StateTokens:       stateTokens,
 		Memories:          selectedMemories,
 		Chunks:            selectedChunks,
+		CandidateTokens:   candidateTokens,
+		PreBudgetTokens:   preBudgetTokens,
+		TruncatedTokens:   truncatedTokens,
+		DroppedTokens:     droppedTokens,
+		SavedTokens:       candidateTokens - usedTokens,
 		UsedTokens:        usedTokens,
 		IncludedMemoryIDs: includedMemIDs,
 		IncludedChunkIDs:  includedChunkIDs,
 	}, nil
 }
 
-func normalizeState(cfg config.Config, counter TokenCounter, state json.RawMessage, stateTokens int) (json.RawMessage, int, error) {
+func normalizeState(cfg config.Config, counter TokenCounter, state json.RawMessage, stateTokens int) (json.RawMessage, int, int, error) {
 	if len(state) == 0 {
 		state = json.RawMessage("{}")
 	}
@@ -201,15 +215,16 @@ func normalizeState(cfg config.Config, counter TokenCounter, state json.RawMessa
 
 	if stateTokens <= 0 {
 		if counter == nil {
-			return state, 0, ErrTokenizerRequired
+			return state, 0, 0, ErrTokenizerRequired
 		}
 		stateTokens = counter.Count(stateStr)
 	}
+	originalTokens := stateTokens
 	if stateTokens <= cfg.StateMax {
-		return state, stateTokens, nil
+		return state, originalTokens, stateTokens, nil
 	}
 	if counter == nil {
-		return state, stateTokens, ErrTokenizerRequired
+		return state, originalTokens, stateTokens, ErrTokenizerRequired
 	}
 
 	limit := cfg.StateMax
@@ -230,47 +245,47 @@ func normalizeState(cfg config.Config, counter TokenCounter, state json.RawMessa
 		limit -= 10
 	}
 
-	return state, stateTokens, nil
+	return state, originalTokens, stateTokens, nil
 }
 
-func summarizeMemory(counter TokenCounter, summary string, summaryTokens, maxTokens int) (string, int, error) {
-	if maxTokens <= 0 {
-		return "", 0, nil
-	}
+func summarizeMemory(counter TokenCounter, summary string, summaryTokens, maxTokens int) (string, int, int, error) {
 	tokens := summaryTokens
 	if tokens <= 0 {
 		if counter == nil {
-			return "", 0, ErrTokenizerRequired
+			return "", 0, 0, ErrTokenizerRequired
 		}
 		tokens = counter.Count(summary)
 	}
+	if maxTokens <= 0 {
+		return "", tokens, 0, nil
+	}
 	if tokens <= maxTokens {
-		return summary, tokens, nil
+		return summary, tokens, tokens, nil
 	}
 	if counter == nil {
-		return "", 0, ErrTokenizerRequired
+		return "", tokens, 0, ErrTokenizerRequired
 	}
 	truncated, truncatedTokens := counter.Truncate(summary, maxTokens)
-	return truncated, truncatedTokens, nil
+	return truncated, tokens, truncatedTokens, nil
 }
 
-func summarizeChunk(counter TokenCounter, text string, textTokens, maxTokens int) (string, int, error) {
-	if maxTokens <= 0 {
-		return "", 0, nil
-	}
+func summarizeChunk(counter TokenCounter, text string, textTokens, maxTokens int) (string, int, int, error) {
 	tokens := textTokens
 	if tokens <= 0 {
 		if counter == nil {
-			return "", 0, ErrTokenizerRequired
+			return "", 0, 0, ErrTokenizerRequired
 		}
 		tokens = counter.Count(text)
 	}
+	if maxTokens <= 0 {
+		return "", tokens, 0, nil
+	}
 	if tokens <= maxTokens {
-		return text, tokens, nil
+		return text, tokens, tokens, nil
 	}
 	if counter == nil {
-		return "", 0, ErrTokenizerRequired
+		return "", tokens, 0, ErrTokenizerRequired
 	}
 	truncated, truncatedTokens := counter.Truncate(text, maxTokens)
-	return truncated, truncatedTokens, nil
+	return truncated, tokens, truncatedTokens, nil
 }

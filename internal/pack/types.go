@@ -17,6 +17,7 @@ type ContextPack struct {
 	LinkTrail      []LinkTrail     `json:"link_trail"`
 	Rules          []string        `json:"rules"`
 	Budget         BudgetInfo      `json:"budget"`
+	Usage          *UsageSnapshot  `json:"usage,omitempty"`
 }
 
 type RepoInfo struct {
@@ -68,9 +69,29 @@ type LinkTrail struct {
 }
 
 type BudgetInfo struct {
-	Tokenizer   string `json:"tokenizer"`
-	TargetTotal int    `json:"target_total"`
-	UsedTotal   int    `json:"used_total"`
+	Tokenizer      string `json:"tokenizer"`
+	TargetTotal    int    `json:"target_total"`
+	CandidateTotal int    `json:"candidate_total"`
+	PreBudgetTotal int    `json:"pre_budget_total"`
+	TruncatedTotal int    `json:"truncated_total"`
+	DroppedTotal   int    `json:"dropped_total"`
+	SavedTotal     int    `json:"saved_total"`
+	UsedTotal      int    `json:"used_total"`
+}
+
+type UsageTotals struct {
+	RequestCount    int    `json:"request_count"`
+	CandidateTokens int    `json:"candidate_tokens"`
+	UsedTokens      int    `json:"used_tokens"`
+	SavedTokens     int    `json:"saved_tokens"`
+	TruncatedTokens int    `json:"truncated_tokens"`
+	DroppedTokens   int    `json:"dropped_tokens"`
+	UpdatedAt       string `json:"updated_at,omitempty"`
+}
+
+type UsageSnapshot struct {
+	Repo    UsageTotals `json:"repo"`
+	Overall UsageTotals `json:"overall"`
 }
 
 type SearchMeta struct {

@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"mempack/internal/pathutil"
-	"mempack/internal/store"
+	"mem/internal/pathutil"
+	"mem/internal/store"
 )
 
 func LooksLikePath(value string) bool {

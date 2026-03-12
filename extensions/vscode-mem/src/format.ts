@@ -208,9 +208,14 @@ export function formatContextPack(pack: ContextPack, promptText: string): string
 
   const budget = pack?.budget;
   if (budget?.tokenizer) {
+    const details = [
+      typeof budget.saved_total === "number" ? `saved ${budget.saved_total}` : "",
+      typeof budget.truncated_total === "number" ? `truncated ${budget.truncated_total}` : "",
+      typeof budget.dropped_total === "number" ? `dropped ${budget.dropped_total}` : ""
+    ].filter((part) => part !== "");
     push(
       "",
-      `**Token budget**: ${budget.used_total}/${budget.target_total} (${budget.tokenizer})`
+      `**Token budget**: ${budget.used_total}/${budget.target_total} (${budget.tokenizer})${details.length > 0 ? ` · ${details.join(" · ")}` : ""}`
     );
   }
 

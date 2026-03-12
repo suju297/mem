@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"mempack/internal/repo"
-	"mempack/internal/store"
+	"mem/internal/repo"
+	"mem/internal/store"
 )
 
 func TestReachabilityFilter(t *testing.T) {

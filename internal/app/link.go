@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/store"
+	"mem/internal/store"
 )
 
 type LinkResponse struct {

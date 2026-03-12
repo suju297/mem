@@ -35,8 +35,7 @@ type Config struct {
 var dataDirOverride string
 
 const (
-	appDirName       = "mem"
-	legacyAppDirName = "mempack"
+	appDirName = "mem"
 )
 
 func SetDataDirOverride(path string) {
@@ -104,6 +103,10 @@ func (c Config) RepoDBPath(repoID string) string {
 
 func (c Config) RepoRootDir() string {
 	return filepath.Join(resolveDataDir(c), "repos")
+}
+
+func (c Config) UsageDBPath() string {
+	return filepath.Join(resolveDataDir(c), "usage.db")
 }
 
 func (c Config) Save() error {
@@ -225,9 +228,6 @@ func resolveDataDir(cfg Config) string {
 	if env := strings.TrimSpace(os.Getenv("MEM_DATA_DIR")); env != "" {
 		return env
 	}
-	if env := strings.TrimSpace(os.Getenv("MEMPACK_DATA_DIR")); env != "" {
-		return env
-	}
 	if strings.TrimSpace(cfg.DataDir) != "" {
 		return cfg.DataDir
 	}
@@ -235,18 +235,5 @@ func resolveDataDir(cfg Config) string {
 }
 
 func preferredAppDir(root string) string {
-	primary := filepath.Join(root, appDirName)
-	legacy := filepath.Join(root, legacyAppDirName)
-	if pathExists(primary) {
-		return primary
-	}
-	if pathExists(legacy) {
-		return legacy
-	}
-	return primary
-}
-
-func pathExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+	return filepath.Join(root, appDirName)
 }

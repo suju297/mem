@@ -5,7 +5,7 @@ import (
 	"io"
 	"strings"
 
-	"mempack/internal/config"
+	"mem/internal/config"
 )
 
 func Run(args []string, out, errOut io.Writer) int {
@@ -40,6 +40,8 @@ func Run(args []string, out, errOut io.Writer) int {
 		return runInit(args[1:], out, errOut)
 	case "get":
 		return runGet(args[1:], out, errOut)
+	case "usage":
+		return runUsage(args[1:], out, errOut)
 	case "add":
 		return runAdd(args[1:], out, errOut)
 	case "update":

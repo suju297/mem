@@ -27,11 +27,11 @@ func TestInitDoesNotOverwriteAgents(t *testing.T) {
 		t.Fatalf("AGENTS.md was modified unexpectedly")
 	}
 
-	if _, err := os.Stat(filepath.Join(repoDir, ".mempack", "AGENTS.md")); err != nil {
-		t.Fatalf("expected .mempack/AGENTS.md to exist: %v", err)
+	if _, err := os.Stat(filepath.Join(repoDir, ".mem", "AGENTS.md")); err != nil {
+		t.Fatalf("expected .mem/AGENTS.md to exist: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(repoDir, ".mempack", "MEMORY.md")); err != nil {
-		t.Fatalf("expected .mempack/MEMORY.md to exist: %v", err)
+	if _, err := os.Stat(filepath.Join(repoDir, ".mem", "MEMORY.md")); err != nil {
+		t.Fatalf("expected .mem/MEMORY.md to exist: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(repoDir, "CLAUDE.md")); !os.IsNotExist(err) {
 		t.Fatalf("expected CLAUDE.md to be absent by default")
@@ -92,6 +92,38 @@ func TestInitDoesNotOverwriteClaudeAndGeminiWhenSelected(t *testing.T) {
 	}
 }
 
+func TestInitUsesLegacyMempackDirWhenPresent(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	if err := os.MkdirAll(filepath.Join(repoDir, ".mempack"), 0o755); err != nil {
+		t.Fatalf("mkdir .mempack: %v", err)
+	}
+
+	_ = runCLI(t, "init")
+
+	if _, err := os.Stat(filepath.Join(repoDir, ".mempack", "MEMORY.md")); err != nil {
+		t.Fatalf("expected .mempack/MEMORY.md to exist: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, ".mempack", "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected .mempack/AGENTS.md to be absent when AGENTS.md is written at repo root")
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, ".mem", "MEMORY.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected .mem/MEMORY.md to be absent for legacy repo")
+	}
+
+	agentsData, err := os.ReadFile(filepath.Join(repoDir, "AGENTS.md"))
+	if err != nil {
+		t.Fatalf("read AGENTS.md: %v", err)
+	}
+	if !strings.Contains(string(agentsData), ".mempack/MEMORY.md") {
+		t.Fatalf("expected AGENTS.md to reference .mempack/MEMORY.md")
+	}
+}
+
 func TestTemplateAgentsNoMemoryWritesSelectedTargetsOnly(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)
@@ -107,7 +139,7 @@ func TestTemplateAgentsNoMemoryWritesSelectedTargetsOnly(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repoDir, "AGENTS.md")); !os.IsNotExist(err) {
 		t.Fatalf("expected AGENTS.md to be absent")
 	}
-	if _, err := os.Stat(filepath.Join(repoDir, ".mempack", "MEMORY.md")); !os.IsNotExist(err) {
-		t.Fatalf("expected .mempack/MEMORY.md to be absent")
+	if _, err := os.Stat(filepath.Join(repoDir, ".mem", "MEMORY.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected .mem/MEMORY.md to be absent")
 	}
 }

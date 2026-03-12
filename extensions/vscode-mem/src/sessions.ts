@@ -3,7 +3,7 @@ import { promisify } from "util";
 import * as vscode from "vscode";
 import * as fs from "fs";
 import * as path from "path";
-import { MempackClient } from "./client";
+import { MemClient } from "./client";
 import { SessionItem } from "./types";
 import { getWorkspaceRoot } from "./workspace";
 import {
@@ -39,7 +39,7 @@ interface GitAPI {
 type SensitivityMode = "low" | "balanced" | "high";
 
 export class SessionManager implements vscode.Disposable {
-  private client: MempackClient;
+  private client: MemClient;
   private output: vscode.OutputChannel;
   private statusItem: vscode.StatusBarItem;
   private state: vscode.Memento;
@@ -56,12 +56,12 @@ export class SessionManager implements vscode.Disposable {
   private refreshTimer?: ReturnType<typeof setInterval>;
   private autoCaptureToggleBusy = false;
 
-  constructor(client: MempackClient, output: vscode.OutputChannel, state: vscode.Memento) {
+  constructor(client: MemClient, output: vscode.OutputChannel, state: vscode.Memento) {
     this.client = client;
     this.output = output;
     this.state = state;
     this.statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
-    this.statusItem.command = "mempack.annotateLastSession";
+    this.statusItem.command = "mem.annotateLastSession";
     this.statusItem.tooltip = "Annotate last session";
     this.autoCapture = new AutoSessionCaptureEngine(
       {
@@ -104,7 +104,7 @@ export class SessionManager implements vscode.Disposable {
     // One-time consent for auto capture (persisted in extension state).
     this.disposables.push(
       vscode.workspace.onDidChangeConfiguration((e) => {
-        if (e.affectsConfiguration("mempack.autoSessionsEnabled")) {
+        if (e.affectsConfiguration("mem.autoSessionsEnabled")) {
           void this.handleAutoCaptureToggle();
         }
       })
@@ -710,49 +710,49 @@ export class SessionManager implements vscode.Disposable {
 
   private isIntentCaptureEnabled(): boolean {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<boolean>("intentCaptureEnabled", true);
   }
 
   private isAutoSessionsEnabled(): boolean {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<boolean>("autoSessionsEnabled", false);
   }
 
   private isGitSessionCaptureEnabled(): boolean {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<boolean>("intentCaptureGitSessions", true);
   }
 
   private getAttachFilesEnabled(): boolean {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<boolean>("intentCaptureAttachFiles", false);
   }
 
   private getNudgeStyle(): "badge" | "badgeToast" | "off" {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<"badge" | "badgeToast" | "off">("intentCaptureNudge", "badge");
   }
 
   private getNeedsSummaryRule(): "emptyBody" | "always" | "never" {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<"emptyBody" | "always" | "never">("intentCaptureNeedsSummary", "emptyBody");
   }
 
   private useThreadFromBranch(): boolean {
     return vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<boolean>("intentCaptureThreadFromBranch", true);
   }
 
   private getSensitivityMode(): SensitivityMode {
     const mode = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<string>("autoSessionsSensitivity", "balanced")
       .trim()
       .toLowerCase();
@@ -764,7 +764,7 @@ export class SessionManager implements vscode.Disposable {
 
   private getPrivacyMode(): PrivacyMode {
     const mode = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<string>("autoSessionsPrivacy", "folders_exts")
       .trim()
       .toLowerCase();
@@ -776,49 +776,49 @@ export class SessionManager implements vscode.Disposable {
 
   private getQuietMs(): number {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<number>("autoSessionsQuietMs", 90_000);
     return clampNumber(configured, 10_000, 600_000, 90_000);
   }
 
   private getMaxBurstMs(): number {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<number>("autoSessionsMaxBurstMs", 600_000);
     return clampNumber(configured, 60_000, 3_600_000, 600_000);
   }
 
   private getMergeWindowMs(): number {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<number>("autoSessionsMergeWindowMs", 300_000);
     return clampNumber(configured, 60_000, 3_600_000, 300_000);
   }
 
   private getNewSessionMinGapMs(): number {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<number>("autoSessionsNewSessionMinGapMs", 300_000);
     return clampNumber(configured, 60_000, 3_600_000, 300_000);
   }
 
   private getMaxFileBytes(): number {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<number>("autoSessionsMaxFileBytes", 2_000_000);
     return clampNumber(configured, 8_192, 20_000_000, 2_000_000);
   }
 
   private getMaxFilesPerSession(): number {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<number>("autoSessionsMaxFilesPerSession", 50);
     return clampNumber(configured, 5, 200, 50);
   }
 
   private getIgnoredPatterns(): string[] {
     const configured = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<string[]>("autoSessionsIgnoreGlobs", []);
     if (!Array.isArray(configured)) {
       return [];
@@ -888,7 +888,7 @@ export class SessionManager implements vscode.Disposable {
   }
 
   private autoCaptureConsentKey(workspaceRoot: string): string {
-    return `mempack.autoCaptureConsent.v1:${this.normalizeRepoPath(workspaceRoot)}`;
+    return `mem.autoCaptureConsent.v1:${this.normalizeRepoPath(workspaceRoot)}`;
   }
 
   private hasAutoCaptureConsent(workspaceRoot: string): boolean {
@@ -984,7 +984,7 @@ export class SessionManager implements vscode.Disposable {
     }
 
     // User declined consent: revert the toggle.
-    const cfg = vscode.workspace.getConfiguration("mempack");
+    const cfg = vscode.workspace.getConfiguration("mem");
     const inspect = cfg.inspect<boolean>("autoSessionsEnabled");
     const target =
       inspect?.workspaceValue !== undefined

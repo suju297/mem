@@ -69,6 +69,11 @@
   "budget": {
     "tokenizer": "cl100k_base",
     "target_total": 2500,
+    "candidate_total": 46,
+    "pre_budget_total": 34,
+    "truncated_total": 12,
+    "dropped_total": 5,
+    "saved_total": 17,
     "used_total": 29
   }
 }

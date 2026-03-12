@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/config"
-	"mempack/internal/repo"
-	"mempack/internal/reporesolve"
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/config"
+	"mem/internal/repo"
+	"mem/internal/reporesolve"
+	"mem/internal/store"
+	"mem/internal/token"
 )
 
 type Options struct {
@@ -332,7 +332,7 @@ func resolveRepo(cfg config.Config, repoRef, cwd string, requireRepo bool) (repo
 
 func mapDBError(err error) (string, string) {
 	if isDBLocked(err) {
-		return "database is locked", "Close other mempack process and retry (busy_timeout=3000ms)"
+		return "database is locked", "Close other mem process and retry (busy_timeout=3000ms)"
 	}
 	if isReadOnly(err) {
 		return "cannot create DB under XDG path", "Check permissions or set XDG_DATA_HOME"

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"mempack/internal/config"
-	"mempack/internal/pathutil"
+	"mem/internal/config"
+	"mem/internal/pathutil"
 )
 
 func TestCachedRepoForCwdCanonicalizesSymlinks(t *testing.T) {

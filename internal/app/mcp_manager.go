@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"mempack/internal/config"
+	"mem/internal/config"
 )
 
 const (

@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"mempack/internal/health"
+	"mem/internal/health"
 )
 
 func runDoctor(args []string, out, errOut io.Writer) int {

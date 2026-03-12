@@ -2,12 +2,12 @@
 set -euo pipefail
 
 BIN_NAME="mem"
-REPO="${MEM_REPO:-${MEMPACK_REPO:-}}"
-VERSION="${MEM_VERSION:-${MEMPACK_VERSION:-latest}}"
-INSTALL_DIR="${MEM_INSTALL_DIR:-${MEMPACK_INSTALL_DIR:-}}"
-VERIFY_CHECKSUMS="${MEM_VERIFY_CHECKSUMS:-${MEMPACK_VERIFY_CHECKSUMS:-1}}"
-ADD_TO_PATH="${MEM_ADD_TO_PATH:-${MEMPACK_ADD_TO_PATH:-0}}"
-PATH_RC_FILE="${MEM_PATH_RC_FILE:-${MEMPACK_PATH_RC_FILE:-}}"
+REPO="${MEM_REPO:-}"
+VERSION="${MEM_VERSION:-latest}"
+INSTALL_DIR="${MEM_INSTALL_DIR:-}"
+VERIFY_CHECKSUMS="${MEM_VERIFY_CHECKSUMS:-1}"
+ADD_TO_PATH="${MEM_ADD_TO_PATH:-0}"
+PATH_RC_FILE="${MEM_PATH_RC_FILE:-}"
 
 usage() {
   cat <<'EOF'
@@ -18,8 +18,6 @@ Usage:
 
 Environment overrides:
   MEM_REPO, MEM_VERSION, MEM_INSTALL_DIR, MEM_ADD_TO_PATH, MEM_PATH_RC_FILE
-  Legacy aliases are still supported:
-  MEMPACK_REPO, MEMPACK_VERSION, MEMPACK_INSTALL_DIR, MEMPACK_ADD_TO_PATH, MEMPACK_PATH_RC_FILE
 
 Examples:
   ./install.sh --repo owner/mem
@@ -195,14 +193,11 @@ if [[ -z "$INSTALL_DIR" ]]; then
 fi
 
 asset="mem_${os}_${arch}.${archive_ext}"
-legacy_asset="mempack_${os}_${arch}.${archive_ext}"
 if [[ "$VERSION" == "latest" ]]; then
   url="https://github.com/${REPO}/releases/latest/download/${asset}"
-  legacy_url="https://github.com/${REPO}/releases/latest/download/${legacy_asset}"
   checksums_url="https://github.com/${REPO}/releases/latest/download/checksums.txt"
 else
   url="https://github.com/${REPO}/releases/download/${VERSION}/${asset}"
-  legacy_url="https://github.com/${REPO}/releases/download/${VERSION}/${legacy_asset}"
   checksums_url="https://github.com/${REPO}/releases/download/${VERSION}/checksums.txt"
 fi
 
@@ -214,14 +209,7 @@ downloaded_release=0
 if download_file "$url" "$archive"; then
   downloaded_release=1
 else
-  archive="$tmpdir/$legacy_asset"
-  asset_used="$legacy_asset"
-  if download_file "$legacy_url" "$archive"; then
-    downloaded_release=1
-    echo "warning: using legacy release asset name (${legacy_asset})" >&2
-  else
-    echo "warning: release asset not found (${asset}, ${legacy_asset}); falling back to source build" >&2
-  fi
+  echo "warning: release asset not found (${asset}); falling back to source build" >&2
 fi
 
 if [[ "$downloaded_release" == "1" ]] && [[ "$VERIFY_CHECKSUMS" != "0" ]]; then

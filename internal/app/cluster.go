@@ -4,7 +4,7 @@ import (
 	"math"
 	"sort"
 
-	"mempack/internal/pack"
+	"mem/internal/pack"
 )
 
 const (

@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"mempack/internal/config"
+	"mem/internal/config"
 )
 
 func TestMCPManagerPingAndStatus(t *testing.T) {
@@ -300,13 +300,13 @@ func TestMCPManagerFallbackOnCorruptInfo(t *testing.T) {
 }
 
 func TestAppendDataDirArg(t *testing.T) {
-	got := appendDataDirArg([]string{"--allow-write"}, "/tmp/mempack-data")
-	want := []string{"--allow-write", "--data-dir", "/tmp/mempack-data"}
+	got := appendDataDirArg([]string{"--allow-write"}, "/tmp/mem-data")
+	want := []string{"--allow-write", "--data-dir", "/tmp/mem-data"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected args: want=%v got=%v", want, got)
 	}
 
-	already := appendDataDirArg([]string{"--data-dir", "/tmp/custom", "--allow-write"}, "/tmp/mempack-data")
+	already := appendDataDirArg([]string{"--data-dir", "/tmp/custom", "--allow-write"}, "/tmp/mem-data")
 	wantAlready := []string{"--data-dir", "/tmp/custom", "--allow-write"}
 	if !reflect.DeepEqual(already, wantAlready) {
 		t.Fatalf("unexpected args when already set: want=%v got=%v", wantAlready, already)

@@ -7,8 +7,8 @@ import (
 	"io"
 	"strings"
 
-	"mempack/internal/pack"
-	"mempack/internal/store"
+	"mem/internal/pack"
+	"mem/internal/store"
 )
 
 type ExplainReport struct {

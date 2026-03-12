@@ -10,8 +10,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/store"
+	"mem/internal/token"
 )
 
 type mcpWriteConfig struct {
@@ -41,7 +41,7 @@ func parseWriteConfig(allowWrite bool, repoOptIn bool, modeFlag string) (mcpWrit
 		return mcpWriteConfig{}, fmt.Errorf("invalid write mode: %s (use ask|auto|off)", mode)
 	}
 	if !allowWrite && !repoOptIn && mode != writeModeOff {
-		return mcpWriteConfig{}, fmt.Errorf("write mode requires --allow-write, mcp_allow_write=true in config, or .mempack/config.json")
+		return mcpWriteConfig{}, fmt.Errorf("write mode requires --allow-write, mcp_allow_write=true in config, or .mem/config.json or .mempack/config.json")
 	}
 
 	allowed := (allowWrite || repoOptIn) && mode != writeModeOff
@@ -58,7 +58,7 @@ func parseWriteConfig(allowWrite bool, repoOptIn bool, modeFlag string) (mcpWrit
 
 func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
 	}
 
 	title := strings.TrimSpace(request.GetString("title", ""))
@@ -170,7 +170,7 @@ func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mc
 
 func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
 	}
 
 	id := strings.TrimSpace(request.GetString("id", ""))
@@ -277,7 +277,7 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 
 func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
 	}
 
 	fromID := strings.TrimSpace(request.GetString("from_id", ""))
@@ -376,7 +376,7 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 
 func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mempack/config.json)"), nil
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
 	}
 
 	reason := strings.TrimSpace(request.GetString("reason", ""))

@@ -8,15 +8,16 @@ const {
   buildAgentsWithStub,
   hasStub,
   STUB_BLOCK,
-  MINIMAL_AGENTS
+  MINIMAL_AGENTS,
 } = require("../dist/stub_logic");
 
 const {
   formatDoctorReport,
+  formatContextPack,
   formatShowResult,
   suggestSummary,
   suggestTitle,
-  truncate
+  truncate,
 } = require("../dist/format");
 
 const {
@@ -32,11 +33,16 @@ const {
   isWhitespaceSensitiveExt,
   normalizeForDiff,
   parseTimeMs,
-  toRepoRelative
+  toRepoRelative,
 } = require("../dist/session_logic");
 
 const { AutoSessionCaptureEngine } = require("../dist/auto_session_capture");
-const { parseTokenBudgetConfig } = require("../dist/config");
+const {
+  getRepoConfigPath,
+  getRepoSupportDir,
+  getRepoSupportDirName,
+  parseTokenBudgetConfig,
+} = require("../dist/config");
 
 function testStubHelpers() {
   const empty = "";
@@ -77,8 +83,8 @@ function testFormatHelpers() {
       repo_id: "r1",
       title: "Title",
       summary: "Summary",
-      created_at: "now"
-    }
+      created_at: "now",
+    },
   });
   assert.ok(memoryResult.includes("# Title"));
 
@@ -88,16 +94,44 @@ function testFormatHelpers() {
       id: "C1",
       repo_id: "r1",
       text: "chunk text",
-      created_at: "now"
-    }
+      created_at: "now",
+    },
   });
   assert.ok(chunkResult.includes("# Chunk C1"));
+
+  const contextResult = formatContextPack(
+    {
+      repo: { repo_id: "r1", git_root: "/repo" },
+      workspace: "default",
+      matched_threads: [],
+      top_memories: [],
+      top_chunks: [],
+      link_trail: [],
+      rules: [],
+      state: {},
+      budget: {
+        tokenizer: "cl100k_base",
+        target_total: 2500,
+        used_total: 1200,
+        saved_total: 800,
+        truncated_total: 300,
+        dropped_total: 500,
+      },
+    },
+    "",
+  );
+  assert.ok(contextResult.includes("saved 800"));
+  assert.ok(contextResult.includes("truncated 300"));
+  assert.ok(contextResult.includes("dropped 500"));
 }
 
 function testSessionLogicHelpers() {
   const normalizedA = normalizeForDiff("a  b\r\nc \n\n", false);
   const normalizedB = normalizeForDiff("a b\nc\n", false);
-  assert.strictEqual(compactMeaningfulText(normalizedA), compactMeaningfulText(normalizedB));
+  assert.strictEqual(
+    compactMeaningfulText(normalizedA),
+    compactMeaningfulText(normalizedB),
+  );
 
   const pySensitive = isWhitespaceSensitiveExt("py", "src/main.py");
   assert.strictEqual(pySensitive, true);
@@ -114,7 +148,7 @@ function testSessionLogicHelpers() {
   assert.strictEqual(stats.deltaLines >= 1, true);
   const insertTopStats = estimateDiffStats(
     "line1\nline2\nline3\n",
-    "header\nline1\nline2\nline3\n"
+    "header\nline1\nline2\nline3\n",
   );
   assert.strictEqual(insertTopStats.linesAdded, 1);
   assert.strictEqual(insertTopStats.linesRemoved, 0);
@@ -125,17 +159,22 @@ function testSessionLogicHelpers() {
   const semanticBoost = computeSemanticBonus(
     "export function loadData() { return 1; }",
     "export function loadData(input: string) { return 1; }",
-    "src/app.ts"
+    "src/app.ts",
   );
   const baselineScore = computeSignificanceScore(2, 20, "src/app.ts");
-  const boostedScore = computeSignificanceScore(2, 20, "src/app.ts", semanticBoost);
+  const boostedScore = computeSignificanceScore(
+    2,
+    20,
+    "src/app.ts",
+    semanticBoost,
+  );
   assert.strictEqual(semanticBoost > 0, true);
   assert.strictEqual(boostedScore > baselineScore, true);
 
   const title = buildSessionTitle("/repo", [
     "internal/state/store.go",
     "internal/state/store_test.go",
-    "src/ui/view.ts"
+    "src/ui/view.ts",
   ]);
   assert.strictEqual(title.startsWith("Session: Worked in internal"), true);
   assert.ok(title.includes("3 files"));
@@ -143,30 +182,38 @@ function testSessionLogicHelpers() {
   const intentTitle = buildSessionTitle(
     "/repo",
     ["internal/state/store.go", "src/ui/view.ts"],
-    "model training for neural network (accuracy 98%)"
+    "model training for neural network (accuracy 98%)",
   );
   assert.strictEqual(
-    intentTitle.startsWith("Session: model training for neural network (accuracy 98%) in internal"),
-    true
+    intentTitle.startsWith(
+      "Session: model training for neural network (accuracy 98%) in internal",
+    ),
+    true,
   );
 
   const entitiesDefault = buildSessionEntities(
     ["internal/state/store.go", "src/ui/view.ts"],
-    "folders_exts"
+    "folders_exts",
   );
   assert.ok(entitiesDefault.includes("dir_internal"));
   assert.ok(entitiesDefault.includes("ext_go"));
-  assert.strictEqual(entitiesDefault.some((entry) => entry.startsWith("file_")), false);
+  assert.strictEqual(
+    entitiesDefault.some((entry) => entry.startsWith("file_")),
+    false,
+  );
 
   const entitiesFiles = buildSessionEntities(
     ["internal/state/store.go", "src/ui/view.ts"],
-    "files"
+    "files",
   );
-  assert.strictEqual(entitiesFiles.some((entry) => entry.startsWith("file_")), true);
+  assert.strictEqual(
+    entitiesFiles.some((entry) => entry.startsWith("file_")),
+    true,
+  );
 
   const entitiesCounts = buildSessionEntities(
     ["internal/state/store.go", "src/ui/view.ts"],
-    "counts"
+    "counts",
   );
   assert.ok(entitiesCounts.includes("count_files_2"));
   assert.ok(entitiesCounts.includes("count_dirs_2"));
@@ -178,13 +225,16 @@ function testSessionLogicHelpers() {
   assert.strictEqual(outside, "");
 
   assert.strictEqual(isAutoSessionTitle("Session: src (+3 files) [ts]"), true);
-  assert.strictEqual(isAutoSessionTitle("Session: Worked in src (3 files, ts)"), true);
+  assert.strictEqual(
+    isAutoSessionTitle("Session: Worked in src (3 files, ts)"),
+    true,
+  );
   assert.strictEqual(isAutoSessionTitle("Feature work"), false);
   assert.strictEqual(parseTimeMs("2026-01-01T00:00:00Z") > 0, true);
   assert.strictEqual(parseTimeMs("not-a-time"), 0);
 
   const intentSignal = extractTerminalIntentSignal(
-    "python train.py --model naive_bayes --accuracy 98%"
+    "python train.py --model naive_bayes --accuracy 98%",
   );
   assert.ok(intentSignal);
   assert.strictEqual(intentSignal.headline.includes("model training"), true);
@@ -193,15 +243,22 @@ function testSessionLogicHelpers() {
   assert.strictEqual(intentSignal.entities.includes("model_naive_bayes"), true);
   assert.strictEqual(
     intentSignal.entities.some((entry) => entry.startsWith("metric_accuracy_")),
-    true
+    true,
   );
 
-  const commitSignal = extractTerminalIntentSignal("git commit -m \"reach 98% accuracy\"");
+  const commitSignal = extractTerminalIntentSignal(
+    'git commit -m "reach 98% accuracy"',
+  );
   assert.ok(commitSignal);
-  assert.strictEqual(commitSignal.headline.includes("reach 98% accuracy"), true);
+  assert.strictEqual(
+    commitSignal.headline.includes("reach 98% accuracy"),
+    true,
+  );
   assert.strictEqual(commitSignal.entities.includes("intent_commit"), true);
 
-  const sensitiveSignal = extractTerminalIntentSignal("export OPENAI_API_KEY=sk-test");
+  const sensitiveSignal = extractTerminalIntentSignal(
+    "export OPENAI_API_KEY=sk-test",
+  );
   assert.strictEqual(sensitiveSignal, undefined);
 }
 
@@ -212,54 +269,83 @@ function testSessionMergeDecision() {
     latestIsAuto: true,
     latestCreatedAtMs: 1_700_000_000_000 - 30_000,
     mergeWindowMs: 300_000,
-    minGapMs: 300_000
+    minGapMs: 300_000,
   };
 
   assert.strictEqual(
     decideSessionUpsertAction({ ...base, latestExists: false }),
-    "create_new"
+    "create_new",
   );
   assert.strictEqual(
     decideSessionUpsertAction({ ...base, latestIsAuto: false }),
-    "create_new"
+    "create_new",
   );
-  assert.strictEqual(
-    decideSessionUpsertAction(base),
-    "update_latest"
-  );
+  assert.strictEqual(decideSessionUpsertAction(base), "update_latest");
   assert.strictEqual(
     decideSessionUpsertAction({
       ...base,
       latestCreatedAtMs: base.nowMs - 600_000,
     }),
-    "create_new"
+    "create_new",
   );
   assert.strictEqual(
     decideSessionUpsertAction({
       ...base,
       latestCreatedAtMs: base.nowMs - 120_000,
       mergeWindowMs: 60_000,
-      minGapMs: 300_000
+      minGapMs: 300_000,
     }),
-    "create_new"
+    "create_new",
   );
   assert.strictEqual(
     decideSessionUpsertAction({
       ...base,
-      latestCreatedAtMs: 0
+      latestCreatedAtMs: 0,
     }),
-    "create_new"
+    "create_new",
   );
 }
 
 function testConfigParsers() {
   assert.strictEqual(
     parseTokenBudgetConfig("token_budget = 2500 # keep this inline comment"),
-    2500
+    2500,
   );
   assert.strictEqual(
     parseTokenBudgetConfig("token_budget = 3000 ; semicolon comment"),
-    3000
+    3000,
+  );
+}
+
+async function testRepoSupportHelpers() {
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mem-config-helpers-"),
+  );
+  const workspaceRoot = path.join(tmpRoot, "repo");
+  await fs.mkdir(workspaceRoot, { recursive: true });
+
+  assert.strictEqual(getRepoSupportDirName(workspaceRoot), ".mem");
+  assert.strictEqual(
+    getRepoSupportDir(workspaceRoot),
+    path.join(workspaceRoot, ".mem"),
+  );
+  assert.strictEqual(
+    getRepoConfigPath(workspaceRoot),
+    path.join(workspaceRoot, ".mem", "config.json"),
+  );
+
+  await fs.mkdir(path.join(workspaceRoot, ".mempack"), { recursive: true });
+  assert.strictEqual(getRepoSupportDirName(workspaceRoot), ".mempack");
+  assert.strictEqual(
+    getRepoConfigPath(workspaceRoot),
+    path.join(workspaceRoot, ".mempack", "config.json"),
+  );
+
+  await fs.mkdir(path.join(workspaceRoot, ".mem"), { recursive: true });
+  assert.strictEqual(getRepoSupportDirName(workspaceRoot), ".mem");
+  assert.strictEqual(
+    getRepoConfigPath(workspaceRoot),
+    path.join(workspaceRoot, ".mem", "config.json"),
   );
 }
 
@@ -274,7 +360,7 @@ async function testAutoSessionCaptureIntegration() {
   const scheduler = {
     now: () => nowMs,
     setTimeout: () => 0,
-    clearTimeout: () => {}
+    clearTimeout: () => {},
   };
 
   async function settleAsyncFlush() {
@@ -295,7 +381,7 @@ async function testAutoSessionCaptureIntegration() {
       recent.unshift({
         id,
         title: input.title,
-        created_at: new Date(nowMs).toISOString()
+        created_at: new Date(nowMs).toISOString(),
       });
       return { id };
     },
@@ -308,7 +394,7 @@ async function testAutoSessionCaptureIntegration() {
     },
     async onSessionSaved(input) {
       saved.push(input);
-    }
+    },
   };
 
   const engine = new AutoSessionCaptureEngine(
@@ -324,20 +410,20 @@ async function testAutoSessionCaptureIntegration() {
       maxFileBytes: 2_000_000,
       privacyMode: "folders_exts",
       needsSummary: true,
-      intentSignal
+      intentSignal,
     }),
-    scheduler
+    scheduler,
   );
 
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const a = 1;\n"
+    text: "const a = 1;\n",
   });
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const  a = 1;   \n"
+    text: "const  a = 1;   \n",
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, 0);
@@ -345,18 +431,21 @@ async function testAutoSessionCaptureIntegration() {
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const a = 1;\nconst b = 2;\nconst c = 3;\n"
+    text: "const a = 1;\nconst b = 2;\nconst c = 3;\n",
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(created[0].thread, "T-SESSION");
   assert.strictEqual(created[0].tags.includes("needs_summary"), true);
-  assert.strictEqual(Array.isArray(created[0].entities) && created[0].entities.length > 0, true);
+  assert.strictEqual(
+    Array.isArray(created[0].entities) && created[0].entities.length > 0,
+    true,
+  );
 
   intentSignal = {
     headline: "model training for neural network (accuracy 98%)",
     entities: ["intent_train", "model_neural_network", "metric_accuracy_98"],
-    observedAtMs: nowMs
+    observedAtMs: nowMs,
   };
 
   const createdAfterFirst = created.length;
@@ -364,7 +453,7 @@ async function testAutoSessionCaptureIntegration() {
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const a = 1;\nconst b = 2;\nconst c = 3;\n"
+    text: "const a = 1;\nconst b = 2;\nconst c = 3;\n",
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, createdAfterFirst);
@@ -374,19 +463,27 @@ async function testAutoSessionCaptureIntegration() {
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n"
+    text: "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\n",
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, createdAfterFirst);
   assert.strictEqual(updated.length > updatedAfterFirst, true);
-  assert.strictEqual(updated[updated.length - 1].title.includes("model training for neural network"), true);
-  assert.strictEqual(updated[updated.length - 1].entitiesAdd.includes("intent_train"), true);
+  assert.strictEqual(
+    updated[updated.length - 1].title.includes(
+      "model training for neural network",
+    ),
+    true,
+  );
+  assert.strictEqual(
+    updated[updated.length - 1].entitiesAdd.includes("intent_train"),
+    true,
+  );
 
   nowMs += 700_000;
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nconst e = 5;\n"
+    text: "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nconst e = 5;\n",
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, createdAfterFirst + 1);
@@ -396,7 +493,7 @@ async function testAutoSessionCaptureIntegration() {
   await engine.recordSave({
     workspaceRoot: "/repo",
     filePath: "/repo/src/app.ts",
-    text: "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nconst e = 5;\nconst f = 6;\n"
+    text: "const a = 1;\nconst b = 2;\nconst c = 3;\nconst d = 4;\nconst e = 5;\nconst f = 6;\n",
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, createdAfterFirst + 2);
@@ -417,7 +514,7 @@ async function testAutoSessionFlushPreservesPendingChanges() {
   const scheduler = {
     now: () => nowMs,
     setTimeout: () => 0,
-    clearTimeout: () => {}
+    clearTimeout: () => {},
   };
 
   async function settleAsyncFlush() {
@@ -435,7 +532,9 @@ async function testAutoSessionFlushPreservesPendingChanges() {
       await settleAsyncFlush();
       await new Promise((resolve) => setTimeout(resolve, 5));
     }
-    throw new Error(`timed out waiting for created count ${expectedCount}, got ${created.length}`);
+    throw new Error(
+      `timed out waiting for created count ${expectedCount}, got ${created.length}`,
+    );
   }
 
   const engine = new AutoSessionCaptureEngine(
@@ -457,13 +556,13 @@ async function testAutoSessionFlushPreservesPendingChanges() {
         recent.unshift({
           id,
           title: input.title,
-          created_at: new Date(createdAtMs).toISOString()
+          created_at: new Date(createdAtMs).toISOString(),
         });
         return { id };
       },
       async updateSession() {
         throw new Error("unexpected update path");
-      }
+      },
     },
     () => ({
       quietMs: 60_000,
@@ -475,22 +574,22 @@ async function testAutoSessionFlushPreservesPendingChanges() {
       newSessionMinGapMs: 0,
       maxFileBytes: 2_000_000,
       privacyMode: "folders_exts",
-      needsSummary: false
+      needsSummary: false,
     }),
-    scheduler
+    scheduler,
   );
 
   try {
     await engine.recordSave({
       workspaceRoot: "/repo",
       filePath: "/repo/src/app.ts",
-      text: "const a = 1;\n"
+      text: "const a = 1;\n",
     });
 
     await engine.recordSave({
       workspaceRoot: "/repo",
       filePath: "/repo/src/app.ts",
-      text: "const a = 1;\nconst b = 2;\n"
+      text: "const a = 1;\nconst b = 2;\n",
     });
     await settleAsyncFlush();
     assert.strictEqual(firstFlushStarted, true);
@@ -499,7 +598,7 @@ async function testAutoSessionFlushPreservesPendingChanges() {
     await engine.recordSave({
       workspaceRoot: "/repo",
       filePath: "/repo/src/app.ts",
-      text: "const a = 1;\nconst b = 2;\nconst c = 3;\n"
+      text: "const a = 1;\nconst b = 2;\nconst c = 3;\n",
     });
 
     releaseFirstFlush();
@@ -511,10 +610,10 @@ async function testAutoSessionFlushPreservesPendingChanges() {
 }
 
 async function testAutoSessionLifecycleAndIgnore() {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mempack-auto-session-"));
+  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mem-auto-session-"));
   const workspaceRoot = path.join(tmpRoot, "repo");
   await fs.mkdir(path.join(workspaceRoot, "src"), { recursive: true });
-  await fs.writeFile(path.join(workspaceRoot, ".mempackignore"), "ignored/**\n");
+  await fs.writeFile(path.join(workspaceRoot, ".memignore"), "ignored/**\n");
   await fs.mkdir(path.join(workspaceRoot, "ignored"), { recursive: true });
 
   let nowMs = 1_700_000_000_000;
@@ -525,7 +624,7 @@ async function testAutoSessionLifecycleAndIgnore() {
   const scheduler = {
     now: () => nowMs,
     setTimeout: () => 0,
-    clearTimeout: () => {}
+    clearTimeout: () => {},
   };
 
   async function settleAsyncFlush() {
@@ -547,13 +646,13 @@ async function testAutoSessionLifecycleAndIgnore() {
         recent.unshift({
           id,
           title: input.title,
-          created_at: new Date(nowMs).toISOString()
+          created_at: new Date(nowMs).toISOString(),
         });
         return { id };
       },
       async updateSession(input) {
         updated.push({ ...input });
-      }
+      },
     },
     () => ({
       quietMs: 60_000,
@@ -566,24 +665,28 @@ async function testAutoSessionLifecycleAndIgnore() {
       maxFileBytes: 2_000_000,
       privacyMode: "counts",
       needsSummary: false,
-      ignoredSegments: []
+      ignoredSegments: [],
     }),
-    scheduler
+    scheduler,
   );
 
   const createdPath = path.join(workspaceRoot, "src", "created.ts");
-  await fs.writeFile(createdPath, "export function createdOne() { return 1; }\n");
+  await fs.writeFile(
+    createdPath,
+    "export function createdOne() { return 1; }\n",
+  );
   const createdText = await fs.readFile(createdPath, "utf8");
   await engine.recordCreate({
     workspaceRoot,
     filePath: createdPath,
-    text: createdText
+    text: createdText,
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, 1);
   assert.strictEqual(
-    Array.isArray(created[0].entities) && created[0].entities.includes("count_files_1"),
-    true
+    Array.isArray(created[0].entities) &&
+      created[0].entities.includes("count_files_1"),
+    true,
   );
 
   const renamedPath = path.join(workspaceRoot, "src", "renamed.ts");
@@ -594,7 +697,7 @@ async function testAutoSessionLifecycleAndIgnore() {
     workspaceRoot,
     oldFilePath: createdPath,
     newFilePath: renamedPath,
-    newText: renamedText
+    newText: renamedText,
   });
   await settleAsyncFlush();
   assert.strictEqual(updated.length > 0, true);
@@ -603,7 +706,7 @@ async function testAutoSessionLifecycleAndIgnore() {
   nowMs += 60_000;
   await engine.recordDelete({
     workspaceRoot,
-    filePath: renamedPath
+    filePath: renamedPath,
   });
   await settleAsyncFlush();
   assert.strictEqual(updated.length >= 2, true);
@@ -617,12 +720,12 @@ async function testAutoSessionLifecycleAndIgnore() {
   await engine.recordSave({
     workspaceRoot,
     filePath: ignoredPath,
-    text: ignoredText
+    text: ignoredText,
   });
   await engine.recordSave({
     workspaceRoot,
     filePath: ignoredPath,
-    text: `${ignoredText}\nexport const x = 1;\n`
+    text: `${ignoredText}\nexport const x = 1;\n`,
   });
   await settleAsyncFlush();
   assert.strictEqual(created.length, createdBeforeIgnore);
@@ -631,15 +734,95 @@ async function testAutoSessionLifecycleAndIgnore() {
   engine.dispose();
 }
 
+async function testAutoSessionLegacyMempackIgnore() {
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mem-auto-session-legacy-"),
+  );
+  const workspaceRoot = path.join(tmpRoot, "repo");
+  await fs.mkdir(path.join(workspaceRoot, "src"), { recursive: true });
+  await fs.writeFile(
+    path.join(workspaceRoot, ".mempackignore"),
+    "ignored/**\n",
+  );
+  await fs.mkdir(path.join(workspaceRoot, "ignored"), { recursive: true });
+
+  let nowMs = 1_700_000_000_000;
+  const created = [];
+
+  const scheduler = {
+    now: () => nowMs,
+    setTimeout: () => 0,
+    clearTimeout: () => {},
+  };
+
+  async function settleAsyncFlush() {
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  const engine = new AutoSessionCaptureEngine(
+    {
+      async listRecentSessions() {
+        return [];
+      },
+      async resolveThread() {
+        return "T-SESSION";
+      },
+      async createSession(input) {
+        created.push(input);
+        return { id: `M-${created.length}` };
+      },
+      async updateSession() {
+        return;
+      },
+    },
+    () => ({
+      quietMs: 60_000,
+      maxBurstMs: 600_000,
+      scoreThreshold: 2,
+      filesThreshold: 5,
+      maxFilesPerSession: 50,
+      mergeWindowMs: 300_000,
+      newSessionMinGapMs: 300_000,
+      maxFileBytes: 2_000_000,
+      privacyMode: "counts",
+      needsSummary: false,
+      ignoredSegments: [],
+    }),
+    scheduler,
+  );
+
+  const ignoredPath = path.join(workspaceRoot, "ignored", "skip.ts");
+  await fs.writeFile(ignoredPath, "export function skipped() { return 1; }\n");
+  const ignoredText = await fs.readFile(ignoredPath, "utf8");
+  await engine.recordSave({
+    workspaceRoot,
+    filePath: ignoredPath,
+    text: ignoredText,
+  });
+  nowMs += 1_000;
+  await engine.recordSave({
+    workspaceRoot,
+    filePath: ignoredPath,
+    text: `${ignoredText}\nexport const x = 1;\n`,
+  });
+  await settleAsyncFlush();
+  assert.strictEqual(created.length, 0);
+
+  engine.dispose();
+}
+
 async function testAutoSessionSnapshotEviction() {
-  const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), "mempack-auto-snapshots-"));
+  const tmpRoot = await fs.mkdtemp(
+    path.join(os.tmpdir(), "mem-auto-snapshots-"),
+  );
   const workspaceRoot = path.join(tmpRoot, "repo");
   await fs.mkdir(path.join(workspaceRoot, "src"), { recursive: true });
 
   const scheduler = {
     now: () => 1_700_000_000_000,
     setTimeout: () => 0,
-    clearTimeout: () => {}
+    clearTimeout: () => {},
   };
 
   const engine = new AutoSessionCaptureEngine(
@@ -655,7 +838,7 @@ async function testAutoSessionSnapshotEviction() {
       },
       async updateSession() {
         return;
-      }
+      },
     },
     () => ({
       quietMs: 60_000,
@@ -668,16 +851,16 @@ async function testAutoSessionSnapshotEviction() {
       maxFileBytes: 2_000_000,
       privacyMode: "folders_exts",
       needsSummary: false,
-      ignoredSegments: []
+      ignoredSegments: [],
     }),
-    scheduler
+    scheduler,
   );
 
   for (let i = 0; i < 260; i += 1) {
     await engine.recordCreate({
       workspaceRoot,
       filePath: path.join(workspaceRoot, "src", `f${i}.ts`),
-      text: `export const v${i} = ${i};\n`
+      text: `export const v${i} = ${i};\n`,
     });
   }
 
@@ -699,9 +882,11 @@ async function runTests() {
     testSessionLogicHelpers();
     testSessionMergeDecision();
     testConfigParsers();
+    await testRepoSupportHelpers();
     await testAutoSessionCaptureIntegration();
     await testAutoSessionFlushPreservesPendingChanges();
     await testAutoSessionLifecycleAndIgnore();
+    await testAutoSessionLegacyMempackIgnore();
     await testAutoSessionSnapshotEviction();
     console.log("Extension unit tests: ok");
   } catch (err) {

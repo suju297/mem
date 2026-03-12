@@ -14,18 +14,18 @@ import (
 )
 
 func TestBuildMCPChildArgsUsesFallbackDataDir(t *testing.T) {
-	got, err := buildMCPChildArgs([]string{"--allow-write"}, "/tmp/mempack-data")
+	got, err := buildMCPChildArgs([]string{"--allow-write"}, "/tmp/mem-data")
 	if err != nil {
 		t.Fatalf("build args: %v", err)
 	}
-	want := []string{"--data-dir", "/tmp/mempack-data", "mcp", "--allow-write", "--daemon", "--require-repo"}
+	want := []string{"--data-dir", "/tmp/mem-data", "mcp", "--allow-write", "--daemon", "--require-repo"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected child args:\nwant=%v\ngot=%v", want, got)
 	}
 }
 
 func TestBuildMCPChildArgsPrefersExplicitDataDir(t *testing.T) {
-	got, err := buildMCPChildArgs([]string{"--data-dir", "/tmp/override", "--allow-write"}, "/tmp/mempack-data")
+	got, err := buildMCPChildArgs([]string{"--data-dir", "/tmp/override", "--allow-write"}, "/tmp/mem-data")
 	if err != nil {
 		t.Fatalf("build args: %v", err)
 	}
@@ -36,22 +36,22 @@ func TestBuildMCPChildArgsPrefersExplicitDataDir(t *testing.T) {
 }
 
 func TestBuildMCPChildArgsKeepsExplicitRequireRepoValue(t *testing.T) {
-	got, err := buildMCPChildArgs([]string{"--allow-write", "--require-repo=false"}, "/tmp/mempack-data")
+	got, err := buildMCPChildArgs([]string{"--allow-write", "--require-repo=false"}, "/tmp/mem-data")
 	if err != nil {
 		t.Fatalf("build args: %v", err)
 	}
-	want := []string{"--data-dir", "/tmp/mempack-data", "mcp", "--allow-write", "--require-repo=false", "--daemon"}
+	want := []string{"--data-dir", "/tmp/mem-data", "mcp", "--allow-write", "--require-repo=false", "--daemon"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected child args:\nwant=%v\ngot=%v", want, got)
 	}
 }
 
 func TestBuildMCPChildArgsForcesDaemonWhenDisabled(t *testing.T) {
-	got, err := buildMCPChildArgs([]string{"--allow-write", "--daemon=false"}, "/tmp/mempack-data")
+	got, err := buildMCPChildArgs([]string{"--allow-write", "--daemon=false"}, "/tmp/mem-data")
 	if err != nil {
 		t.Fatalf("build args: %v", err)
 	}
-	want := []string{"--data-dir", "/tmp/mempack-data", "mcp", "--allow-write", "--daemon=false", "--daemon", "--require-repo"}
+	want := []string{"--data-dir", "/tmp/mem-data", "mcp", "--allow-write", "--daemon=false", "--daemon", "--require-repo"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("unexpected child args:\nwant=%v\ngot=%v", want, got)
 	}

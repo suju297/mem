@@ -13,10 +13,11 @@ import (
 	"syscall"
 	"time"
 
-	"mempack/internal/repo"
-	"mempack/internal/store"
-	"mempack/internal/token"
-	"mempack/internal/watcher"
+	"mem/internal/config"
+	"mem/internal/repo"
+	"mem/internal/store"
+	"mem/internal/token"
+	"mem/internal/watcher"
 
 	ignore "github.com/sabhiram/go-gitignore"
 )
@@ -536,8 +537,8 @@ func loadIgnoreMatcher(root string) ignoreMatcher {
 	if matcher, err := ignore.CompileIgnoreFile(gitignorePath); err == nil {
 		matchers = append(matchers, matcher)
 	}
-	mempackIgnorePath := filepath.Join(root, ".mempackignore")
-	if matcher, err := ignore.CompileIgnoreFile(mempackIgnorePath); err == nil {
+	memIgnorePath := config.ResolveRepoIgnorePath(root)
+	if matcher, err := ignore.CompileIgnoreFile(memIgnorePath); err == nil {
 		matchers = append(matchers, matcher)
 	}
 	return ignoreMatcher{matchers: matchers}

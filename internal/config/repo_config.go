@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -39,7 +38,7 @@ func RepoConfigPath(root string) string {
 	if root == "" {
 		return ""
 	}
-	return filepath.Join(root, ".mempack", "config.json")
+	return ResolveRepoSupportPath(root, "config.json")
 }
 
 func LoadRepoConfig(root string) (RepoConfig, bool, error) {

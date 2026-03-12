@@ -9,7 +9,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"mempack/internal/token"
+	"mem/internal/token"
 )
 
 const (

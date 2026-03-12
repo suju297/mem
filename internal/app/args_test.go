@@ -6,11 +6,11 @@ import (
 )
 
 func TestSplitGlobalFlagsSkipsDoubleDash(t *testing.T) {
-	out, globals, err := splitGlobalFlags([]string{"--data-dir", "/tmp/mempack", "--", "mcp", "start"})
+	out, globals, err := splitGlobalFlags([]string{"--data-dir", "/tmp/mem", "--", "mcp", "start"})
 	if err != nil {
 		t.Fatalf("splitGlobalFlags error: %v", err)
 	}
-	if globals.DataDir != "/tmp/mempack" {
+	if globals.DataDir != "/tmp/mem" {
 		t.Fatalf("unexpected data dir: %q", globals.DataDir)
 	}
 	want := []string{"mcp", "start"}

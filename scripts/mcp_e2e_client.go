@@ -31,7 +31,7 @@ func main() {
 	if v := os.Getenv("MEM_DATA_DIR"); v != "" {
 		env = append(env, "MEM_DATA_DIR="+v)
 	}
-	if v := os.Getenv("MEMPACK_DATA_DIR"); v != "" {
+	if v := os.Getenv("MEM_DATA_DIR"); v != "" {
 		env = append(env, "MEM_DATA_DIR="+v)
 	}
 	if v := os.Getenv("XDG_CONFIG_HOME"); v != "" {
@@ -92,13 +92,13 @@ func main() {
 	requireTool(toolsRes.Tools, "mem_update_memory")
 	requireTool(toolsRes.Tools, "mem_link_memories")
 	requireTool(toolsRes.Tools, "mem_checkpoint")
-	requireTool(toolsRes.Tools, "mempack_get_context")
-	requireTool(toolsRes.Tools, "mempack_get_initial_context")
-	requireTool(toolsRes.Tools, "mempack_explain")
-	requireTool(toolsRes.Tools, "mempack_add_memory")
-	requireTool(toolsRes.Tools, "mempack_update_memory")
-	requireTool(toolsRes.Tools, "mempack_link_memories")
-	requireTool(toolsRes.Tools, "mempack_checkpoint")
+	requireTool(toolsRes.Tools, "mem_get_context")
+	requireTool(toolsRes.Tools, "mem_get_initial_context")
+	requireTool(toolsRes.Tools, "mem_explain")
+	requireTool(toolsRes.Tools, "mem_add_memory")
+	requireTool(toolsRes.Tools, "mem_update_memory")
+	requireTool(toolsRes.Tools, "mem_link_memories")
+	requireTool(toolsRes.Tools, "mem_checkpoint")
 
 	initCtxRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{Name: "mem_get_initial_context", Arguments: map[string]any{"repo": repoDir}},

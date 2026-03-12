@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"mempack/internal/config"
-	"mempack/internal/repo"
+	"mem/internal/config"
+	"mem/internal/repo"
 )
 
 func TestResolveRepoPrefersCwdOverActiveRepo(t *testing.T) {

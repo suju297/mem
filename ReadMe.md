@@ -11,13 +11,18 @@ Data is persisted in local SQLite under your configured `data_dir`.
 
 ## Documentation Map
 
+Task-first:
+- First-time setup + troubleshooting: `docs/onboarding.md`
+- Common workflows and copy-pasteable examples: `docs/cookbook.md`
+- Automation, CI, and shell integration: `docs/scripting.md`
+
 Reference:
-- Getting started + troubleshooting: `docs/onboarding.md`
 - Full CLI syntax reference: `docs/cli.md`
+- Terminal UI guidance for CLI output: `docs/terminal-ui.md`
 - Storage layout, schema, and artifacts: `docs/storage.md`
 - Architecture + runtime diagrams: `ARCHITECTURE.md`
 - Sandbox evaluation/testing process: `docs/memory-testing-process.md`
-- VS Code/Cursor extension: `extensions/vscode-mempack/README.md`
+- VS Code/Cursor extension: `extensions/vscode-mem/README.md`
 
 ## Quick Start
 
@@ -26,19 +31,19 @@ Reference:
 macOS/Linux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.sh | sh -s -- --repo suju297/mempack
+curl -fsSL https://raw.githubusercontent.com/suju297/mem/main/scripts/install.sh | sh -s -- --repo suju297/mem
 ```
 
 Add PATH automatically during install (macOS/Linux):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.sh | sh -s -- --repo suju297/mempack --add-to-path
+curl -fsSL https://raw.githubusercontent.com/suju297/mem/main/scripts/install.sh | sh -s -- --repo suju297/mem --add-to-path
 ```
 
 Windows (PowerShell):
 
 ```powershell
-iwr https://raw.githubusercontent.com/suju297/mempack/main/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo suju297/mempack
+iwr https://raw.githubusercontent.com/suju297/mem/main/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo suju297/mem
 ```
 
 Windows PATH behavior:
@@ -86,6 +91,12 @@ mem mcp start
 mem mcp status
 mem mcp stop
 ```
+
+Next docs by task:
+- First run and troubleshooting: `docs/onboarding.md`
+- Common workflows: `docs/cookbook.md`
+- Automation and CI: `docs/scripting.md`
+- Exact syntax and flags: `docs/cli.md`
 
 ## Repo Scoping
 
@@ -136,6 +147,8 @@ mem mcp status
 ```
 
 Full command syntax: `docs/cli.md`
+Common workflows: `docs/cookbook.md`
+Automation behavior: `docs/scripting.md`
 
 ## MCP Tool Surface
 
@@ -159,7 +172,7 @@ Global config path:
 - `XDG_CONFIG_HOME/mem/config.toml` (default `~/.config/mem/config.toml`)
 
 Repo override path:
-- `.mempack/config.json`
+- `.mem/config.json`
 
 Data directory precedence:
 1. `--data-dir <path>`
@@ -198,7 +211,7 @@ This view shows external clients (CLI, MCP tools, extension) and the core local 
 ## VS Code/Cursor Extension
 
 Extension implementation and usage are documented in:
-- `extensions/vscode-mempack/README.md`
+- `extensions/vscode-mem/README.md`
 
 Extension control model:
 - Extension status reflects CLI/daemon state.
@@ -221,7 +234,7 @@ go build -o mem ./cmd/mem
 Build extension:
 
 ```bash
-cd extensions/vscode-mempack
+cd extensions/vscode-mem
 npm install
 npm run compile
 npx @vscode/vsce package

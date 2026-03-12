@@ -61,7 +61,7 @@ jobs:
 
           CGO_ENABLED=0 GOOS="${{ matrix.goos }}" GOARCH="${{ matrix.goarch }}" \
             go build -trimpath \
-              -ldflags "-s -w -X mempack/internal/app.Version=${VERSION} -X mempack/internal/app.Commit=${COMMIT}" \
+              -ldflags "-s -w -X mem/internal/app.Version=${VERSION} -X mem/internal/app.Commit=${COMMIT}" \
               -o "${PKG_DIR}/${BIN_NAME}" ./cmd/mem
 
           if [[ -f "ReadMe.md" ]]; then
@@ -73,10 +73,8 @@ jobs:
 
           if [[ "${{ matrix.archive }}" == "zip" ]]; then
             (cd "${PKG_DIR}" && zip -q -r "../mem_${{ matrix.goos }}_${{ matrix.goarch }}.zip" .)
-            cp "${DIST_DIR}/mem_${{ matrix.goos }}_${{ matrix.goarch }}.zip" "${DIST_DIR}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}.zip"
           else
             tar -czf "${DIST_DIR}/mem_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" -C "${PKG_DIR}" .
-            cp "${DIST_DIR}/mem_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" "${DIST_DIR}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
           fi
 
       - name: Upload packaged artifact
@@ -85,7 +83,6 @@ jobs:
           name: mem-${{ matrix.goos }}-${{ matrix.goarch }}
           path: |
             dist/${{ github.ref_name }}/mem_${{ matrix.goos }}_${{ matrix.goarch }}.*
-            dist/${{ github.ref_name }}/mempack_${{ matrix.goos }}_${{ matrix.goarch }}.*
           if-no-files-found: error
 
   release:
@@ -106,7 +103,7 @@ jobs:
           set -eo pipefail
           VERSION="${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
           cd "dist/${VERSION}"
-          sha256sum mem_* mempack_* > checksums.txt
+          sha256sum mem_* > checksums.txt
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
@@ -116,6 +113,4 @@ jobs:
           files: |
             dist/${{ github.ref_name }}/mem_*.tar.gz
             dist/${{ github.ref_name }}/mem_*.zip
-            dist/${{ github.ref_name }}/mempack_*.tar.gz
-            dist/${{ github.ref_name }}/mempack_*.zip
             dist/${{ github.ref_name }}/checksums.txt

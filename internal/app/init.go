@@ -10,8 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/config"
+	"mem/internal/store"
+	"mem/internal/token"
 
 	"modernc.org/sqlite"
 	sqlite3 "modernc.org/sqlite/lib"
@@ -20,7 +21,7 @@ import (
 func runInit(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(errOut)
-	noAgents := fs.Bool("no-agents", false, "Skip writing .mempack/MEMORY.md and assistant stub files")
+	noAgents := fs.Bool("no-agents", false, "Skip writing repo MEMORY.md and assistant stub files")
 	assistantsFlag := fs.String("assistants", "agents", "Comma-separated assistant stubs to write: agents,claude,gemini,all")
 	if err := fs.Parse(args); err != nil {
 		return 2
@@ -125,9 +126,10 @@ func runInit(args []string, out, errOut io.Writer) int {
 		if err != nil {
 			fmt.Fprintf(errOut, "warning: failed to write agent instructions: %v\n", err)
 		} else {
-			fmt.Fprintf(out, "Generated .mempack/MEMORY.md and assistant stubs: %s (when missing).\n", assistantStubTargetsLabel(targets))
+			supportDirName := repoSupportDirName(repoInfo.GitRoot)
+			fmt.Fprintf(out, "Generated %s/MEMORY.md and assistant stubs: %s (when missing).\n", supportDirName, assistantStubTargetsLabel(targets))
 			if result.WroteAlternate {
-				fmt.Fprintln(out, "AGENTS.md already exists; wrote .mempack/AGENTS.md. Add the following 2 lines to AGENTS.md:")
+				fmt.Fprintf(out, "AGENTS.md already exists; wrote %s/AGENTS.md. Add the following 2 lines to AGENTS.md:\n", supportDirName)
 				for _, line := range agentsStubHintLines() {
 					fmt.Fprintln(out, line)
 				}
@@ -229,6 +231,7 @@ func writeAgentFiles(root string, targets []assistantStubTarget, includeMemory b
 
 func writeAssistantStubs(root string, targets []assistantStubTarget) (agentFilesResult, error) {
 	var result agentFilesResult
+	supportDirName := repoSupportDirName(root)
 	for _, target := range targets {
 		switch target {
 		case assistantTargetAgents:
@@ -243,11 +246,11 @@ func writeAssistantStubs(root string, targets []assistantStubTarget) (agentFiles
 				result.WroteAlternate = true
 			}
 		case assistantTargetClaude:
-			if err := writeFileIfMissing(resolveRootPath(root, "CLAUDE.md"), claudeStubContent()); err != nil {
+			if err := writeFileIfMissing(resolveRootPath(root, "CLAUDE.md"), claudeStubContentForDir(supportDirName)); err != nil {
 				return agentFilesResult{}, err
 			}
 		case assistantTargetGemini:
-			if err := writeFileIfMissing(resolveRootPath(root, "GEMINI.md"), geminiStubContent()); err != nil {
+			if err := writeFileIfMissing(resolveRootPath(root, "GEMINI.md"), geminiStubContentForDir(supportDirName)); err != nil {
 				return agentFilesResult{}, err
 			}
 		}
@@ -256,17 +259,13 @@ func writeAssistantStubs(root string, targets []assistantStubTarget) (agentFiles
 }
 
 func writeMemoryInstructions(root string) error {
-	dir := ".mempack"
-	path := filepath.Join(dir, "MEMORY.md")
-	if root != "" {
-		dir = filepath.Join(root, ".mempack")
-		path = filepath.Join(dir, "MEMORY.md")
-	}
+	dir := config.ResolveRepoSupportDir(root)
+	path := config.ResolveRepoSupportPath(root, "MEMORY.md")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, []byte(memoryInstructionsContent()), 0644)
+	return os.WriteFile(path, []byte(memoryInstructionsContentForDir(filepath.Base(dir))), 0644)
 }
 
 func writeAgentsStub(root string) (agentFilesResult, error) {
@@ -275,21 +274,18 @@ func writeAgentsStub(root string) (agentFilesResult, error) {
 		path = filepath.Join(root, "AGENTS.md")
 	}
 	if _, err := os.Stat(path); err == nil {
-		altDir := ".mempack"
-		if root != "" {
-			altDir = filepath.Join(root, ".mempack")
-		}
+		altDir := config.ResolveRepoSupportDir(root)
 		if err := os.MkdirAll(altDir, 0o755); err != nil {
 			return agentFilesResult{}, err
 		}
 		altPath := filepath.Join(altDir, "AGENTS.md")
-		if err := os.WriteFile(altPath, []byte(agentsStubContent()), 0644); err != nil {
+		if err := os.WriteFile(altPath, []byte(agentsStubContentForDir(filepath.Base(altDir))), 0644); err != nil {
 			return agentFilesResult{}, err
 		}
 		return agentFilesResult{AgentsPath: altPath, WroteAlternate: true}, nil
 	}
 
-	if err := os.WriteFile(path, []byte(agentsStubContent()), 0644); err != nil {
+	if err := os.WriteFile(path, []byte(agentsStubContentForDir(repoSupportDirName(root))), 0644); err != nil {
 		return agentFilesResult{}, err
 	}
 	return agentFilesResult{AgentsPath: path}, nil
@@ -336,7 +332,7 @@ func maybeUpdateAgentFiles(root string) {
 }
 
 func maybeRefreshMemoryInstructions(root string) error {
-	path := filepath.Join(root, ".mempack", "MEMORY.md")
+	path := config.ResolveRepoSupportPath(root, "MEMORY.md")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -349,31 +345,33 @@ func maybeRefreshMemoryInstructions(root string) error {
 }
 
 func maybeRefreshAgentsStub(root string) error {
+	supportDirName := repoSupportDirName(root)
 	rootPath := filepath.Join(root, "AGENTS.md")
 	data, err := os.ReadFile(rootPath)
 	if err == nil {
 		if isManagedAgentsStub(string(data)) {
-			if err := os.WriteFile(rootPath, []byte(agentsStubContent()), 0644); err != nil {
+			if err := os.WriteFile(rootPath, []byte(agentsStubContentForDir(supportDirName)), 0644); err != nil {
 				return err
 			}
 		}
 	}
-	altPath := filepath.Join(root, ".mempack", "AGENTS.md")
+	altPath := config.ResolveRepoSupportPath(root, "AGENTS.md")
 	altData, err := os.ReadFile(altPath)
 	if err != nil {
 		return nil
 	}
 	if isManagedAgentsStub(string(altData)) {
-		return os.WriteFile(altPath, []byte(agentsStubContent()), 0644)
+		return os.WriteFile(altPath, []byte(agentsStubContentForDir(supportDirName)), 0644)
 	}
 	return nil
 }
 
 func maybeRefreshCompatibilityStubs(root string) error {
-	if err := maybeRefreshStubFile(filepath.Join(root, "CLAUDE.md"), claudeStubContent(), isManagedClaudeStub); err != nil {
+	supportDirName := repoSupportDirName(root)
+	if err := maybeRefreshStubFile(filepath.Join(root, "CLAUDE.md"), claudeStubContentForDir(supportDirName), isManagedClaudeStub); err != nil {
 		return err
 	}
-	if err := maybeRefreshStubFile(filepath.Join(root, "GEMINI.md"), geminiStubContent(), isManagedGeminiStub); err != nil {
+	if err := maybeRefreshStubFile(filepath.Join(root, "GEMINI.md"), geminiStubContentForDir(supportDirName), isManagedGeminiStub); err != nil {
 		return err
 	}
 	return nil
@@ -392,12 +390,12 @@ func maybeRefreshStubFile(path, content string, managedFn func(string) bool) err
 
 func isManagedMemoryInstructions(content string) bool {
 	normalized := strings.ToLower(content)
-	if strings.Contains(normalized, memoryManagedMarker) || strings.Contains(normalized, legacyManagedMarker) {
+	if strings.Contains(normalized, memoryManagedMarker) {
 		return true
 	}
-	if (strings.Contains(normalized, "mem instructions") || strings.Contains(normalized, "mempack instructions")) &&
+	if strings.Contains(normalized, "mem instructions") &&
 		strings.Contains(normalized, "do not edit this file") &&
-		(strings.Contains(normalized, "mem_get_context") || strings.Contains(normalized, "mempack_get_context") || strings.Contains(normalized, "mem.get_context") || strings.Contains(normalized, "mempack.get_context")) {
+		(strings.Contains(normalized, "mem_get_context") || strings.Contains(normalized, "mem.get_context")) {
 		return true
 	}
 	return false
@@ -405,21 +403,38 @@ func isManagedMemoryInstructions(content string) bool {
 
 func isManagedAgentsStub(content string) bool {
 	normalized := normalizeStub(content)
-	stub := normalizeStub(agentsStubContent())
-	if normalized == stub {
-		return true
+	for _, dirName := range []string{config.RepoSupportDirName, config.LegacyRepoSupportDirName} {
+		if normalized == normalizeStub(agentsStubContentForDir(dirName)) {
+			return true
+		}
 	}
-	return false
+	return normalized == normalizeStub(agentsStubContent())
 }
 
 func isManagedClaudeStub(content string) bool {
-	return normalizeStub(content) == normalizeStub(claudeStubContent())
+	normalized := normalizeStub(content)
+	for _, dirName := range []string{config.RepoSupportDirName, config.LegacyRepoSupportDirName} {
+		if normalized == normalizeStub(claudeStubContentForDir(dirName)) {
+			return true
+		}
+	}
+	return normalized == normalizeStub(claudeStubContent())
 }
 
 func isManagedGeminiStub(content string) bool {
-	return normalizeStub(content) == normalizeStub(geminiStubContent())
+	normalized := normalizeStub(content)
+	for _, dirName := range []string{config.RepoSupportDirName, config.LegacyRepoSupportDirName} {
+		if normalized == normalizeStub(geminiStubContentForDir(dirName)) {
+			return true
+		}
+	}
+	return normalized == normalizeStub(geminiStubContent())
 }
 
 func normalizeStub(content string) string {
 	return strings.TrimSpace(strings.ReplaceAll(content, "\r\n", "\n"))
+}
+
+func repoSupportDirName(root string) string {
+	return filepath.Base(config.ResolveRepoSupportDir(root))
 }

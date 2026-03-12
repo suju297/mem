@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"mempack/internal/config"
+	"mem/internal/config"
 )
 
 type Provider interface {

@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/config"
-	"mempack/internal/embed"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/embed"
+	"mem/internal/store"
 )
 
 const (

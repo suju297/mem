@@ -8,7 +8,7 @@ import (
 )
 
 func TestLoadSave(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "mempack-test-config-*")
+	tmpDir, err := os.MkdirTemp("", "mem-test-config-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +114,7 @@ func TestLoadSave(t *testing.T) {
 }
 
 func TestSaveRepoStateDoesNotPersistDataDirOverride(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "mempack-test-config-state-*")
+	tmpDir, err := os.MkdirTemp("", "mem-test-config-state-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,17 +169,17 @@ func TestSaveRepoStateDoesNotPersistDataDirOverride(t *testing.T) {
 }
 
 func TestApplyRepoOverrides(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "mempack-test-repo-config-*")
+	tmpDir, err := os.MkdirTemp("", "mem-test-repo-config-*")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer os.RemoveAll(tmpDir)
 
 	repoDir := filepath.Join(tmpDir, "repo")
-	if err := os.MkdirAll(filepath.Join(repoDir, ".mempack"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(repoDir, ".mem"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	configPath := filepath.Join(repoDir, ".mempack", "config.json")
+	configPath := filepath.Join(repoDir, ".mem", "config.json")
 	if err := os.WriteFile(configPath, []byte(`{
   "mcp_allow_write": true,
   "mcp_write_mode": "auto",
@@ -215,5 +215,68 @@ func TestApplyRepoOverrides(t *testing.T) {
 	}
 	if cfg.DefaultThread != "T-REPO" {
 		t.Errorf("Expected default_thread T-REPO, got %s", cfg.DefaultThread)
+	}
+}
+
+func TestApplyRepoOverridesLegacyMempackDir(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mem-test-repo-config-legacy-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	repoDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoDir, ".mempack"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(repoDir, ".mempack", "config.json")
+	if err := os.WriteFile(configPath, []byte(`{
+  "mcp_allow_write": false,
+  "mcp_write_mode": "off",
+  "default_thread": "T-LEGACY"
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := RepoConfigPath(repoDir); got != configPath {
+		t.Fatalf("expected RepoConfigPath to use legacy path %q, got %q", configPath, got)
+	}
+
+	cfg, err := Default()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ApplyRepoOverrides(&cfg, repoDir); err != nil {
+		t.Fatalf("ApplyRepoOverrides failed: %v", err)
+	}
+	if cfg.MCPAllowWrite {
+		t.Errorf("Expected mcp_allow_write false, got true")
+	}
+	if cfg.MCPWriteMode != "off" {
+		t.Errorf("Expected mcp_write_mode off, got %s", cfg.MCPWriteMode)
+	}
+	if cfg.DefaultThread != "T-LEGACY" {
+		t.Errorf("Expected default_thread T-LEGACY, got %s", cfg.DefaultThread)
+	}
+}
+
+func TestRepoConfigPathPrefersMemOverLegacyMempack(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mem-test-repo-config-priority-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	repoDir := filepath.Join(tmpDir, "repo")
+	if err := os.MkdirAll(filepath.Join(repoDir, ".mem"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(repoDir, ".mempack"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	expected := filepath.Join(repoDir, ".mem", "config.json")
+	if got := RepoConfigPath(repoDir); got != expected {
+		t.Fatalf("expected RepoConfigPath to prefer %q, got %q", expected, got)
 	}
 }

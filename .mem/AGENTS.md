@@ -6,4 +6,4 @@ Before starting any task, fetch repo memory:
 If MCP is unavailable, ask the user to run:
 `mem get "<task>" --format prompt`
 
-Full instructions: `.mempack/MEMORY.md`
+Full instructions: `.mem/MEMORY.md`

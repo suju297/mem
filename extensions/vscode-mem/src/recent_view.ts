@@ -1,17 +1,17 @@
 import * as vscode from "vscode";
-import { MempackClient } from "./client";
+import { MemClient } from "./client";
 import { RecentMemoryItem } from "./types";
 
 let panel: vscode.WebviewPanel | undefined;
 
 export async function showRecentPanel(
   context: vscode.ExtensionContext,
-  client: MempackClient,
+  client: MemClient,
   cwd: string
 ): Promise<void> {
   if (!panel) {
     panel = vscode.window.createWebviewPanel(
-      "mempackRecent",
+      "memRecent",
       "Mem Recent",
       vscode.ViewColumn.Active,
       {

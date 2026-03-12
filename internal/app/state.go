@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"mempack/internal/repo"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/repo"
+	"mem/internal/store"
 )
 
 func loadState(repoInfo repo.Info, workspace string, st *store.Store) (json.RawMessage, int, string, string, string, error) {
@@ -38,7 +39,8 @@ func loadState(repoInfo repo.Info, workspace string, st *store.Store) (json.RawM
 }
 
 func loadStateFromRepoFiles(root string) (json.RawMessage, string, string, error) {
-	stateJSONPath := filepath.Join(root, ".mempack", "state.json")
+	stateJSONPath := config.ResolveRepoSupportPath(root, "state.json")
+	stateJSONLabel := filepath.Base(config.ResolveRepoSupportDir(root)) + "/state.json"
 	if data, err := os.ReadFile(stateJSONPath); err == nil {
 		if json.Valid(data) {
 			info, statErr := os.Stat(stateJSONPath)
@@ -46,12 +48,12 @@ func loadStateFromRepoFiles(root string) (json.RawMessage, string, string, error
 			if statErr == nil {
 				updatedAt = info.ModTime().UTC().Format("2006-01-02T15:04:05Z")
 			}
-			return json.RawMessage(data), ".mempack/state.json", updatedAt, nil
+			return json.RawMessage(data), stateJSONLabel, updatedAt, nil
 		}
 		wrapped, err := json.Marshal(map[string]string{
 			"raw": string(data),
 		})
-		return json.RawMessage(wrapped), ".mempack/state.json", "", err
+		return json.RawMessage(wrapped), stateJSONLabel, "", err
 	}
 
 	stateMDPath := filepath.Join(root, "STATE.md")

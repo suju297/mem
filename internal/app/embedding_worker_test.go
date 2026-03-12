@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"mempack/internal/store"
+	"mem/internal/store"
 )
 
 type testEmbedProvider struct {

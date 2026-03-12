@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"mempack/internal/app"
+	"mem/internal/app"
 )
 
 func main() {

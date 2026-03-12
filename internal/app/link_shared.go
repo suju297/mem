@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"mempack/internal/store"
+	"mem/internal/store"
 )
 
 func normalizeLinkRelation(raw string) (string, error) {

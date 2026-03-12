@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/store"
+	"mem/internal/store"
 )
 
 type RepoListItem struct {

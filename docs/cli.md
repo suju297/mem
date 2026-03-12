@@ -1,5 +1,12 @@
 # Mem CLI
 
+This page is the exact syntax reference for the CLI.
+
+Use a different page if you need:
+- setup and first troubleshooting: `docs/onboarding.md`
+- task-first examples: `docs/cookbook.md`
+- automation, CI, and shell behavior: `docs/scripting.md`
+
 ## Usage
 
 ```text
@@ -7,6 +14,33 @@ mem [global-flags] <command> [args] [flags]
 mem <command> --help
 mem --version
 ```
+
+## Behavioral Conventions
+
+### Exit codes
+
+- `0`: success
+- `1`: runtime or operational failure
+- `2`: invalid usage, missing required input, or unsupported flags/values
+
+### Output and streams
+
+- Commands that support structured output write their primary payload to stdout.
+- Validation errors, runtime errors, prompts, and debug diagnostics go to stderr.
+- `mem get` defaults to JSON unless `--format prompt` is used.
+- `mem doctor --json`, `mem explain`, and `mem embed status` are the main machine-readable diagnostics.
+
+### Repo and config resolution
+
+Repo resolution order is:
+1. `--repo <id|path>` or MCP `repo`
+2. Git root from the current working directory
+3. `active_repo` fallback
+
+Data directory precedence is:
+1. `--data-dir <path>`
+2. `MEM_DATA_DIR`
+3. `data_dir` in `config.toml`
 
 ## ![Global](https://img.shields.io/badge/-8B5CF6?style=flat-square) Global Flags
 

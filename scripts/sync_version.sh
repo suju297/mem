@@ -40,8 +40,8 @@ def update_json(path: Path) -> None:
             packages[""]["version"] = ext_version
     path.write_text(json.dumps(obj, indent=2) + "\n", encoding="utf-8")
 
-update_json(root / "extensions" / "vscode-mempack" / "package.json")
-update_json(root / "extensions" / "vscode-mempack" / "package-lock.json")
+update_json(root / "extensions" / "vscode-mem" / "package.json")
+update_json(root / "extensions" / "vscode-mem" / "package-lock.json")
 PY
 
 gofmt -w "$ROOT_DIR/internal/app/version.go" >/dev/null 2>&1 || true

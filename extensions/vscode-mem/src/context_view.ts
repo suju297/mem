@@ -10,7 +10,7 @@ export function showContextPanel(
 ): void {
   if (!panel) {
     panel = vscode.window.createWebviewPanel(
-      "mempackContext",
+      "memContext",
       "Mem Context",
       vscode.ViewColumn.Active,
       {

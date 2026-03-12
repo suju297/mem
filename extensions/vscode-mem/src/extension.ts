@@ -1,18 +1,26 @@
 import * as vscode from "vscode";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { MempackClient } from "./client";
-import { MempackTreeProvider, MemoryNode, SessionNode } from "./tree";
+import { MemClient } from "./client";
+import { MemTreeProvider, MemoryNode, SessionNode } from "./tree";
 import { getWorkspaceRoot } from "./workspace";
-import { addMempackStub } from "./stub";
+import { addMemStub } from "./stub";
 import { showContextPanel } from "./context_view";
 import { showThreadsPanel } from "./threads_view";
 import { showRecentPanel } from "./recent_view";
-import { formatContextPack, formatDoctorReport, formatShowResult, suggestSummary, suggestTitle } from "./format";
+import {
+  formatContextPack,
+  formatDoctorReport,
+  formatShowResult,
+  suggestSummary,
+  suggestTitle,
+} from "./format";
 import { SessionManager } from "./sessions";
 import {
   getConfigPath,
   getRepoConfigPath,
+  getRepoSupportDir,
+  getRepoSupportDirName,
   parseEmbeddingConfig,
   parseMcpWritesConfig,
   parseRepoConfig,
@@ -21,102 +29,128 @@ import {
   setTomlBoolean,
   setTomlNumber,
   setTomlString,
-  updateRepoConfig
+  updateRepoConfig,
 } from "./config";
 
 export function activate(context: vscode.ExtensionContext): void {
   const output = vscode.window.createOutputChannel("Mem");
-  const client = new MempackClient(output);
-  const tree = new MempackTreeProvider(client, context);
+  const client = new MemClient(output);
+  const tree = new MemTreeProvider(client, context);
   const sessions = new SessionManager(client, output, context.globalState);
 
   context.subscriptions.push(output);
   context.subscriptions.push({ dispose: () => client.dispose() });
   context.subscriptions.push(sessions);
   void sessions.start();
-  void vscode.commands.executeCommand("setContext", "mempack.mcpRunning", false);
-  context.subscriptions.push(vscode.window.registerTreeDataProvider("mempackView", tree));
+  void vscode.commands.executeCommand("setContext", "mem.mcpRunning", false);
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider("memView", tree),
+  );
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("mempack")) {
+      if (e.affectsConfiguration("mem")) {
         tree.refresh();
         void sessions.refreshStatus();
       }
-    })
+    }),
   );
 
   const mcpWatchInterval = setInterval(() => {
     tree.refresh();
   }, 5000);
-  context.subscriptions.push({ dispose: () => clearInterval(mcpWatchInterval) });
+  context.subscriptions.push({
+    dispose: () => clearInterval(mcpWatchInterval),
+  });
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.refresh", () => {
+    vscode.commands.registerCommand("mem.refresh", () => {
       tree.refresh();
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.annotateLastSession", async () => {
+    vscode.commands.registerCommand("mem.annotateLastSession", async () => {
       await sessions.annotateLastSession();
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.annotateSessionFromList", async () => {
+    vscode.commands.registerCommand("mem.annotateSessionFromList", async () => {
       await sessions.annotateSessionFromList();
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.openSessionDiff", async (node?: SessionNode) => {
-      if (!node) {
-        return;
-      }
-      await sessions.openSessionDiff(node.session);
-    })
+    vscode.commands.registerCommand(
+      "mem.openSessionDiff",
+      async (node?: SessionNode) => {
+        if (!node) {
+          return;
+        }
+        await sessions.openSessionDiff(node.session);
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.annotateSession", async (node?: SessionNode) => {
-      if (!node) {
-        return;
-      }
-      await sessions.annotateSession(node.session);
-    })
+    vscode.commands.registerCommand(
+      "mem.annotateSession",
+      async (node?: SessionNode) => {
+        if (!node) {
+          return;
+        }
+        await sessions.annotateSession(node.session);
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.markSessionReviewed", async (node?: SessionNode) => {
-      if (!node) {
-        return;
-      }
-      await sessions.markSessionReviewed(node.session);
-      tree.refresh();
-    })
+    vscode.commands.registerCommand(
+      "mem.markSessionReviewed",
+      async (node?: SessionNode) => {
+        if (!node) {
+          return;
+        }
+        await sessions.markSessionReviewed(node.session);
+        tree.refresh();
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.copySessionReference", async (node?: SessionNode) => {
-      if (!node) {
-        return;
-      }
-      await sessions.copySessionReference(node.session);
-    })
+    vscode.commands.registerCommand(
+      "mem.copySessionReference",
+      async (node?: SessionNode) => {
+        if (!node) {
+          return;
+        }
+        await sessions.copySessionReference(node.session);
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.toggleIntentCapture", async () => {
-      const config = vscode.workspace.getConfiguration("mempack");
+    vscode.commands.registerCommand("mem.toggleIntentCapture", async () => {
+      const config = vscode.workspace.getConfiguration("mem");
       const current = config.get<boolean>("autoSessionsEnabled", false);
-      const scope = await vscode.window.showQuickPick<
-        { label: string; value: vscode.ConfigurationTarget; description?: string }
-      >(
+      const scope = await vscode.window.showQuickPick<{
+        label: string;
+        value: vscode.ConfigurationTarget;
+        description?: string;
+      }>(
         [
-          { label: "Workspace", value: vscode.ConfigurationTarget.Workspace, description: "Only this repo/workspace." },
-          { label: "User", value: vscode.ConfigurationTarget.Global, description: "Default for all repos." }
+          {
+            label: "Workspace",
+            value: vscode.ConfigurationTarget.Workspace,
+            description: "Only this repo/workspace.",
+          },
+          {
+            label: "User",
+            value: vscode.ConfigurationTarget.Global,
+            description: "Default for all repos.",
+          },
         ],
-        { placeHolder: "Where should this setting apply?" }
+        { placeHolder: "Where should this setting apply?" },
       );
       if (!scope) {
         return;
@@ -134,25 +168,35 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.window.showInformationMessage(
           current
             ? "Auto-capture is Off. Mem will not write session memories automatically."
-            : "Auto-capture is On. Mem will write lightweight session memories from meaningful edits."
+            : "Auto-capture is On. Mem will write lightweight session memories from meaningful edits.",
         );
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureIntentCapture", async () => {
-      const config = vscode.workspace.getConfiguration("mempack");
-      const scope = await vscode.window.showQuickPick<
-        { label: string; value: vscode.ConfigurationTarget; description?: string }
-      >(
+    vscode.commands.registerCommand("mem.configureIntentCapture", async () => {
+      const config = vscode.workspace.getConfiguration("mem");
+      const scope = await vscode.window.showQuickPick<{
+        label: string;
+        value: vscode.ConfigurationTarget;
+        description?: string;
+      }>(
         [
-          { label: "Workspace", value: vscode.ConfigurationTarget.Workspace, description: "Only this repo/workspace." },
-          { label: "User", value: vscode.ConfigurationTarget.Global, description: "Default for all repos." }
+          {
+            label: "Workspace",
+            value: vscode.ConfigurationTarget.Workspace,
+            description: "Only this repo/workspace.",
+          },
+          {
+            label: "User",
+            value: vscode.ConfigurationTarget.Global,
+            description: "Default for all repos.",
+          },
         ],
-        { placeHolder: "Where should these auto-capture settings apply?" }
+        { placeHolder: "Where should these auto-capture settings apply?" },
       );
       if (!scope) {
         return;
@@ -164,15 +208,19 @@ export function activate(context: vscode.ExtensionContext): void {
           {
             label: "Auto-capture: On",
             value: true,
-            description: "Automatically saves lightweight session memories from meaningful edits (no prompts)."
+            description:
+              "Automatically saves lightweight session memories from meaningful edits (no prompts).",
           },
           {
             label: "Auto-capture: Off",
             value: false,
-            description: "Disables passive session capture. Manual saves still work."
-          }
+            description:
+              "Disables passive session capture. Manual saves still work.",
+          },
         ],
-        { placeHolder: `Auto-capture work sessions (currently ${enabled ? "On" : "Off"})` }
+        {
+          placeHolder: `Auto-capture work sessions (currently ${enabled ? "On" : "Off"})`,
+        },
       );
       if (!enabledPick) {
         return;
@@ -186,22 +234,26 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       try {
-        await config.update("autoSessionsEnabled", enabledPick.value, scope.value);
+        await config.update(
+          "autoSessionsEnabled",
+          enabledPick.value,
+          scope.value,
+        );
         tree.refresh();
         await sessions.refreshStatus();
         vscode.window.showInformationMessage(
           enabledPick.value
             ? "Auto-capture is On. Mem will write session memories from meaningful edits."
-            : "Auto-capture is Off. Mem will not write session memories automatically."
+            : "Auto-capture is Off. Mem will not write session memories automatically.",
         );
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.init", async () => {
+    vscode.commands.registerCommand("mem.init", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -216,16 +268,16 @@ export function activate(context: vscode.ExtensionContext): void {
             label: "Init (recommended)",
             value: "write",
             description:
-              "Runs `mem init`. Writes `.mempack/MEMORY.md` + `AGENTS.md` and only detected assistant files when relevant."
+              "Runs `mem init`. Writes repo MEMORY.md + `AGENTS.md` and only detected assistant files when relevant.",
           },
           {
             label: "Init (no repo files)",
             value: "no-agents",
             description:
-              "Runs `mem init --no-agents`. Initializes the repo DB and welcome memory, but writes no files into this repo."
-          }
+              "Runs `mem init --no-agents`. Initializes the repo DB and welcome memory, but writes no files into this repo.",
+          },
         ],
-        { placeHolder: "Initialize Mem in this repo" }
+        { placeHolder: "Initialize Mem in this repo" },
       );
       if (!choice) {
         return;
@@ -233,10 +285,14 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         output.show(true);
         await vscode.window.withProgress(
-          { location: vscode.ProgressLocation.Notification, title: "Initializing Mem", cancellable: false },
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: "Initializing Mem",
+            cancellable: false,
+          },
           async () => {
             await client.init(cwd, choice.value === "no-agents");
-          }
+          },
         );
         tree.refresh();
 
@@ -244,7 +300,9 @@ export function activate(context: vscode.ExtensionContext): void {
         let repoRoot = cwd;
         try {
           const report = await client.doctor(cwd);
-          const root = report?.repo?.git_root ? String(report.repo.git_root) : "";
+          const root = report?.repo?.git_root
+            ? String(report.repo.git_root)
+            : "";
           if (root.trim() !== "") {
             repoRoot = root;
           }
@@ -259,15 +317,40 @@ export function activate(context: vscode.ExtensionContext): void {
 
         const actions: Array<{ label: string; filePath?: string }> = [];
         if (choice.value !== "no-agents") {
-          await addOpenActionIfExists(actions, "Open .mempack/MEMORY.md", path.join(repoRoot, ".mempack", "MEMORY.md"));
-          await addOpenActionIfExists(actions, "Open AGENTS.md", path.join(repoRoot, "AGENTS.md"));
-          await addOpenActionIfExists(actions, "Open CLAUDE.md", path.join(repoRoot, "CLAUDE.md"));
-          await addOpenActionIfExists(actions, "Open GEMINI.md", path.join(repoRoot, "GEMINI.md"));
-          await addOpenActionIfExists(actions, "Open .mempack/AGENTS.md", path.join(repoRoot, ".mempack", "AGENTS.md"));
+          const repoSupportDir = getRepoSupportDir(repoRoot);
+          const repoSupportDirName = getRepoSupportDirName(repoRoot);
+          await addOpenActionIfExists(
+            actions,
+            `Open ${repoSupportDirName}/MEMORY.md`,
+            path.join(repoSupportDir, "MEMORY.md"),
+          );
+          await addOpenActionIfExists(
+            actions,
+            "Open AGENTS.md",
+            path.join(repoRoot, "AGENTS.md"),
+          );
+          await addOpenActionIfExists(
+            actions,
+            "Open CLAUDE.md",
+            path.join(repoRoot, "CLAUDE.md"),
+          );
+          await addOpenActionIfExists(
+            actions,
+            "Open GEMINI.md",
+            path.join(repoRoot, "GEMINI.md"),
+          );
+          await addOpenActionIfExists(
+            actions,
+            `Open ${repoSupportDirName}/AGENTS.md`,
+            path.join(repoSupportDir, "AGENTS.md"),
+          );
         }
         actions.push({ label: "Open Output" });
 
-        const pick = await vscode.window.showInformationMessage(message, ...actions.map((a) => a.label));
+        const pick = await vscode.window.showInformationMessage(
+          message,
+          ...actions.map((a) => a.label),
+        );
         if (pick) {
           if (pick === "Open Output") {
             output.show(true);
@@ -279,7 +362,7 @@ export function activate(context: vscode.ExtensionContext): void {
                 await vscode.workspace.fs.stat(uri);
                 await vscode.window.showTextDocument(uri, { preview: false });
               } catch {
-                // ignore missing file (e.g. AGENTS.md already existed so init wrote .mempack/AGENTS.md instead)
+                // ignore missing file (e.g. AGENTS.md already existed so init wrote repoSupportDir/AGENTS.md instead)
               }
             }
           }
@@ -290,11 +373,11 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureAssistantFiles", async () => {
+    vscode.commands.registerCommand("mem.configureAssistantFiles", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -310,7 +393,9 @@ export function activate(context: vscode.ExtensionContext): void {
         {
           label: "AGENTS.md",
           target: "agents",
-          description: (await fileExists(path.join(repoRoot, "AGENTS.md"))) ? "Exists" : "Missing"
+          description: (await fileExists(path.join(repoRoot, "AGENTS.md")))
+            ? "Exists"
+            : "Missing",
         },
         {
           label: "CLAUDE.md",
@@ -320,7 +405,7 @@ export function activate(context: vscode.ExtensionContext): void {
             : detected.claude
               ? "Missing (detected)"
               : "Missing",
-          picked: detected.claude
+          picked: detected.claude,
         },
         {
           label: "GEMINI.md",
@@ -330,27 +415,34 @@ export function activate(context: vscode.ExtensionContext): void {
             : detected.gemini
               ? "Missing (detected)"
               : "Missing",
-          picked: detected.gemini
-        }
+          picked: detected.gemini,
+        },
       ];
       const picks = await vscode.window.showQuickPick(items, {
         canPickMany: true,
-        placeHolder: "Select assistant stubs to create (existing files are left unchanged)."
+        placeHolder:
+          "Select assistant stubs to create (existing files are left unchanged).",
       });
       if (!picks || picks.length === 0) {
         return;
       }
       try {
-        await client.writeAssistantFiles(repoRoot, picks.map((item) => item.target), false);
-        vscode.window.showInformationMessage(`Assistant stubs updated: ${picks.map((item) => item.label).join(", ")}`);
+        await client.writeAssistantFiles(
+          repoRoot,
+          picks.map((item) => item.target),
+          false,
+        );
+        vscode.window.showInformationMessage(
+          `Assistant stubs updated: ${picks.map((item) => item.label).join(", ")}`,
+        );
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureMcpWrites", async () => {
+    vscode.commands.registerCommand("mem.configureMcpWrites", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -364,28 +456,56 @@ export function activate(context: vscode.ExtensionContext): void {
               ? "Auto"
               : "Ask";
 
-        const modePick = await vscode.window.showQuickPick<
-          { label: string; allow: boolean; mode: string; description?: string }
-        >(
+        const modePick = await vscode.window.showQuickPick<{
+          label: string;
+          allow: boolean;
+          mode: string;
+          description?: string;
+        }>(
           [
-            { label: "Off", allow: false, mode: "off", description: "Disable MCP write tools." },
-            { label: "Ask", allow: true, mode: "ask", description: "Allow writes, but require confirmation." },
-            { label: "Auto", allow: true, mode: "auto", description: "Allow writes without confirmation." }
+            {
+              label: "Off",
+              allow: false,
+              mode: "off",
+              description: "Disable MCP write tools.",
+            },
+            {
+              label: "Ask",
+              allow: true,
+              mode: "ask",
+              description: "Allow writes, but require confirmation.",
+            },
+            {
+              label: "Auto",
+              allow: true,
+              mode: "auto",
+              description: "Allow writes without confirmation.",
+            },
           ],
-          { placeHolder: `MCP Writes (currently ${currentLabel})` }
+          { placeHolder: `MCP Writes (currently ${currentLabel})` },
         );
         if (!modePick) {
           return;
         }
 
-        const scopePick = await vscode.window.showQuickPick<
-          { label: string; value: "repo" | "global"; description?: string }
-        >(
+        const scopePick = await vscode.window.showQuickPick<{
+          label: string;
+          value: "repo" | "global";
+          description?: string;
+        }>(
           [
-            { label: "Repo override", value: "repo", description: settings.repoConfigPath },
-            { label: "Global default", value: "global", description: settings.globalConfigPath }
+            {
+              label: "Repo override",
+              value: "repo",
+              description: settings.repoConfigPath,
+            },
+            {
+              label: "Global default",
+              value: "global",
+              description: settings.globalConfigPath,
+            },
           ],
-          { placeHolder: "Where should this write setting apply?" }
+          { placeHolder: "Where should this write setting apply?" },
         );
         if (!scopePick) {
           return;
@@ -394,27 +514,41 @@ export function activate(context: vscode.ExtensionContext): void {
         if (scopePick.value === "repo") {
           const nextContent = updateRepoConfig(settings.repoContent || "{}", {
             mcp_allow_write: modePick.allow,
-            mcp_write_mode: modePick.mode
+            mcp_write_mode: modePick.mode,
           });
-          await fs.mkdir(path.dirname(settings.repoConfigPath), { recursive: true });
+          await fs.mkdir(path.dirname(settings.repoConfigPath), {
+            recursive: true,
+          });
           await fs.writeFile(settings.repoConfigPath, nextContent, "utf8");
         } else {
-          let nextGlobal = setTomlBoolean(settings.globalContent || "", "mcp_allow_write", modePick.allow);
-          nextGlobal = setTomlString(nextGlobal, "mcp_write_mode", modePick.mode);
-          await fs.mkdir(path.dirname(settings.globalConfigPath), { recursive: true });
+          let nextGlobal = setTomlBoolean(
+            settings.globalContent || "",
+            "mcp_allow_write",
+            modePick.allow,
+          );
+          nextGlobal = setTomlString(
+            nextGlobal,
+            "mcp_write_mode",
+            modePick.mode,
+          );
+          await fs.mkdir(path.dirname(settings.globalConfigPath), {
+            recursive: true,
+          });
           await fs.writeFile(settings.globalConfigPath, nextGlobal, "utf8");
         }
 
         tree.refresh();
-        vscode.window.showInformationMessage(`MCP writes set to ${modePick.label}.`);
+        vscode.window.showInformationMessage(
+          `MCP writes set to ${modePick.label}.`,
+        );
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.toggleWriteOptIn", async () => {
+    vscode.commands.registerCommand("mem.toggleWriteOptIn", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -426,7 +560,7 @@ export function activate(context: vscode.ExtensionContext): void {
         const confirm = await vscode.window.showWarningMessage(
           `${actionLabel} MCP writes for this repo override?`,
           { modal: true },
-          actionLabel
+          actionLabel,
         );
         if (confirm !== actionLabel) {
           return;
@@ -440,20 +574,24 @@ export function activate(context: vscode.ExtensionContext): void {
           : "off";
         const nextContent = updateRepoConfig(settings.repoContent || "{}", {
           mcp_allow_write: nextAllow,
-          mcp_write_mode: nextMode
+          mcp_write_mode: nextMode,
         });
-        await fs.mkdir(path.dirname(settings.repoConfigPath), { recursive: true });
+        await fs.mkdir(path.dirname(settings.repoConfigPath), {
+          recursive: true,
+        });
         await fs.writeFile(settings.repoConfigPath, nextContent, "utf8");
         tree.refresh();
-        vscode.window.showInformationMessage(`MCP writes ${enabled ? "disabled" : "enabled"}.`);
+        vscode.window.showInformationMessage(
+          `MCP writes ${enabled ? "disabled" : "enabled"}.`,
+        );
       } catch (writeErr: any) {
         showError(writeErr);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureEmbeddings", async () => {
+    vscode.commands.registerCommand("mem.configureEmbeddings", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -484,25 +622,31 @@ export function activate(context: vscode.ExtensionContext): void {
           globalCfg = null;
         }
       }
-      const currentProvider = repoCfg.embedding_provider || globalCfg?.provider || "auto";
-      const currentModel = repoCfg.embedding_model || globalCfg?.model || "nomic-embed-text";
+      const currentProvider =
+        repoCfg.embedding_provider || globalCfg?.provider || "auto";
+      const currentModel =
+        repoCfg.embedding_model || globalCfg?.model || "nomic-embed-text";
       const enabled = currentProvider.toLowerCase() !== "none";
-      const choice = await vscode.window.showQuickPick<
-        { label: string; value: string; description?: string }
-      >(
+      const choice = await vscode.window.showQuickPick<{
+        label: string;
+        value: string;
+        description?: string;
+      }>(
         [
           {
             label: enabled ? "Disable embeddings" : "Enable embeddings",
             value: "toggle",
-            description: enabled ? "Set embedding_provider = none" : "Set embedding_provider = auto"
+            description: enabled
+              ? "Set embedding_provider = none"
+              : "Set embedding_provider = auto",
           },
           {
             label: "Choose embedding model",
             value: "model",
-            description: `Current: ${currentModel}`
-          }
+            description: `Current: ${currentModel}`,
+          },
         ],
-        { placeHolder: "Configure embeddings" }
+        { placeHolder: "Configure embeddings" },
       );
       if (!choice) {
         return;
@@ -512,7 +656,7 @@ export function activate(context: vscode.ExtensionContext): void {
       if (choice.value === "toggle") {
         next = updateRepoConfig(next, {
           embedding_provider: enabled ? "none" : "auto",
-          embedding_model: currentModel
+          embedding_model: currentModel,
         });
       }
 
@@ -524,9 +668,9 @@ export function activate(context: vscode.ExtensionContext): void {
             { label: "bge-small-en", description: "Fast, smaller" },
             { label: "bge-base-en", description: "Balanced" },
             { label: "bge-large-en", description: "High quality" },
-            { label: "Custom...", description: "Enter a model name" }
+            { label: "Custom...", description: "Enter a model name" },
           ],
-          { placeHolder: "Select embedding model" }
+          { placeHolder: "Select embedding model" },
         );
         if (!modelPick) {
           return;
@@ -536,7 +680,7 @@ export function activate(context: vscode.ExtensionContext): void {
           const custom = await vscode.window.showInputBox({
             prompt: "Embedding model",
             value: currentModel,
-            ignoreFocusOut: true
+            ignoreFocusOut: true,
           });
           if (!custom || custom.trim() === "") {
             return;
@@ -545,7 +689,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         next = updateRepoConfig(next, {
           embedding_model: model,
-          embedding_provider: "auto"
+          embedding_provider: "auto",
         });
       }
 
@@ -558,11 +702,11 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureTokenBudget", async () => {
+    vscode.commands.registerCommand("mem.configureTokenBudget", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -597,14 +741,24 @@ export function activate(context: vscode.ExtensionContext): void {
       }
 
       const currentBudget = repoCfg.token_budget || globalBudget || 2500;
-      const scopeChoice = await vscode.window.showQuickPick<
-        { label: string; value: "repo" | "global"; description?: string }
-      >(
+      const scopeChoice = await vscode.window.showQuickPick<{
+        label: string;
+        value: "repo" | "global";
+        description?: string;
+      }>(
         [
-          { label: "Repo override", value: "repo", description: repoConfigPath },
-          { label: "Global default", value: "global", description: getConfigPath() }
+          {
+            label: "Repo override",
+            value: "repo",
+            description: repoConfigPath,
+          },
+          {
+            label: "Global default",
+            value: "global",
+            description: getConfigPath(),
+          },
         ],
-        { placeHolder: "Where should this token budget apply?" }
+        { placeHolder: "Where should this token budget apply?" },
       );
       if (!scopeChoice) {
         return;
@@ -613,26 +767,30 @@ export function activate(context: vscode.ExtensionContext): void {
       const input = await vscode.window.showInputBox({
         prompt: "Token budget (total tokens for context output)",
         value: String(currentBudget),
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!input || input.trim() === "") {
         return;
       }
       const nextBudget = Number(input.trim());
       if (!Number.isFinite(nextBudget) || nextBudget <= 0) {
-        vscode.window.showErrorMessage("Token budget must be a positive number.");
+        vscode.window.showErrorMessage(
+          "Token budget must be a positive number.",
+        );
         return;
       }
 
       if (scopeChoice.value === "repo") {
         const next = updateRepoConfig(repoContent || "{}", {
-          token_budget: Math.floor(nextBudget)
+          token_budget: Math.floor(nextBudget),
         });
         try {
           await fs.mkdir(path.dirname(repoConfigPath), { recursive: true });
           await fs.writeFile(repoConfigPath, next, "utf8");
           tree.refresh();
-          vscode.window.showInformationMessage("Token budget updated for this repo.");
+          vscode.window.showInformationMessage(
+            "Token budget updated for this repo.",
+          );
         } catch (err: any) {
           showError(err);
         }
@@ -649,7 +807,11 @@ export function activate(context: vscode.ExtensionContext): void {
           return;
         }
       }
-      const nextGlobal = setTomlNumber(globalContent || "", "token_budget", Math.floor(nextBudget));
+      const nextGlobal = setTomlNumber(
+        globalContent || "",
+        "token_budget",
+        Math.floor(nextBudget),
+      );
       try {
         await fs.mkdir(path.dirname(configPath), { recursive: true });
         await fs.writeFile(configPath, nextGlobal, "utf8");
@@ -658,20 +820,21 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureWorkspace", async () => {
-      const config = vscode.workspace.getConfiguration("mempack");
-      const scope = await vscode.window.showQuickPick<
-        { label: string; value: vscode.ConfigurationTarget }
-      >(
+    vscode.commands.registerCommand("mem.configureWorkspace", async () => {
+      const config = vscode.workspace.getConfiguration("mem");
+      const scope = await vscode.window.showQuickPick<{
+        label: string;
+        value: vscode.ConfigurationTarget;
+      }>(
         [
           { label: "Workspace", value: vscode.ConfigurationTarget.Workspace },
-          { label: "User", value: vscode.ConfigurationTarget.Global }
+          { label: "User", value: vscode.ConfigurationTarget.Global },
         ],
-        { placeHolder: "Where should this workspace setting apply?" }
+        { placeHolder: "Where should this workspace setting apply?" },
       );
       if (!scope) {
         return;
@@ -680,7 +843,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const next = await vscode.window.showInputBox({
         prompt: "Mem workspace name (blank = default)",
         value: current,
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (next === undefined) {
         return;
@@ -692,20 +855,21 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.configureDefaultThread", async () => {
-      const config = vscode.workspace.getConfiguration("mempack");
-      const scope = await vscode.window.showQuickPick<
-        { label: string; value: vscode.ConfigurationTarget }
-      >(
+    vscode.commands.registerCommand("mem.configureDefaultThread", async () => {
+      const config = vscode.workspace.getConfiguration("mem");
+      const scope = await vscode.window.showQuickPick<{
+        label: string;
+        value: vscode.ConfigurationTarget;
+      }>(
         [
           { label: "Workspace", value: vscode.ConfigurationTarget.Workspace },
-          { label: "User", value: vscode.ConfigurationTarget.Global }
+          { label: "User", value: vscode.ConfigurationTarget.Global },
         ],
-        { placeHolder: "Where should this default thread setting apply?" }
+        { placeHolder: "Where should this default thread setting apply?" },
       );
       if (!scope) {
         return;
@@ -714,7 +878,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const next = await vscode.window.showInputBox({
         prompt: "Default thread ID",
         value: current,
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!next || next.trim() === "") {
         return;
@@ -726,7 +890,7 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   void (async () => {
@@ -734,22 +898,26 @@ export function activate(context: vscode.ExtensionContext): void {
     await maybePromptMcpWrites(context, tree);
     const cwd = getWorkspaceRoot(vscode.window.activeTextEditor?.document?.uri);
     if (cwd) {
-      await maybePromptAssistantFiles(context, client, await resolveRepoRoot(client, cwd));
+      await maybePromptAssistantFiles(
+        context,
+        client,
+        await resolveRepoRoot(client, cwd),
+      );
     }
   })();
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.addStub", async () => {
+    vscode.commands.registerCommand("mem.addStub", async () => {
       try {
-        await addMempackStub();
+        await addMemStub();
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.doctor", async () => {
+    vscode.commands.registerCommand("mem.doctor", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -761,11 +929,11 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.getContext", async () => {
+    vscode.commands.registerCommand("mem.getContext", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -773,7 +941,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const query = await vscode.window.showInputBox({
         prompt: "Enter a Mem query",
         placeHolder: "e.g. auth middleware",
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!query || query.trim() === "") {
         return;
@@ -782,15 +950,17 @@ export function activate(context: vscode.ExtensionContext): void {
         const { pack, prompt } = await client.getContextPack(cwd, query.trim());
         showContextPanel(context, pack, prompt);
         await vscode.env.clipboard.writeText(prompt);
-        vscode.window.showInformationMessage("Mem context copied to clipboard.");
+        vscode.window.showInformationMessage(
+          "Mem context copied to clipboard.",
+        );
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.explain", async () => {
+    vscode.commands.registerCommand("mem.explain", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -798,7 +968,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const query = await vscode.window.showInputBox({
         prompt: "Enter a query to explain",
         placeHolder: "e.g. auth middleware",
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!query || query.trim() === "") {
         return;
@@ -808,21 +978,23 @@ export function activate(context: vscode.ExtensionContext): void {
         const text = JSON.stringify(report, null, 2);
         await openTextDocument("Mem Explain", text, "json");
         await vscode.env.clipboard.writeText(text);
-        vscode.window.showInformationMessage("Mem explain copied to clipboard.");
+        vscode.window.showInformationMessage(
+          "Mem explain copied to clipboard.",
+        );
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.searchMemories", async () => {
-      await vscode.commands.executeCommand("mempack.getContext");
-    })
+    vscode.commands.registerCommand("mem.searchMemories", async () => {
+      await vscode.commands.executeCommand("mem.getContext");
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.openThreadsUI", async () => {
+    vscode.commands.registerCommand("mem.openThreadsUI", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -832,11 +1004,11 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.openRecentUI", async () => {
+    vscode.commands.registerCommand("mem.openRecentUI", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -846,11 +1018,11 @@ export function activate(context: vscode.ExtensionContext): void {
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.saveSelection", async () => {
+    vscode.commands.registerCommand("mem.saveSelection", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
@@ -867,11 +1039,11 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const lastThread = context.workspaceState.get<string>("mempack.lastThread");
+      const lastThread = context.workspaceState.get<string>("mem.lastThread");
       const thread = await vscode.window.showInputBox({
         prompt: "Thread ID",
         value: lastThread || client.defaultThread,
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!thread || thread.trim() === "") {
         return;
@@ -880,7 +1052,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const title = await vscode.window.showInputBox({
         prompt: "Title",
         value: suggestTitle(selectedText),
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!title || title.trim() === "") {
         return;
@@ -889,7 +1061,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const summary = await vscode.window.showInputBox({
         prompt: "Summary",
         value: suggestSummary(selectedText),
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!summary || summary.trim() === "") {
         return;
@@ -897,30 +1069,36 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const tags = await vscode.window.showInputBox({
         prompt: "Tags (comma separated, optional)",
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
 
       try {
         const combinedSummary = buildSelectionSummary(summary, selectedText);
-        await client.addMemory(cwd, thread.trim(), title.trim(), combinedSummary, tags || "");
-        await context.workspaceState.update("mempack.lastThread", thread.trim());
+        await client.addMemory(
+          cwd,
+          thread.trim(),
+          title.trim(),
+          combinedSummary,
+          tags || "",
+        );
+        await context.workspaceState.update("mem.lastThread", thread.trim());
         tree.refresh();
         vscode.window.showInformationMessage(`Saved to Mem: ${thread.trim()}`);
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.checkpoint", async () => {
+    vscode.commands.registerCommand("mem.checkpoint", async () => {
       const cwd = requireWorkspace();
       if (!cwd) {
         return;
       }
       const reason = await vscode.window.showInputBox({
         prompt: "Checkpoint reason",
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
       if (!reason || reason.trim() === "") {
         return;
@@ -929,9 +1107,12 @@ export function activate(context: vscode.ExtensionContext): void {
       const stateJsonInput = await vscode.window.showInputBox({
         prompt: "State JSON (optional)",
         value: "{}",
-        ignoreFocusOut: true
+        ignoreFocusOut: true,
       });
-      const stateJson = stateJsonInput && stateJsonInput.trim() !== "" ? stateJsonInput.trim() : "{}";
+      const stateJson =
+        stateJsonInput && stateJsonInput.trim() !== ""
+          ? stateJsonInput.trim()
+          : "{}";
       if (!isValidJson(stateJson)) {
         vscode.window.showErrorMessage("State JSON must be valid JSON.");
         return;
@@ -939,91 +1120,105 @@ export function activate(context: vscode.ExtensionContext): void {
 
       const thread = await vscode.window.showInputBox({
         prompt: "Thread ID (optional)",
-        value: context.workspaceState.get<string>("mempack.lastThread") || "",
-        ignoreFocusOut: true
+        value: context.workspaceState.get<string>("mem.lastThread") || "",
+        ignoreFocusOut: true,
       });
 
       try {
         await client.checkpoint(cwd, reason.trim(), stateJson, thread || "");
         if (thread && thread.trim() !== "") {
-          await context.workspaceState.update("mempack.lastThread", thread.trim());
+          await context.workspaceState.update("mem.lastThread", thread.trim());
         }
         tree.refresh();
         vscode.window.showInformationMessage("Checkpoint saved.");
       } catch (err: any) {
         showError(err);
       }
-    })
+    }),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.openMemory", async (node?: MemoryNode) => {
-      if (!node) {
-        return;
-      }
-      const cwd = requireWorkspace();
-      if (!cwd) {
-        return;
-      }
-      try {
-        const result = await client.show(cwd, node.memory.id);
-        const content = formatShowResult(result);
-        await openTextDocument("Mem Memory", content, "markdown");
-      } catch (err: any) {
-        showError(err);
-      }
-    })
+    vscode.commands.registerCommand(
+      "mem.openMemory",
+      async (node?: MemoryNode) => {
+        if (!node) {
+          return;
+        }
+        const cwd = requireWorkspace();
+        if (!cwd) {
+          return;
+        }
+        try {
+          const result = await client.show(cwd, node.memory.id);
+          const content = formatShowResult(result);
+          await openTextDocument("Mem Memory", content, "markdown");
+        } catch (err: any) {
+          showError(err);
+        }
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.copySummary", async (node?: MemoryNode) => {
-      if (!node) {
-        return;
-      }
-      const summary = node.memory.summary || "";
-      await vscode.env.clipboard.writeText(summary);
-      vscode.window.showInformationMessage("Summary copied to clipboard.");
-    })
+    vscode.commands.registerCommand(
+      "mem.copySummary",
+      async (node?: MemoryNode) => {
+        if (!node) {
+          return;
+        }
+        const summary = node.memory.summary || "";
+        await vscode.env.clipboard.writeText(summary);
+        vscode.window.showInformationMessage("Summary copied to clipboard.");
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.copyPromptSnippet", async (node?: MemoryNode) => {
-      if (!node) {
-        return;
-      }
-      const title = node.memory.title || "";
-      const summary = node.memory.summary || "";
-      const snippet = `- **${title}**: ${summary}`.trim();
-      await vscode.env.clipboard.writeText(snippet);
-      vscode.window.showInformationMessage("Prompt snippet copied to clipboard.");
-    })
+    vscode.commands.registerCommand(
+      "mem.copyPromptSnippet",
+      async (node?: MemoryNode) => {
+        if (!node) {
+          return;
+        }
+        const title = node.memory.title || "";
+        const summary = node.memory.summary || "";
+        const snippet = `- **${title}**: ${summary}`.trim();
+        await vscode.env.clipboard.writeText(snippet);
+        vscode.window.showInformationMessage(
+          "Prompt snippet copied to clipboard.",
+        );
+      },
+    ),
   );
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mempack.deleteMemory", async (node?: MemoryNode) => {
-      if (!node) {
-        return;
-      }
-      const confirm = await vscode.window.showWarningMessage(
-        `Delete memory "${node.memory.title}"?`,
-        { modal: true },
-        "Delete"
-      );
-      if (confirm !== "Delete") {
-        return;
-      }
-      const cwd = requireWorkspace();
-      if (!cwd) {
-        return;
-      }
-      try {
-        await client.forget(cwd, node.memory.id);
-        tree.refresh();
-        vscode.window.showInformationMessage("Memory deleted.");
-      } catch (err: any) {
-        showError(err);
-      }
-    })
+    vscode.commands.registerCommand(
+      "mem.deleteMemory",
+      async (node?: MemoryNode) => {
+        if (!node) {
+          return;
+        }
+        const confirm = await vscode.window.showWarningMessage(
+          `Delete memory "${node.memory.title}"?`,
+          { modal: true },
+          "Delete",
+        );
+        if (confirm !== "Delete") {
+          return;
+        }
+        const cwd = requireWorkspace();
+        if (!cwd) {
+          return;
+        }
+        try {
+          await client.forget(cwd, node.memory.id);
+          tree.refresh();
+          vscode.window.showInformationMessage("Memory deleted.");
+        } catch (err: any) {
+          showError(err);
+        }
+      },
+    ),
   );
 }
 
@@ -1046,10 +1241,15 @@ function requireWorkspace(): string | undefined {
   return cwd;
 }
 
-async function resolveRepoRoot(client: MempackClient, cwd: string): Promise<string> {
+async function resolveRepoRoot(
+  client: MemClient,
+  cwd: string,
+): Promise<string> {
   try {
     const report = await client.doctor(cwd);
-    const root = report?.repo?.git_root ? String(report.repo.git_root).trim() : "";
+    const root = report?.repo?.git_root
+      ? String(report.repo.git_root).trim()
+      : "";
     if (root !== "") {
       return root;
     }
@@ -1080,7 +1280,7 @@ function detectAssistantUsage(): AssistantUsage {
 async function addOpenActionIfExists(
   actions: Array<{ label: string; filePath?: string }>,
   label: string,
-  filePath: string
+  filePath: string,
 ): Promise<void> {
   if (await fileExists(filePath)) {
     actions.push({ label, filePath });
@@ -1099,7 +1299,11 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
-async function openTextDocument(title: string, content: string, language: string): Promise<void> {
+async function openTextDocument(
+  title: string,
+  content: string,
+  language: string,
+): Promise<void> {
   const doc = await vscode.workspace.openTextDocument({ content, language });
   await vscode.window.showTextDocument(doc, { preview: false });
   vscode.window.setStatusBarMessage(title, 1500);
@@ -1134,10 +1338,9 @@ function isValidJson(value: string): boolean {
   }
 }
 
-
 async function maybePromptOllamaInstall(
   context: vscode.ExtensionContext,
-  client: MempackClient
+  client: MemClient,
 ): Promise<void> {
   const active = vscode.window.activeTextEditor?.document?.uri;
   const cwd = getWorkspaceRoot(active);
@@ -1146,12 +1349,12 @@ async function maybePromptOllamaInstall(
   }
 
   const repoConfigPath = getRepoConfigPath(cwd);
-  const suppressKey = `mempack.ollamaPromptSuppressed:${repoConfigPath}`;
+  const suppressKey = `mem.ollamaPromptSuppressed:${repoConfigPath}`;
   if (context.globalState.get<boolean>(suppressKey)) {
     return;
   }
 
-  const lastPromptKey = `mempack.ollamaPromptedAt:${repoConfigPath}`;
+  const lastPromptKey = `mem.ollamaPromptedAt:${repoConfigPath}`;
   const lastPrompt = context.globalState.get<number>(lastPromptKey) || 0;
   if (Date.now() - lastPrompt < 24 * 60 * 60 * 1000) {
     return;
@@ -1160,7 +1363,8 @@ async function maybePromptOllamaInstall(
   try {
     const status = await client.embedStatus(cwd);
     const reason = status.vectors?.reason || "";
-    const provider = status.vectors?.provider_configured || status.provider || "";
+    const provider =
+      status.vectors?.provider_configured || status.provider || "";
     if (provider.toLowerCase() === "none") {
       return;
     }
@@ -1176,7 +1380,7 @@ async function maybePromptOllamaInstall(
     "Install Ollama",
     "Disable embeddings",
     "Later",
-    "Don't ask again"
+    "Don't ask again",
   );
 
   if (!choice || choice === "Later") {
@@ -1191,14 +1395,18 @@ async function maybePromptOllamaInstall(
 
   if (choice === "Install Ollama") {
     await context.globalState.update(lastPromptKey, Date.now());
-    await vscode.env.openExternal(vscode.Uri.parse("https://ollama.com/download"));
+    await vscode.env.openExternal(
+      vscode.Uri.parse("https://ollama.com/download"),
+    );
     return;
   }
 
   if (choice === "Disable embeddings") {
     try {
       const content = await fs.readFile(repoConfigPath, "utf8").catch(() => "");
-      const next = updateRepoConfig(content || "{}", { embedding_provider: "none" });
+      const next = updateRepoConfig(content || "{}", {
+        embedding_provider: "none",
+      });
       await fs.mkdir(path.dirname(repoConfigPath), { recursive: true });
       await fs.writeFile(repoConfigPath, next, "utf8");
       await context.globalState.update(lastPromptKey, Date.now());
@@ -1249,13 +1457,13 @@ async function loadMcpWritesSettings(cwd: string): Promise<McpWriteSettings> {
     repoContent,
     globalContent,
     repoCfg,
-    effective: resolveMcpWrites(globalCfg, repoCfg)
+    effective: resolveMcpWrites(globalCfg, repoCfg),
   };
 }
 
 async function maybePromptMcpWrites(
   context: vscode.ExtensionContext,
-  tree: MempackTreeProvider
+  tree: MemTreeProvider,
 ): Promise<void> {
   const active = vscode.window.activeTextEditor?.document?.uri;
   const cwd = getWorkspaceRoot(active);
@@ -1264,14 +1472,14 @@ async function maybePromptMcpWrites(
   }
 
   const repoConfigPath = getRepoConfigPath(cwd);
-  const promptKey = `mempack.mcpWritesPrompted:${repoConfigPath}`;
+  const promptKey = `mem.mcpWritesPrompted:${repoConfigPath}`;
   if (context.globalState.get<boolean>(promptKey)) {
     return;
   }
 
   try {
-    const mempackDir = path.join(cwd, ".mempack");
-    await fs.stat(mempackDir);
+    const memDir = getRepoSupportDir(cwd);
+    await fs.stat(memDir);
   } catch (err: any) {
     if (err?.code === "ENOENT") {
       return;
@@ -1295,13 +1503,18 @@ async function maybePromptMcpWrites(
         ? "global config"
         : "built-in default";
 
-  const message = settings.effective.mode === "off"
-    ? `MCP writes are currently Off (${sourceLabel}). You can change this via "Mem: Configure MCP Writes".`
-    : `MCP writes are currently ${settings.effective.mode === "auto" ? "Auto" : "Ask"} (${sourceLabel}). You can change this anytime via "Mem: Configure MCP Writes".`;
+  const message =
+    settings.effective.mode === "off"
+      ? `MCP writes are currently Off (${sourceLabel}). You can change this via "Mem: Configure MCP Writes".`
+      : `MCP writes are currently ${settings.effective.mode === "auto" ? "Auto" : "Ask"} (${sourceLabel}). You can change this anytime via "Mem: Configure MCP Writes".`;
 
-  const pick = await vscode.window.showInformationMessage(message, "Configure", "OK");
+  const pick = await vscode.window.showInformationMessage(
+    message,
+    "Configure",
+    "OK",
+  );
   if (pick === "Configure") {
-    await vscode.commands.executeCommand("mempack.configureMcpWrites");
+    await vscode.commands.executeCommand("mem.configureMcpWrites");
   }
 
   tree.refresh();
@@ -1310,14 +1523,14 @@ async function maybePromptMcpWrites(
 
 async function maybePromptAssistantFiles(
   context: vscode.ExtensionContext,
-  client: MempackClient,
-  repoRoot: string
+  client: MemClient,
+  repoRoot: string,
 ): Promise<void> {
   if (repoRoot.trim() === "") {
     return;
   }
   try {
-    await fs.stat(path.join(repoRoot, ".mempack"));
+    await fs.stat(getRepoSupportDir(repoRoot));
   } catch (err: any) {
     if (err?.code === "ENOENT") {
       return;
@@ -1339,23 +1552,25 @@ async function maybePromptAssistantFiles(
   }
 
   const repoConfigPath = getRepoConfigPath(repoRoot);
-  const suppressKey = `mempack.assistantFilesPromptSuppressed:${repoConfigPath}`;
+  const suppressKey = `mem.assistantFilesPromptSuppressed:${repoConfigPath}`;
   if (context.globalState.get<boolean>(suppressKey)) {
     return;
   }
 
-  const promptKey = `mempack.assistantFilesPromptedAt:${repoConfigPath}`;
+  const promptKey = `mem.assistantFilesPromptedAt:${repoConfigPath}`;
   const lastPrompt = context.globalState.get<number>(promptKey) || 0;
   if (Date.now() - lastPrompt < 24 * 60 * 60 * 1000) {
     return;
   }
 
-  const fileList = missingTargets.map((target) => `${target.toUpperCase()}.md`).join(", ");
+  const fileList = missingTargets
+    .map((target) => `${target.toUpperCase()}.md`)
+    .join(", ");
   const pick = await vscode.window.showInformationMessage(
     `Detected assistant tooling for this repo. Create ${fileList} with Mem policy?`,
     "Create",
     "Later",
-    "Don't ask again"
+    "Don't ask again",
   );
 
   if (pick === "Don't ask again") {

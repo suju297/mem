@@ -10,8 +10,8 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"mempack/internal/config"
-	"mempack/internal/pack"
+	"mem/internal/config"
+	"mem/internal/pack"
 )
 
 func TestAcceptanceGitAnchoringAndOrphans(t *testing.T) {
@@ -55,7 +55,7 @@ func TestAcceptanceGitAnchoringAndOrphans(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(repoDir, "docs"), 0o755); err != nil {
 		t.Fatalf("mkdir docs: %v", err)
 	}
-	writeFile(t, repoDir, filepath.Join("docs", "acceptance.txt"), "mempack acceptance chunk\nDelta-99 for rewrite coverage.\n")
+	writeFile(t, repoDir, filepath.Join("docs", "acceptance.txt"), "mem acceptance chunk\nDelta-99 for rewrite coverage.\n")
 	runCLI(t, "ingest", "docs/acceptance.txt", "--thread", "acceptance-chunks-a")
 	runCLI(t, "ingest-artifact", "docs/acceptance.txt", "--thread", "acceptance-chunks-b")
 

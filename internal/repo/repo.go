@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"mempack/internal/pathutil"
+	"mem/internal/pathutil"
 )
 
 type Info struct {

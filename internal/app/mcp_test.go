@@ -12,9 +12,9 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"mempack/internal/pack"
-	"mempack/internal/repo"
-	"mempack/internal/store"
+	"mem/internal/pack"
+	"mem/internal/repo"
+	"mem/internal/store"
 )
 
 func TestMCPGetContextStructuredAndPrompt(t *testing.T) {
@@ -42,6 +42,12 @@ func TestMCPGetContextStructuredAndPrompt(t *testing.T) {
 	packRes, ok := res.StructuredContent.(pack.ContextPack)
 	if !ok {
 		t.Fatalf("expected ContextPack, got %T", res.StructuredContent)
+	}
+	if packRes.Usage == nil {
+		t.Fatalf("expected usage snapshot in context pack")
+	}
+	if packRes.Usage.Repo.RequestCount != 1 {
+		t.Fatalf("expected repo request_count 1, got %d", packRes.Usage.Repo.RequestCount)
 	}
 	if len(packRes.TopMemories) == 0 {
 		t.Fatalf("expected at least one memory in context pack")
@@ -87,6 +93,50 @@ func TestMCPGetContextStructuredAndPrompt(t *testing.T) {
 	}
 	if !bytes.Contains([]byte(text.Text), []byte("Context from Memory")) {
 		t.Fatalf("expected prompt content to include Context from Memory header")
+	}
+}
+
+func TestMCPUsageTracksGetContextOnceForJSONFormat(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	seedMemory(t, "decision", "Decision summary")
+
+	getReq := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "mem_get_context",
+			Arguments: map[string]any{"query": "decision", "format": "json"},
+		},
+	}
+	if _, err := handleGetContext(context.Background(), getReq, false); err != nil {
+		t.Fatalf("get_context error: %v", err)
+	}
+
+	usageReq := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "mem_usage",
+			Arguments: map[string]any{},
+		},
+	}
+	res, err := handleUsage(context.Background(), usageReq, false)
+	if err != nil {
+		t.Fatalf("usage error: %v", err)
+	}
+	report, ok := res.StructuredContent.(usageResponse)
+	if !ok {
+		t.Fatalf("expected usageResponse, got %T", res.StructuredContent)
+	}
+	if report.Repo.RequestCount != 1 {
+		t.Fatalf("expected repo request_count 1, got %d", report.Repo.RequestCount)
+	}
+	if report.Overall.RequestCount != 1 {
+		t.Fatalf("expected overall request_count 1, got %d", report.Overall.RequestCount)
+	}
+	if len(res.Content) == 0 {
+		t.Fatalf("expected text summary content")
 	}
 }
 

@@ -64,7 +64,7 @@ Defaults:
 
 ## MCP write controls (optional)
 MCP write tools are enabled by default in ask mode.
-To disable: start with `--write-mode off` or set `mcp_allow_write=false` in config or `.mempack/config.json`.
+To disable: start with `--write-mode off` or set `mcp_allow_write=false` in config or repo config (`.mem/config.json` or legacy `.mempack/config.json`).
 To auto-write (no confirmation): use `--write-mode auto` or set `mcp_write_mode=auto`.
 
 ## Debugging retrieval

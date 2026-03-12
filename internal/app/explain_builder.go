@@ -1,7 +1,7 @@
 package app
 
 import (
-	"mempack/internal/pack"
+	"mem/internal/pack"
 )
 
 type ExplainOptions struct {

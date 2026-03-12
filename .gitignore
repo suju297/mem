@@ -6,7 +6,7 @@ output.txt
 bench_output.txt
 /mem
 /mem.exe
-mempack-share/
+mem-share/
 excalidraw.log
 improvements.md
 Bugs.md
@@ -23,8 +23,8 @@ coverage/
 tmp/
 dist/
 *.vsix
-extensions/vscode-mempack/node_modules/
-extensions/vscode-mempack/dist/
+extensions/vscode-mem/node_modules/
+extensions/vscode-mem/dist/
 docs/test-plan.md
 
 # Env files
@@ -41,8 +41,8 @@ docs/test-plan.md
 # Local sandbox memory-evaluation repos and evidence
 sandbox/
 
-# Local mempack config
-.mempack/config.json
+# Local mem config
+.mem/config.json
 
 # Local writing drafts
 ARCHITECTURE.pdf

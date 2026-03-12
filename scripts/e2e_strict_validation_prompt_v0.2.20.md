@@ -24,15 +24,15 @@ Paths:
 Scenarios (must-pass unless marked WARN):
 S0 Preconditions (must-pass)
 - Verify `mem --version` semver is `0.2.20` (ignore optional build suffix like `(dev)`).
-- Verify installed VS Code and Cursor `mempack.mempack` extension versions by reading installed extension `package.json` files.
+- Verify installed VS Code and Cursor `mem.mem` extension versions by reading installed extension `package.json` files.
 - Fail if CLI semver and target extension semver differ.
 
 S1 Repo setup (must-pass)
 - Clean/create repo A and B.
 - `git init` both, leave both with no commits.
 - Run `mem init --no-agents` in each repo.
-- Verify `.mempack/config.json` exists in each repo.
-- Treat `.mempack/MEMORY.md` as optional in `--no-agents` mode. If present, validate managed marker; if absent, record as expected.
+- Verify `.mem/config.json` exists in each repo.
+- Treat `.mem/MEMORY.md` as optional in `--no-agents` mode. If present, validate managed marker; if absent, record as expected.
 - Run `mem doctor --json` twice per repo; assert stable repo_id + git_root.
 
 S2 MCP strict scoping (must-pass)

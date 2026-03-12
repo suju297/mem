@@ -57,7 +57,6 @@ function Add-UserPathEntry {
 
 $arch = Resolve-Arch
 $asset = "mem_windows_${arch}.zip"
-$legacyAsset = "mempack_windows_${arch}.zip"
 
 if ($Version -eq "latest") {
     $base = "https://github.com/$Repo/releases/latest/download"
@@ -66,7 +65,6 @@ if ($Version -eq "latest") {
 }
 
 $assetUrl = "$base/$asset"
-$legacyAssetUrl = "$base/$legacyAsset"
 $checksumsUrl = "$base/checksums.txt"
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("mem-install-" + [Guid]::NewGuid().ToString("N"))
@@ -79,15 +77,8 @@ try {
     try {
         Invoke-WebRequest -Uri $assetUrl -OutFile $archive
     } catch {
-        $archive = Join-Path $tmp $legacyAsset
-        $assetUsed = $legacyAsset
-        try {
-            Invoke-WebRequest -Uri $legacyAssetUrl -OutFile $archive
-            Write-Warning "Using legacy release asset name ($legacyAsset)."
-        } catch {
-            $downloadedRelease = $false
-            Write-Warning "Release assets not found ($asset, $legacyAsset). Falling back to source build."
-        }
+        $downloadedRelease = $false
+        Write-Warning "Release asset not found ($asset). Falling back to source build."
     }
 
     $binFile = "$BinName.exe"

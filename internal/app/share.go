@@ -15,13 +15,12 @@ import (
 	"time"
 	"unicode"
 
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/store"
+	"mem/internal/token"
 )
 
 const (
 	shareDefaultDirName       = "mem-share"
-	shareLegacyDirName        = "mempack-share"
 	shareSchemaVersion        = 1
 	shareImportTag            = "shared_import"
 	shareManifestFileName     = "manifest.json"
@@ -425,15 +424,7 @@ func runShareImport(args []string, out, errOut io.Writer) int {
 func resolveShareDir(repoRoot, raw string) string {
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		defaultDir := filepath.Join(repoRoot, shareDefaultDirName)
-		legacyDir := filepath.Join(repoRoot, shareLegacyDirName)
-		if _, err := os.Stat(defaultDir); err == nil {
-			return defaultDir
-		}
-		if _, err := os.Stat(legacyDir); err == nil {
-			return legacyDir
-		}
-		return defaultDir
+		return filepath.Join(repoRoot, shareDefaultDirName)
 	}
 	if filepath.IsAbs(value) {
 		return filepath.Clean(value)

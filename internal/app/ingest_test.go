@@ -28,8 +28,8 @@ func TestLoadIgnoreMatcher(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(root, ".gitignore"), []byte("ignored.txt\n"), 0o644); err != nil {
 		t.Fatalf("write gitignore: %v", err)
 	}
-	if err := os.WriteFile(filepath.Join(root, ".mempackignore"), []byte("skip/\n"), 0o644); err != nil {
-		t.Fatalf("write mempackignore: %v", err)
+	if err := os.WriteFile(filepath.Join(root, ".memignore"), []byte("skip/\n"), 0o644); err != nil {
+		t.Fatalf("write memignore: %v", err)
 	}
 
 	matcher := loadIgnoreMatcher(root)
@@ -41,6 +41,21 @@ func TestLoadIgnoreMatcher(t *testing.T) {
 	}
 	if !matcher.Matches(".git/config") {
 		t.Fatalf("expected .git/ to match")
+	}
+	if matcher.Matches("keep.txt") {
+		t.Fatalf("expected keep.txt not to match")
+	}
+}
+
+func TestLoadIgnoreMatcherLegacyMempackIgnore(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, ".mempackignore"), []byte("legacy-skip/\n"), 0o644); err != nil {
+		t.Fatalf("write mempackignore: %v", err)
+	}
+
+	matcher := loadIgnoreMatcher(root)
+	if !matcher.Matches("legacy-skip/file.txt") {
+		t.Fatalf("expected legacy-skip/ to match")
 	}
 	if matcher.Matches("keep.txt") {
 		t.Fatalf("expected keep.txt not to match")

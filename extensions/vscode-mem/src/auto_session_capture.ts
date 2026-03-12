@@ -14,7 +14,7 @@ import {
   normalizeForDiff,
   parseTimeMs,
   toRepoRelative,
-  PrivacyMode
+  PrivacyMode,
 } from "./session_logic";
 
 interface BurstFileStats {
@@ -81,7 +81,10 @@ export interface AutoSessionUpdateInput {
 }
 
 export interface AutoSessionPersistence {
-  listRecentSessions(workspaceRoot: string, limit: number): Promise<AutoSessionRecent[]>;
+  listRecentSessions(
+    workspaceRoot: string,
+    limit: number,
+  ): Promise<AutoSessionRecent[]>;
   resolveThread(workspaceRoot: string): Promise<string>;
   createSession(input: AutoSessionCreateInput): Promise<{ id: string }>;
   updateSession(input: AutoSessionUpdateInput): Promise<void>;
@@ -132,24 +135,29 @@ interface IgnoreRule {
 interface IgnoreCacheEntry {
   rules: IgnoreRule[];
   gitIgnoreMtime: number;
-  mempackIgnoreMtime: number;
+  repoIgnorePath: string;
+  repoIgnoreMtime: number;
 }
 
 const DEFAULT_IGNORED_SEGMENTS = [
   ".git/",
+  ".mem/",
   ".mempack/",
   "node_modules/",
   "dist/",
   "build/",
   "vendor/",
   ".next/",
-  "coverage/"
+  "coverage/",
 ];
 
 const MAX_SNAPSHOTS_PER_WORKSPACE = 200;
 
 export class AutoSessionCaptureEngine {
-  private readonly snapshotsByWorkspace = new Map<string, Map<string, string>>();
+  private readonly snapshotsByWorkspace = new Map<
+    string,
+    Map<string, string>
+  >();
   private readonly burstByWorkspace = new Map<string, BurstState>();
   private readonly ignoreCacheByWorkspace = new Map<string, IgnoreCacheEntry>();
   private readonly flushInFlight = new Set<string>();
@@ -157,7 +165,7 @@ export class AutoSessionCaptureEngine {
   constructor(
     private readonly persistence: AutoSessionPersistence,
     private readonly getConfig: (workspaceRoot: string) => AutoSessionConfig,
-    private readonly scheduler: AutoSessionScheduler = defaultScheduler()
+    private readonly scheduler: AutoSessionScheduler = defaultScheduler(),
   ) {}
 
   async recordSave(input: AutoSessionSaveInput): Promise<void> {
@@ -168,7 +176,9 @@ export class AutoSessionCaptureEngine {
       return;
     }
     const config = this.getConfig(workspaceRoot);
-    if (await this.shouldIgnore(workspaceRoot, relPath, config.ignoredSegments)) {
+    if (
+      await this.shouldIgnore(workspaceRoot, relPath, config.ignoredSegments)
+    ) {
       return;
     }
     if (Buffer.byteLength(input.text, "utf8") > config.maxFileBytes) {
@@ -188,7 +198,10 @@ export class AutoSessionCaptureEngine {
     if (previous === normalized) {
       return;
     }
-    if (!whitespaceSensitive && compactMeaningfulText(previous) === compactMeaningfulText(normalized)) {
+    if (
+      !whitespaceSensitive &&
+      compactMeaningfulText(previous) === compactMeaningfulText(normalized)
+    ) {
       return;
     }
 
@@ -197,7 +210,12 @@ export class AutoSessionCaptureEngine {
       return;
     }
     const semanticBonus = computeSemanticBonus(previous, normalized, relPath);
-    const score = computeSignificanceScore(stats.deltaLines, stats.deltaChars, relPath, semanticBonus);
+    const score = computeSignificanceScore(
+      stats.deltaLines,
+      stats.deltaChars,
+      relPath,
+      semanticBonus,
+    );
     if (score <= 0) {
       return;
     }
@@ -209,7 +227,7 @@ export class AutoSessionCaptureEngine {
       stats.linesRemoved,
       stats.deltaChars,
       score,
-      false
+      false,
     );
   }
 
@@ -221,7 +239,9 @@ export class AutoSessionCaptureEngine {
       return;
     }
     const config = this.getConfig(workspaceRoot);
-    if (await this.shouldIgnore(workspaceRoot, relPath, config.ignoredSegments)) {
+    if (
+      await this.shouldIgnore(workspaceRoot, relPath, config.ignoredSegments)
+    ) {
       return;
     }
     const text = typeof input.text === "string" ? input.text : "";
@@ -235,15 +255,26 @@ export class AutoSessionCaptureEngine {
     const snapshots = this.ensureSnapshots(workspaceRoot);
     this.upsertSnapshot(snapshots, relPath, normalized);
 
-    const deltaLines = Math.max(1, normalized.split("\n").filter((line) => line.trim() !== "").length);
+    const deltaLines = Math.max(
+      1,
+      normalized.split("\n").filter((line) => line.trim() !== "").length,
+    );
     const semanticBonus = computeSemanticBonus("", normalized, relPath);
     const score = computeSignificanceScore(
       Math.max(6, deltaLines),
       Math.max(80, normalized.length),
       relPath,
-      semanticBonus + 10
+      semanticBonus + 10,
     );
-    this.recordBurstChange(workspaceRoot, relPath, deltaLines, 0, normalized.length, score, true);
+    this.recordBurstChange(
+      workspaceRoot,
+      relPath,
+      deltaLines,
+      0,
+      normalized.length,
+      score,
+      true,
+    );
   }
 
   async recordDelete(input: AutoSessionFileDeleteInput): Promise<void> {
@@ -254,20 +285,33 @@ export class AutoSessionCaptureEngine {
       return;
     }
     const config = this.getConfig(workspaceRoot);
-    if (await this.shouldIgnore(workspaceRoot, relPath, config.ignoredSegments)) {
+    if (
+      await this.shouldIgnore(workspaceRoot, relPath, config.ignoredSegments)
+    ) {
       return;
     }
     const snapshots = this.ensureSnapshots(workspaceRoot);
     const previous = snapshots.get(relPath) || "";
     snapshots.delete(relPath);
-    const deltaLines = Math.max(1, previous.split("\n").filter((line) => line.trim() !== "").length);
+    const deltaLines = Math.max(
+      1,
+      previous.split("\n").filter((line) => line.trim() !== "").length,
+    );
     const score = computeSignificanceScore(
       Math.max(6, deltaLines),
       Math.max(80, previous.length),
       relPath,
-      10
+      10,
     );
-    this.recordBurstChange(workspaceRoot, relPath, 0, deltaLines, previous.length, score, true);
+    this.recordBurstChange(
+      workspaceRoot,
+      relPath,
+      0,
+      deltaLines,
+      previous.length,
+      score,
+      true,
+    );
   }
 
   async recordRename(input: AutoSessionFileRenameInput): Promise<void> {
@@ -280,8 +324,16 @@ export class AutoSessionCaptureEngine {
       return;
     }
     const config = this.getConfig(workspaceRoot);
-    const oldIgnored = await this.shouldIgnore(workspaceRoot, oldRelPath, config.ignoredSegments);
-    const newIgnored = await this.shouldIgnore(workspaceRoot, newRelPath, config.ignoredSegments);
+    const oldIgnored = await this.shouldIgnore(
+      workspaceRoot,
+      oldRelPath,
+      config.ignoredSegments,
+    );
+    const newIgnored = await this.shouldIgnore(
+      workspaceRoot,
+      newRelPath,
+      config.ignoredSegments,
+    );
     if (oldIgnored && newIgnored) {
       return;
     }
@@ -290,7 +342,8 @@ export class AutoSessionCaptureEngine {
     const previous = snapshots.get(oldRelPath) || "";
     snapshots.delete(oldRelPath);
 
-    const nextText = typeof input.newText === "string" ? input.newText : previous;
+    const nextText =
+      typeof input.newText === "string" ? input.newText : previous;
     const newExt = normalizeExt(newRelPath);
     const whitespaceSensitive = isWhitespaceSensitiveExt(newExt, newRelPath);
     const normalized = normalizeForDiff(nextText, whitespaceSensitive);
@@ -301,12 +354,37 @@ export class AutoSessionCaptureEngine {
       return;
     }
 
-    const semanticBonus = computeSemanticBonus(previous, normalized, newRelPath);
-    const score = computeSignificanceScore(6, Math.max(40, normalized.length), newRelPath, semanticBonus + 10);
+    const semanticBonus = computeSemanticBonus(
+      previous,
+      normalized,
+      newRelPath,
+    );
+    const score = computeSignificanceScore(
+      6,
+      Math.max(40, normalized.length),
+      newRelPath,
+      semanticBonus + 10,
+    );
     const firstScore = Math.max(1, Math.floor(score / 2));
     const secondScore = Math.max(1, score - firstScore);
-    this.recordBurstChange(workspaceRoot, oldRelPath, 1, 1, 0, firstScore, true);
-    this.recordBurstChange(workspaceRoot, newRelPath, 1, 1, 0, secondScore, true);
+    this.recordBurstChange(
+      workspaceRoot,
+      oldRelPath,
+      1,
+      1,
+      0,
+      firstScore,
+      true,
+    );
+    this.recordBurstChange(
+      workspaceRoot,
+      newRelPath,
+      1,
+      1,
+      0,
+      secondScore,
+      true,
+    );
   }
 
   async flushWorkspace(workspaceRoot: string, force = true): Promise<void> {
@@ -337,7 +415,7 @@ export class AutoSessionCaptureEngine {
   private upsertSnapshot(
     snapshots: Map<string, string>,
     relPath: string,
-    normalizedText: string
+    normalizedText: string,
   ): string | undefined {
     const previous = snapshots.get(relPath);
     if (previous !== undefined) {
@@ -361,12 +439,14 @@ export class AutoSessionCaptureEngine {
   private async shouldIgnore(
     workspaceRoot: string,
     relPath: string,
-    extraIgnored?: string[]
+    extraIgnored?: string[],
   ): Promise<boolean> {
     if (shouldIgnoreBySegment(relPath, extraIgnored)) {
       return true;
     }
-    if (matchesIgnoreRules(relPath, parseInlineIgnoreRules(extraIgnored || []))) {
+    if (
+      matchesIgnoreRules(relPath, parseInlineIgnoreRules(extraIgnored || []))
+    ) {
       return true;
     }
     const rules = await this.getIgnoreRules(workspaceRoot);
@@ -375,33 +455,46 @@ export class AutoSessionCaptureEngine {
 
   private async getIgnoreRules(workspaceRoot: string): Promise<IgnoreRule[]> {
     const gitIgnorePath = path.join(workspaceRoot, ".gitignore");
-    const mempackIgnorePath = path.join(workspaceRoot, ".mempackignore");
-    const [gitIgnoreMtime, mempackIgnoreMtime] = await Promise.all([
-      mtimeMs(gitIgnorePath),
-      mtimeMs(mempackIgnorePath)
-    ]);
+    const memIgnorePath = path.join(workspaceRoot, ".memignore");
+    const legacyMemIgnorePath = path.join(workspaceRoot, ".mempackignore");
+    const [gitIgnoreMtime, memIgnoreMtime, legacyMemIgnoreMtime] =
+      await Promise.all([
+        mtimeMs(gitIgnorePath),
+        mtimeMs(memIgnorePath),
+        mtimeMs(legacyMemIgnorePath),
+      ]);
+    const repoIgnorePath =
+      memIgnoreMtime > 0
+        ? memIgnorePath
+        : legacyMemIgnoreMtime > 0
+          ? legacyMemIgnorePath
+          : memIgnorePath;
+    const repoIgnoreMtime =
+      memIgnoreMtime > 0 ? memIgnoreMtime : legacyMemIgnoreMtime;
 
     const cached = this.ignoreCacheByWorkspace.get(workspaceRoot);
     if (
       cached &&
       cached.gitIgnoreMtime === gitIgnoreMtime &&
-      cached.mempackIgnoreMtime === mempackIgnoreMtime
+      cached.repoIgnorePath === repoIgnorePath &&
+      cached.repoIgnoreMtime === repoIgnoreMtime
     ) {
       return cached.rules;
     }
 
-    const [gitIgnoreRaw, mempackIgnoreRaw] = await Promise.all([
+    const [gitIgnoreRaw, repoIgnoreRaw] = await Promise.all([
       readTextIfExists(gitIgnorePath),
-      readTextIfExists(mempackIgnorePath)
+      readTextIfExists(repoIgnorePath),
     ]);
     const rules = [
       ...parseIgnoreFile(gitIgnoreRaw),
-      ...parseIgnoreFile(mempackIgnoreRaw)
+      ...parseIgnoreFile(repoIgnoreRaw),
     ];
     this.ignoreCacheByWorkspace.set(workspaceRoot, {
       rules,
       gitIgnoreMtime,
-      mempackIgnoreMtime
+      repoIgnorePath,
+      repoIgnoreMtime,
     });
     return rules;
   }
@@ -413,7 +506,7 @@ export class AutoSessionCaptureEngine {
     linesRemoved: number,
     charsDelta: number,
     score: number,
-    lifecycleEvent: boolean
+    lifecycleEvent: boolean,
   ): void {
     const now = this.scheduler.now();
     const config = this.getConfig(workspaceRoot);
@@ -441,7 +534,7 @@ export class AutoSessionCaptureEngine {
         score,
         linesAdded,
         linesRemoved,
-        charsDelta
+        charsDelta,
       });
     }
 
@@ -452,7 +545,10 @@ export class AutoSessionCaptureEngine {
       void this.flushBurst(workspaceRoot, false);
     }, config.quietMs);
 
-    if (burst.totalScore >= config.scoreThreshold || burst.files.size >= config.filesThreshold) {
+    if (
+      burst.totalScore >= config.scoreThreshold ||
+      burst.files.size >= config.filesThreshold
+    ) {
       void this.flushBurst(workspaceRoot, true);
       return;
     }
@@ -461,7 +557,10 @@ export class AutoSessionCaptureEngine {
     }
   }
 
-  private async flushBurst(workspaceRoot: string, force: boolean): Promise<void> {
+  private async flushBurst(
+    workspaceRoot: string,
+    force: boolean,
+  ): Promise<void> {
     if (this.flushInFlight.has(workspaceRoot)) {
       return;
     }
@@ -531,16 +630,24 @@ export class AutoSessionCaptureEngine {
       lastMeaningfulAt: now,
       totalScore: 0,
       lifecycleEvents: 0,
-      files: new Map<string, BurstFileStats>()
+      files: new Map<string, BurstFileStats>(),
     };
   }
 
   private hasBurstChanges(burst: BurstState): boolean {
-    return burst.totalScore > 0 || burst.lifecycleEvents > 0 || burst.files.size > 0;
+    return (
+      burst.totalScore > 0 || burst.lifecycleEvents > 0 || burst.files.size > 0
+    );
   }
 
-  private shouldPersistBurst(burst: BurstState, config: AutoSessionConfig): boolean {
-    const lifecycleThreshold = Math.max(30, Math.round(config.scoreThreshold / 2));
+  private shouldPersistBurst(
+    burst: BurstState,
+    config: AutoSessionConfig,
+  ): boolean {
+    const lifecycleThreshold = Math.max(
+      30,
+      Math.round(config.scoreThreshold / 2),
+    );
     return (
       burst.totalScore >= config.scoreThreshold ||
       burst.files.size >= config.filesThreshold ||
@@ -551,11 +658,14 @@ export class AutoSessionCaptureEngine {
   private async upsertBurstSession(
     workspaceRoot: string,
     burst: BurstState,
-    config: AutoSessionConfig
+    config: AutoSessionConfig,
   ): Promise<void> {
     const now = this.scheduler.now();
     const files = Array.from(burst.files.values())
-      .sort((left, right) => right.score - left.score || left.path.localeCompare(right.path))
+      .sort(
+        (left, right) =>
+          right.score - left.score || left.path.localeCompare(right.path),
+      )
       .slice(0, config.maxFilesPerSession);
     if (files.length === 0) {
       return;
@@ -563,12 +673,18 @@ export class AutoSessionCaptureEngine {
 
     const filePaths = files.map((file) => file.path);
     const intentSignal = resolveIntentSignal(config, now);
-    const title = buildSessionTitle(workspaceRoot, filePaths, intentSignal?.headline || "");
+    const title = buildSessionTitle(
+      workspaceRoot,
+      filePaths,
+      intentSignal?.headline || "",
+    );
     const entities = mergeEntities(
       buildSessionEntities(filePaths, config.privacyMode),
-      intentSignal?.entities || []
+      intentSignal?.entities || [],
     );
-    const tags = config.needsSummary ? ["session", "needs_summary"] : ["session"];
+    const tags = config.needsSummary
+      ? ["session", "needs_summary"]
+      : ["session"];
     const tagsRemove = config.needsSummary ? [] : ["needs_summary"];
 
     let recent: AutoSessionRecent[] = [];
@@ -585,7 +701,7 @@ export class AutoSessionCaptureEngine {
       latestIsAuto: latest ? isAutoSessionTitle(latest.title) : false,
       latestCreatedAtMs: latest ? parseTimeMs(latest.created_at) : 0,
       mergeWindowMs: config.mergeWindowMs,
-      minGapMs: config.newSessionMinGapMs
+      minGapMs: config.newSessionMinGapMs,
     });
 
     let sessionID = "";
@@ -597,7 +713,7 @@ export class AutoSessionCaptureEngine {
         title: title !== latest.title ? title : undefined,
         tagsAdd: tags,
         tagsRemove,
-        entitiesAdd: entities
+        entitiesAdd: entities,
       });
       sessionID = latest.id;
       savedAction = "updated";
@@ -608,7 +724,7 @@ export class AutoSessionCaptureEngine {
         title,
         tags,
         thread,
-        entities
+        entities,
       });
       sessionID = created.id;
       savedAction = "created";
@@ -620,7 +736,7 @@ export class AutoSessionCaptureEngine {
         sessionID,
         needsSummary: config.needsSummary,
         action: savedAction,
-        title
+        title,
       });
     }
   }
@@ -628,14 +744,15 @@ export class AutoSessionCaptureEngine {
 
 function resolveIntentSignal(
   config: AutoSessionConfig,
-  nowMs: number
+  nowMs: number,
 ): AutoSessionIntentSignal | undefined {
   const signal = config.intentSignal;
   if (!signal) {
     return undefined;
   }
   const maxAgeMs =
-    typeof config.intentSignalMaxAgeMs === "number" && Number.isFinite(config.intentSignalMaxAgeMs)
+    typeof config.intentSignalMaxAgeMs === "number" &&
+    Number.isFinite(config.intentSignalMaxAgeMs)
       ? Math.max(30_000, Math.round(config.intentSignalMaxAgeMs))
       : 600_000;
   if (nowMs - signal.observedAtMs > maxAgeMs) {
@@ -659,7 +776,10 @@ function mergeEntities(base: string[], extra: string[]): string[] {
   return Array.from(merged).sort().slice(0, 60);
 }
 
-function shouldIgnoreBySegment(relPath: string, extraIgnored?: string[]): boolean {
+function shouldIgnoreBySegment(
+  relPath: string,
+  extraIgnored?: string[],
+): boolean {
   const normalized = relPath.replace(/\\/g, "/");
   if (normalized.trim() === "") {
     return true;
@@ -819,6 +939,6 @@ function defaultScheduler(): AutoSessionScheduler {
   return {
     now: () => Date.now(),
     setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
-    clearTimeout: (handle: unknown) => clearTimeout(handle as NodeJS.Timeout)
+    clearTimeout: (handle: unknown) => clearTimeout(handle as NodeJS.Timeout),
   };
 }

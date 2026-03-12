@@ -3,7 +3,7 @@ import * as path from "path";
 import { getWorkspaceRoot } from "./workspace";
 import { appendStub, buildAgentsWithStub, hasStub } from "./stub_logic";
 
-export async function addMempackStub(): Promise<void> {
+export async function addMemStub(): Promise<void> {
   const active = vscode.window.activeTextEditor?.document?.uri;
   const root = getWorkspaceRoot(active);
   if (!root) {

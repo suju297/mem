@@ -19,8 +19,8 @@ Mem is a local-first, repo-scoped memory system for coding workflows.
 
 Primary surfaces:
 - CLI (`mem ...`)
-- MCP tools/server (`mem mcp ...`, `mem_*` with legacy `mempack_*` aliases)
-- VS Code/Cursor extension (`extensions/vscode-mempack`)
+- MCP tools/server (`mem mcp ...`, `mem_*` with legacy `mem_*` aliases)
+- VS Code/Cursor extension (`extensions/vscode-mem`)
 
 Per-repo persistent data location:
 - `<data_dir>/repos/<repo_id>/memory.db`
@@ -112,7 +112,7 @@ Detailed table/column and artifact reference: `docs/storage.md`
 - `internal/config/`: config loading and data-root/repo routing.
 - `internal/repo/`, `internal/reporesolve/`, `internal/pathutil/`: repo detection and canonical IDs.
 - `internal/embed/`: embedding provider abstraction and calls.
-- `extensions/vscode-mempack/src/`: extension UI and MCP/CLI client behavior.
+- `extensions/vscode-mem/src/`: extension UI and MCP/CLI client behavior.
 
 ## 8) Invariants
 
@@ -141,7 +141,7 @@ With explicit `--repo` / MCP `repo`, override is used first.
 
 State resolution order:
 1. `state_current` row in SQLite
-2. `<repo>/.mempack/state.json`
+2. `<repo>/.mem/state.json`
 3. `<repo>/STATE.md`
 4. empty `{}` state
 
@@ -160,4 +160,4 @@ When architecture changes:
 2. Add or adjust targeted tests.
 3. Run:
    - `go test ./...`
-   - `npm run compile` in `extensions/vscode-mempack`
+   - `npm run compile` in `extensions/vscode-mem`

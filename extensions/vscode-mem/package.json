@@ -1,15 +1,15 @@
 {
-  "name": "mempack",
+  "name": "mem",
   "displayName": "Mem",
-  "icon": "resources/mempack.png",
+  "icon": "resources/mem.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/suju297/mempack.git"
+    "url": "https://github.com/suju297/mem.git"
   },
   "description": "Repo-scoped memory for coding agents (CLI wrapper).",
   "license": "MIT",
-  "version": "0.2.36",
-  "publisher": "mempack",
+  "version": "0.2.39",
+  "publisher": "mem",
   "engines": {
     "vscode": "^1.84.0"
   },
@@ -19,188 +19,188 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onStartupFinished",
-    "onCommand:mempack.init",
-    "onCommand:mempack.addStub",
-    "onCommand:mempack.doctor",
-    "onCommand:mempack.saveSelection",
-    "onCommand:mempack.checkpoint",
-    "onCommand:mempack.getContext",
-    "onCommand:mempack.explain",
-    "onCommand:mempack.searchMemories",
-    "onCommand:mempack.refresh",
-    "onCommand:mempack.openMemory",
-    "onCommand:mempack.openThreadsUI",
-    "onCommand:mempack.openRecentUI",
-    "onCommand:mempack.copySummary",
-    "onCommand:mempack.copyPromptSnippet",
-    "onCommand:mempack.deleteMemory",
-    "onCommand:mempack.annotateLastSession",
-    "onCommand:mempack.annotateSessionFromList",
-    "onCommand:mempack.openSessionDiff",
-    "onCommand:mempack.annotateSession",
-    "onCommand:mempack.markSessionReviewed",
-    "onCommand:mempack.copySessionReference",
-    "onCommand:mempack.configureTokenBudget",
-    "onCommand:mempack.configureWorkspace",
-    "onCommand:mempack.configureDefaultThread",
-    "onCommand:mempack.configureAssistantFiles",
-    "onCommand:mempack.toggleIntentCapture",
-    "onCommand:mempack.configureIntentCapture",
-    "onCommand:mempack.configureMcpWrites",
-    "onCommand:mempack.toggleWriteOptIn",
-    "onCommand:mempack.configureEmbeddings",
-    "onView:mempackView"
+    "onCommand:mem.init",
+    "onCommand:mem.addStub",
+    "onCommand:mem.doctor",
+    "onCommand:mem.saveSelection",
+    "onCommand:mem.checkpoint",
+    "onCommand:mem.getContext",
+    "onCommand:mem.explain",
+    "onCommand:mem.searchMemories",
+    "onCommand:mem.refresh",
+    "onCommand:mem.openMemory",
+    "onCommand:mem.openThreadsUI",
+    "onCommand:mem.openRecentUI",
+    "onCommand:mem.copySummary",
+    "onCommand:mem.copyPromptSnippet",
+    "onCommand:mem.deleteMemory",
+    "onCommand:mem.annotateLastSession",
+    "onCommand:mem.annotateSessionFromList",
+    "onCommand:mem.openSessionDiff",
+    "onCommand:mem.annotateSession",
+    "onCommand:mem.markSessionReviewed",
+    "onCommand:mem.copySessionReference",
+    "onCommand:mem.configureTokenBudget",
+    "onCommand:mem.configureWorkspace",
+    "onCommand:mem.configureDefaultThread",
+    "onCommand:mem.configureAssistantFiles",
+    "onCommand:mem.toggleIntentCapture",
+    "onCommand:mem.configureIntentCapture",
+    "onCommand:mem.configureMcpWrites",
+    "onCommand:mem.toggleWriteOptIn",
+    "onCommand:mem.configureEmbeddings",
+    "onView:memView"
   ],
   "contributes": {
     "commands": [
       {
-        "command": "mempack.init",
+        "command": "mem.init",
         "title": "Mem: Init (in this repo)"
       },
       {
-        "command": "mempack.addStub",
+        "command": "mem.addStub",
         "title": "Mem: Add Mem Stub"
       },
       {
-        "command": "mempack.doctor",
+        "command": "mem.doctor",
         "title": "Mem: Doctor"
       },
       {
-        "command": "mempack.saveSelection",
+        "command": "mem.saveSelection",
         "title": "Mem: Save Selection as Memory"
       },
       {
-        "command": "mempack.checkpoint",
+        "command": "mem.checkpoint",
         "title": "Mem: Save Checkpoint"
       },
       {
-        "command": "mempack.annotateLastSession",
+        "command": "mem.annotateLastSession",
         "title": "Mem: Annotate Last Session"
       },
       {
-        "command": "mempack.annotateSessionFromList",
+        "command": "mem.annotateSessionFromList",
         "title": "Mem: Annotate Session from List"
       },
       {
-        "command": "mempack.openSessionDiff",
+        "command": "mem.openSessionDiff",
         "title": "Mem: Open Session Diff"
       },
       {
-        "command": "mempack.annotateSession",
+        "command": "mem.annotateSession",
         "title": "Mem: Annotate Session"
       },
       {
-        "command": "mempack.markSessionReviewed",
+        "command": "mem.markSessionReviewed",
         "title": "Mem: Mark Session as Reviewed"
       },
       {
-        "command": "mempack.copySessionReference",
+        "command": "mem.copySessionReference",
         "title": "Mem: Copy Session Reference"
       },
       {
-        "command": "mempack.getContext",
+        "command": "mem.getContext",
         "title": "Get Context",
         "shortTitle": "Search",
         "category": "Mem",
         "icon": "$(search)"
       },
       {
-        "command": "mempack.explain",
+        "command": "mem.explain",
         "title": "Mem: Explain Search",
         "category": "Mem",
         "icon": "$(debug)"
       },
       {
-        "command": "mempack.searchMemories",
+        "command": "mem.searchMemories",
         "title": "Mem: Search Memories"
       },
       {
-        "command": "mempack.refresh",
+        "command": "mem.refresh",
         "title": "Refresh",
         "shortTitle": "Refresh",
         "category": "Mem",
         "icon": "$(refresh)"
       },
       {
-        "command": "mempack.openMemory",
+        "command": "mem.openMemory",
         "title": "Mem: Open Memory Details"
       },
       {
-        "command": "mempack.openThreadsUI",
+        "command": "mem.openThreadsUI",
         "title": "Mem: Open Threads UI"
       },
       {
-        "command": "mempack.openRecentUI",
+        "command": "mem.openRecentUI",
         "title": "Mem: Open Recent UI"
       },
       {
-        "command": "mempack.copySummary",
+        "command": "mem.copySummary",
         "title": "Mem: Copy Summary"
       },
       {
-        "command": "mempack.copyPromptSnippet",
+        "command": "mem.copyPromptSnippet",
         "title": "Mem: Copy as Prompt Snippet"
       },
       {
-        "command": "mempack.deleteMemory",
+        "command": "mem.deleteMemory",
         "title": "Mem: Delete Memory"
       },
       {
-        "command": "mempack.toggleWriteOptIn",
+        "command": "mem.toggleWriteOptIn",
         "title": "Mem: Toggle MCP Writes"
       },
       {
-        "command": "mempack.configureMcpWrites",
+        "command": "mem.configureMcpWrites",
         "title": "Mem: Configure MCP Writes"
       },
       {
-        "command": "mempack.configureEmbeddings",
+        "command": "mem.configureEmbeddings",
         "title": "Mem: Configure Embeddings"
       },
       {
-        "command": "mempack.configureTokenBudget",
+        "command": "mem.configureTokenBudget",
         "title": "Mem: Configure Token Budget"
       },
       {
-        "command": "mempack.configureWorkspace",
+        "command": "mem.configureWorkspace",
         "title": "Mem: Configure Workspace"
       },
       {
-        "command": "mempack.configureDefaultThread",
+        "command": "mem.configureDefaultThread",
         "title": "Mem: Configure Default Thread"
       },
       {
-        "command": "mempack.configureAssistantFiles",
+        "command": "mem.configureAssistantFiles",
         "title": "Mem: Configure Assistant Files"
       },
       {
-        "command": "mempack.toggleIntentCapture",
+        "command": "mem.toggleIntentCapture",
         "title": "Mem: Toggle Intent Capture"
       },
       {
-        "command": "mempack.configureIntentCapture",
+        "command": "mem.configureIntentCapture",
         "title": "Mem: Configure Intent Capture"
       }
     ],
     "keybindings": [
       {
-        "command": "mempack.annotateLastSession",
+        "command": "mem.annotateLastSession",
         "key": "cmd+shift+m",
         "mac": "cmd+shift+m",
         "when": "editorTextFocus"
       },
       {
-        "command": "mempack.annotateLastSession",
+        "command": "mem.annotateLastSession",
         "key": "ctrl+shift+m",
         "when": "editorTextFocus && !isMac"
       },
       {
-        "command": "mempack.getContext",
+        "command": "mem.getContext",
         "key": "cmd+shift+g",
         "mac": "cmd+shift+g"
       },
       {
-        "command": "mempack.getContext",
+        "command": "mem.getContext",
         "key": "ctrl+shift+g",
         "when": "!isMac"
       }
@@ -208,23 +208,23 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "mempack",
+          "id": "mem",
           "title": "Mem",
-          "icon": "resources/mempack-activitybar.png"
+          "icon": "resources/mem-activitybar.png"
         }
       ]
     },
     "views": {
-      "mempack": [
+      "mem": [
         {
-          "id": "mempackView",
+          "id": "memView",
           "name": "Mem"
         }
       ]
     },
     "colors": [
       {
-        "id": "mempack.brand",
+        "id": "mem.brand",
         "description": "Mem brand accent color.",
         "defaults": {
           "dark": "#A855F7",
@@ -236,95 +236,95 @@
     ],
     "viewsWelcome": [
       {
-        "view": "mempackView",
-        "contents": "Mem is not initialized for this repo yet.\n[Initialize Mem](command:mempack.init)\n\nYou can choose to write agent instruction files (`.mempack/MEMORY.md` + `AGENTS.md`, plus detected assistant files) or initialize without writing repo files."
+        "view": "memView",
+        "contents": "Mem is not initialized for this repo yet.\n[Initialize Mem](command:mem.init)\n\nYou can choose to write agent instruction files (`.mem/MEMORY.md` + `AGENTS.md`, plus detected assistant files) or initialize without writing repo files."
       }
     ],
     "menus": {
       "view/title": [
         {
-          "command": "mempack.refresh",
-          "when": "view == mempackView",
+          "command": "mem.refresh",
+          "when": "view == memView",
           "group": "navigation@1"
         }
       ],
       "editor/context": [
         {
-          "command": "mempack.saveSelection",
+          "command": "mem.saveSelection",
           "when": "editorHasSelection",
-          "group": "mempack@1"
+          "group": "mem@1"
         },
         {
-          "command": "mempack.getContext",
-          "group": "mempack@2"
+          "command": "mem.getContext",
+          "group": "mem@2"
         }
       ],
       "view/item/context": [
         {
-          "command": "mempack.openMemory",
-          "when": "view == mempackView && viewItem == mempackMemory"
+          "command": "mem.openMemory",
+          "when": "view == memView && viewItem == memMemory"
         },
         {
-          "command": "mempack.copySummary",
-          "when": "view == mempackView && viewItem == mempackMemory"
+          "command": "mem.copySummary",
+          "when": "view == memView && viewItem == memMemory"
         },
         {
-          "command": "mempack.copyPromptSnippet",
-          "when": "view == mempackView && viewItem == mempackMemory"
+          "command": "mem.copyPromptSnippet",
+          "when": "view == memView && viewItem == memMemory"
         },
         {
-          "command": "mempack.deleteMemory",
-          "when": "view == mempackView && viewItem == mempackMemory"
+          "command": "mem.deleteMemory",
+          "when": "view == memView && viewItem == memMemory"
         },
         {
-          "command": "mempack.openSessionDiff",
-          "when": "view == mempackView && viewItem == mempackSession"
+          "command": "mem.openSessionDiff",
+          "when": "view == memView && viewItem == memSession"
         },
         {
-          "command": "mempack.annotateSession",
-          "when": "view == mempackView && viewItem == mempackSession"
+          "command": "mem.annotateSession",
+          "when": "view == memView && viewItem == memSession"
         },
         {
-          "command": "mempack.markSessionReviewed",
-          "when": "view == mempackView && viewItem == mempackSession"
+          "command": "mem.markSessionReviewed",
+          "when": "view == memView && viewItem == memSession"
         },
         {
-          "command": "mempack.copySessionReference",
-          "when": "view == mempackView && viewItem == mempackSession"
+          "command": "mem.copySessionReference",
+          "when": "view == memView && viewItem == memSession"
         }
       ]
     },
     "configuration": {
       "title": "Mem",
       "properties": {
-        "mempack.binaryPath": {
+        "mem.binaryPath": {
           "type": "string",
           "default": "mem",
           "description": "Path to the mem binary."
         },
-        "mempack.workspace": {
+        "mem.workspace": {
           "type": "string",
           "default": "",
           "description": "Optional workspace name to pass to mem commands."
         },
-        "mempack.defaultThread": {
+        "mem.defaultThread": {
           "type": "string",
           "default": "T-SESSION",
           "description": "Default thread for new memories."
         },
-        "mempack.recentLimit": {
+        "mem.recentLimit": {
           "type": "number",
           "default": 10,
           "minimum": 1,
           "description": "Number of recent memories to show."
         },
-        "mempack.commandTimeoutMs": {
+        "mem.commandTimeoutMs": {
           "type": "number",
           "default": 10000,
           "minimum": 1000,
           "description": "Timeout in milliseconds for mem CLI commands."
         },
-        "mempack.writeTransport": {
+        "mem.writeTransport": {
           "type": "string",
           "default": "mcp_first",
           "enum": [
@@ -333,7 +333,7 @@
           ],
           "description": "Write transport strategy for add/update/checkpoint calls. mcp_first tries MCP then falls back to CLI."
         },
-        "mempack.autoSessionsEnabled": {
+        "mem.autoSessionsEnabled": {
           "type": "boolean",
           "default": false,
           "description": "Auto-capture work sessions for this repo based on meaningful edits (no prompts)."

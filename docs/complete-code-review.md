@@ -10,7 +10,7 @@ This review covers the entire repository at a system level, including:
 - Go CLI/runtime (`cmd`, `internal/*`)
 - SQLite persistence and migrations (`internal/store`)
 - MCP runtime and manager flows (`internal/app/*mcp*`)
-- VS Code extension (`extensions/vscode-mempack`)
+- VS Code extension (`extensions/vscode-mem`)
 - Documentation and architecture alignment (`ReadMe.md`, `ARCHITECTURE.md`, `docs/*`)
 
 Validation commands run as part of this review:
@@ -56,7 +56,7 @@ The project demonstrates:
 
 - Strength: Multiple MCP runtime modes (stdio/daemon/manager) are documented and implemented.
 - Strength: Manager lifecycle/status flows and tests indicate good operability.
-- Recommendation: Keep structured-content compatibility tests for legacy aliases as protocol evolves.
+- Recommendation: Keep structured-content compatibility tests as the protocol evolves.
 
 ### 5) Extension Quality
 

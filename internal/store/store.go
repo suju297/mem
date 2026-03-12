@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"mempack/internal/repo"
+	"mem/internal/repo"
 
 	_ "modernc.org/sqlite"
 )
@@ -26,6 +26,25 @@ type Store struct {
 }
 
 func Open(path string) (*Store, error) {
+	db, err := openSQLite(path)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := db.Exec(schemaSQL); err != nil {
+		return nil, err
+	}
+	if err := migrate(db); err != nil {
+		return nil, fmt.Errorf("schema migration failed: %w", err)
+	}
+	if _, err := db.Exec(triggersSQL); err != nil {
+		return nil, err
+	}
+
+	return &Store{db: db}, nil
+}
+
+func openSQLite(path string) (*sql.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
@@ -54,17 +73,7 @@ func Open(path string) (*Store, error) {
 	if _, err := db.Exec("PRAGMA mmap_size=268435456;"); err != nil {
 		return nil, err
 	}
-	if _, err := db.Exec(schemaSQL); err != nil {
-		return nil, err
-	}
-	if err := migrate(db); err != nil {
-		return nil, fmt.Errorf("schema migration failed: %w", err)
-	}
-	if _, err := db.Exec(triggersSQL); err != nil {
-		return nil, err
-	}
-
-	return &Store{db: db}, nil
+	return db, nil
 }
 
 func (s *Store) Close() error {

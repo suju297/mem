@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/store"
+	"mem/internal/token"
 )
 
 func runAdd(args []string, out, errOut io.Writer) int {

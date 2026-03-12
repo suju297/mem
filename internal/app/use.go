@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"mempack/internal/config"
-	"mempack/internal/repo"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/repo"
+	"mem/internal/store"
 )
 
 type UseResponse struct {

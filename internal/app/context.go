@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	"mempack/internal/config"
-	"mempack/internal/pathutil"
-	"mempack/internal/repo"
-	"mempack/internal/reporesolve"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/pathutil"
+	"mem/internal/repo"
+	"mem/internal/reporesolve"
+	"mem/internal/store"
 )
 
 func loadConfig() (config.Config, error) {

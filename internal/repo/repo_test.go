@@ -9,7 +9,7 @@ import (
 
 func TestDetect(t *testing.T) {
 	// Setup temp dir
-	tmpDir, err := os.MkdirTemp("", "mempack-test-repo-*")
+	tmpDir, err := os.MkdirTemp("", "mem-test-repo-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestDetect(t *testing.T) {
 }
 
 func TestDetectStrictUnbornHEAD(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "mempack-test-unborn-*")
+	tmpDir, err := os.MkdirTemp("", "mem-test-unborn-*")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestDetectStrictUnbornHEAD(t *testing.T) {
 }
 
 func TestIsAncestor(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "mempack-test-ancestry-*")
+	tmpDir, err := os.MkdirTemp("", "mem-test-ancestry-*")
 	if err != nil {
 		t.Fatal(err)
 	}

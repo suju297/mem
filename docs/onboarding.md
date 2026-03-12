@@ -2,6 +2,14 @@
 
 Repo-scoped memory for coding agents, stored locally.
 
+This page is the shortest path to first success.
+
+Use the rest of the docs like this:
+- stay here for installation, setup, and first troubleshooting
+- move to `docs/cookbook.md` for common workflows and copy-pasteable examples
+- move to `docs/scripting.md` for CI, shell scripts, and machine-readable behavior
+- move to `docs/cli.md` when you need exact syntax
+
 Why it exists:
 - Keeps context inside the repo instead of a generic conversation log.
 - Stores data on your machine (SQLite), not a remote service.
@@ -78,6 +86,11 @@ mem mcp stop
 ```bash
 mem add --title "Auth plan" --summary "Use middleware; invalid token returns 401."
 ```
+
+6. Pick the next doc surface:
+- Common workflows: `docs/cookbook.md`
+- Automation and CI: `docs/scripting.md`
+- Full syntax reference: `docs/cli.md`
 
 ---
 

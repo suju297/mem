@@ -187,6 +187,11 @@ export interface SearchMeta {
 export interface BudgetInfo {
   tokenizer: string;
   target_total: number;
+  candidate_total?: number;
+  pre_budget_total?: number;
+  truncated_total?: number;
+  dropped_total?: number;
+  saved_total?: number;
   used_total: number;
 }
 

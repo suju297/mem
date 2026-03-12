@@ -9,7 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"mempack/internal/repo"
+	"mem/internal/pack"
+	"mem/internal/repo"
 )
 
 type addResp struct {
@@ -83,6 +84,22 @@ type sessionResp struct {
 
 type sessionCountResp struct {
 	Count int `json:"count"`
+}
+
+type usageTotalsResp struct {
+	RequestCount    int    `json:"request_count"`
+	CandidateTokens int    `json:"candidate_tokens"`
+	UsedTokens      int    `json:"used_tokens"`
+	SavedTokens     int    `json:"saved_tokens"`
+	TruncatedTokens int    `json:"truncated_tokens"`
+	DroppedTokens   int    `json:"dropped_tokens"`
+	UpdatedAt       string `json:"updated_at"`
+}
+
+type usageReportResp struct {
+	RepoID  string          `json:"repo_id"`
+	Repo    usageTotalsResp `json:"repo"`
+	Overall usageTotalsResp `json:"overall"`
 }
 
 type sessionUpsertResp struct {
@@ -653,6 +670,111 @@ func TestCLIReposAndUse(t *testing.T) {
 	}
 }
 
+func TestCLIUsageTracksContextRequests(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	info, err := repo.Detect(repoDir)
+	if err != nil {
+		t.Fatalf("detect repo: %v", err)
+	}
+
+	_ = runCLI(t, "add", "--thread", "T1", "--title", "Decision", "--summary", "Decision summary")
+
+	getOut := runCLI(t, "get", "decision")
+	var packResp pack.ContextPack
+	if err := json.Unmarshal(getOut, &packResp); err != nil {
+		t.Fatalf("decode get response: %v", err)
+	}
+	if packResp.Usage == nil {
+		t.Fatalf("expected usage snapshot in get response")
+	}
+	if packResp.Usage.Repo.RequestCount != 1 {
+		t.Fatalf("expected repo request_count 1, got %d", packResp.Usage.Repo.RequestCount)
+	}
+	if packResp.Usage.Overall.RequestCount != 1 {
+		t.Fatalf("expected overall request_count 1, got %d", packResp.Usage.Overall.RequestCount)
+	}
+	if packResp.Usage.Repo.SavedTokens != packResp.Budget.SavedTotal {
+		t.Fatalf("expected repo saved_tokens %d, got %d", packResp.Budget.SavedTotal, packResp.Usage.Repo.SavedTokens)
+	}
+
+	_ = runCLI(t, "get", "decision", "--format", "prompt")
+
+	usageOut := runCLI(t, "usage", "--format", "json")
+	var usage usageReportResp
+	if err := json.Unmarshal(usageOut, &usage); err != nil {
+		t.Fatalf("decode usage response: %v", err)
+	}
+	if usage.RepoID != info.ID {
+		t.Fatalf("expected repo_id %s, got %s", info.ID, usage.RepoID)
+	}
+	if usage.Repo.RequestCount != 2 {
+		t.Fatalf("expected repo request_count 2, got %d", usage.Repo.RequestCount)
+	}
+	if usage.Overall.RequestCount != 2 {
+		t.Fatalf("expected overall request_count 2, got %d", usage.Overall.RequestCount)
+	}
+}
+
+func TestCLIUsageRepoFilter(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoADir := setupRepo(t, filepath.Join(base, "a"))
+	repoBDir := setupRepo(t, filepath.Join(base, "b"))
+
+	withCwd(t, repoADir)
+	_ = runCLI(t, "add", "--title", "A", "--summary", "Alpha summary")
+	_ = runCLI(t, "get", "alpha")
+
+	withCwd(t, repoBDir)
+	_ = runCLI(t, "add", "--title", "B", "--summary", "Beta summary")
+	_ = runCLI(t, "get", "beta")
+
+	usageOut := runCLI(t, "usage", "--format", "json", "--repo", repoADir)
+	var usage usageReportResp
+	if err := json.Unmarshal(usageOut, &usage); err != nil {
+		t.Fatalf("decode usage response: %v", err)
+	}
+	if usage.Repo.RequestCount != 1 {
+		t.Fatalf("expected repo request_count 1 for repo A, got %d", usage.Repo.RequestCount)
+	}
+	if usage.Overall.RequestCount != 2 {
+		t.Fatalf("expected overall request_count 2, got %d", usage.Overall.RequestCount)
+	}
+}
+
+func TestCLIUsageIgnoresFailedGet(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	code := Run([]string{"get"}, &out, &errOut)
+	if code == 0 {
+		t.Fatalf("expected get without query to fail")
+	}
+
+	usageOut := runCLI(t, "usage", "--format", "json")
+	var usage usageReportResp
+	if err := json.Unmarshal(usageOut, &usage); err != nil {
+		t.Fatalf("decode usage response: %v", err)
+	}
+	if usage.Repo.RequestCount != 0 {
+		t.Fatalf("expected repo request_count 0, got %d", usage.Repo.RequestCount)
+	}
+	if usage.Overall.RequestCount != 0 {
+		t.Fatalf("expected overall request_count 0, got %d", usage.Overall.RequestCount)
+	}
+}
+
 func TestCLICheckpointRegistersRepoOnFirstWrite(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)
@@ -744,8 +866,31 @@ func TestGetDeterministicOutput(t *testing.T) {
 
 	first := runCLI(t, "get", "decision")
 	second := runCLI(t, "get", "decision")
-	if !bytes.Equal(first, second) {
-		t.Fatalf("expected byte-identical get output")
+
+	var firstPack pack.ContextPack
+	if err := json.Unmarshal(first, &firstPack); err != nil {
+		t.Fatalf("decode first get output: %v", err)
+	}
+	var secondPack pack.ContextPack
+	if err := json.Unmarshal(second, &secondPack); err != nil {
+		t.Fatalf("decode second get output: %v", err)
+	}
+
+	if firstPack.Usage == nil || secondPack.Usage == nil {
+		t.Fatalf("expected usage snapshots in get outputs")
+	}
+	if firstPack.Usage.Repo.RequestCount != 1 || secondPack.Usage.Repo.RequestCount != 2 {
+		t.Fatalf("expected request counts 1 then 2, got %d then %d", firstPack.Usage.Repo.RequestCount, secondPack.Usage.Repo.RequestCount)
+	}
+
+	firstPack.Usage = nil
+	secondPack.Usage = nil
+	if encodedFirst, err := json.Marshal(firstPack); err != nil {
+		t.Fatalf("marshal first pack: %v", err)
+	} else if encodedSecond, err := json.Marshal(secondPack); err != nil {
+		t.Fatalf("marshal second pack: %v", err)
+	} else if !bytes.Equal(encodedFirst, encodedSecond) {
+		t.Fatalf("expected get output to be stable aside from usage snapshot")
 	}
 }
 

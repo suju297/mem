@@ -1,13 +1,17 @@
 package app
 
+import "strings"
+
 const (
-	writeOptInMarker       = "mem.allow_write=true"
-	legacyWriteOptInMarker = "mempack.allow_write=true"
-	memoryManagedMarker    = "mem:managed"
-	legacyManagedMarker    = "mempack:managed"
+	writeOptInMarker    = "mem.allow_write=true"
+	memoryManagedMarker = "mem:managed"
 )
 
 func memoryInstructionsContent() string {
+	return memoryInstructionsContentForDir(".mem")
+}
+
+func memoryInstructionsContentForDir(dirName string) string {
 	return `# Mem Instructions (Repo Memory)
 <!-- mem:managed -->
 
@@ -19,7 +23,7 @@ Purpose: Use Mem to fetch and persist repo-scoped context (state, decisions, evi
 
 ## Do this at task start (required)
 1) Fetch context for the current task.
-   - MCP (preferred): call ` + "`" + `mem_get_context(query="<task>")` + "`" + ` (legacy alias: ` + "`" + `mempack_get_context` + "`" + `)
+   - MCP (preferred): call ` + "`" + `mem_get_context(query="<task>")` + "`" + `
    - Fallback: ask the user to run ` + "`" + `mem get "<task>" --format prompt` + "`" + `
 
 2) If you change direction or discover new constraints, fetch again.
@@ -74,7 +78,7 @@ Defaults:
 
 ## MCP write controls (optional)
 MCP write tools are enabled by default in ask mode.
-To disable: start with ` + "`" + `--write-mode off` + "`" + ` or set ` + "`" + `mcp_allow_write=false` + "`" + ` in config or ` + "`" + `.mempack/config.json` + "`" + `.
+To disable: start with ` + "`" + `--write-mode off` + "`" + ` or set ` + "`" + `mcp_allow_write=false` + "`" + ` in config or repo config (` + "`" + `.mem/config.json` + "`" + ` or legacy ` + "`" + `.mempack/config.json` + "`" + `).
 To auto-write (no confirmation): use ` + "`" + `--write-mode auto` + "`" + ` or set ` + "`" + `mcp_write_mode=auto` + "`" + `.
 
 ## Debugging retrieval
@@ -94,6 +98,11 @@ When relevant code/docs are not being retrieved, suggest ingest:
 }
 
 func agentsStubContent() string {
+	return agentsStubContentForDir(".mem")
+}
+
+func agentsStubContentForDir(dirName string) string {
+	dirName = normalizeRepoSupportDirName(dirName)
 	return `# Mem Agent Policy
 
 Before starting any task, fetch repo memory:
@@ -102,11 +111,16 @@ Before starting any task, fetch repo memory:
 If MCP is unavailable, ask the user to run:
 ` + "`" + `mem get "<task>" --format prompt` + "`" + `
 
-Full instructions: ` + "`" + `.mempack/MEMORY.md` + "`" + `
+Full instructions: ` + "`" + dirName + `/MEMORY.md` + "`" + `
 `
 }
 
 func claudeStubContent() string {
+	return claudeStubContentForDir(".mem")
+}
+
+func claudeStubContentForDir(dirName string) string {
+	dirName = normalizeRepoSupportDirName(dirName)
 	return `# Mem Policy for Claude Code
 <!-- mem:managed -->
 
@@ -116,11 +130,16 @@ Before starting any task, fetch repo memory:
 If MCP is unavailable, ask the user to run:
 ` + "`" + `mem get "<task>" --format prompt` + "`" + `
 
-Full instructions: ` + "`" + `.mempack/MEMORY.md` + "`" + `
+Full instructions: ` + "`" + dirName + `/MEMORY.md` + "`" + `
 `
 }
 
 func geminiStubContent() string {
+	return geminiStubContentForDir(".mem")
+}
+
+func geminiStubContentForDir(dirName string) string {
+	dirName = normalizeRepoSupportDirName(dirName)
 	return `# Mem Policy for Gemini
 <!-- mem:managed -->
 
@@ -130,7 +149,7 @@ Before starting any task, fetch repo memory:
 If MCP is unavailable, ask the user to run:
 ` + "`" + `mem get "<task>" --format prompt` + "`" + `
 
-Full instructions: ` + "`" + `.mempack/MEMORY.md` + "`" + `
+Full instructions: ` + "`" + dirName + `/MEMORY.md` + "`" + `
 `
 }
 
@@ -139,4 +158,12 @@ func agentsStubHintLines() []string {
 		`Use MCP: call mem_get_context("<task>") at task start.`,
 		`Fallback: ask the user to run mem get "<task>" --format prompt.`,
 	}
+}
+
+func normalizeRepoSupportDirName(dirName string) string {
+	trimmed := strings.TrimSpace(dirName)
+	if trimmed == "" {
+		return ".mem"
+	}
+	return trimmed
 }

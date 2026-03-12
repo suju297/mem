@@ -168,7 +168,7 @@ export class McpStdioSession {
       this.sendRequest("initialize", {
         protocolVersion: "2025-06-18",
         capabilities: {},
-        clientInfo: { name: "vscode-mempack", version: "0.0.0" }
+        clientInfo: { name: "vscode-mem", version: "0.0.0" }
       }),
       "MCP initialize"
     );

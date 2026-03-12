@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"mempack/internal/config"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/store"
 )
 
 type fakeCounter struct{}
@@ -59,6 +59,21 @@ func TestBudgetDropsLowestScore(t *testing.T) {
 	if result.UsedTokens > cfg.TokenBudget {
 		t.Fatalf("expected budget <= %d, got %d", cfg.TokenBudget, result.UsedTokens)
 	}
+	if result.CandidateTokens != 16 {
+		t.Fatalf("expected candidate tokens 16, got %d", result.CandidateTokens)
+	}
+	if result.PreBudgetTokens != 16 {
+		t.Fatalf("expected pre-budget tokens 16, got %d", result.PreBudgetTokens)
+	}
+	if result.TruncatedTokens != 0 {
+		t.Fatalf("expected truncated tokens 0, got %d", result.TruncatedTokens)
+	}
+	if result.DroppedTokens != 5 {
+		t.Fatalf("expected dropped tokens 5, got %d", result.DroppedTokens)
+	}
+	if result.SavedTokens != 5 {
+		t.Fatalf("expected saved tokens 5, got %d", result.SavedTokens)
+	}
 	if len(result.Memories) != 2 {
 		t.Fatalf("expected 2 memories, got %d", len(result.Memories))
 	}
@@ -75,6 +90,44 @@ func TestBudgetDropsLowestScore(t *testing.T) {
 	}
 	if _, ok := included["M-2"]; ok {
 		t.Fatalf("expected M-2 to be dropped")
+	}
+}
+
+func TestBudgetTracksTruncationSavings(t *testing.T) {
+	cfg := config.Config{
+		TokenBudget:   100,
+		StateMax:      10,
+		MemoryMaxEach: 3,
+		MemoriesK:     1,
+		ChunksK:       0,
+		ChunkMaxEach:  0,
+	}
+
+	memories := []RankedMemory{
+		{
+			Memory:     store.Memory{ID: "M-1", Summary: "one two three four five", Title: "A", CreatedAt: time.Unix(10, 0)},
+			FinalScore: 1,
+		},
+	}
+
+	result, err := applyBudget(cfg, fakeCounter{}, []byte("{}"), 0, memories, nil)
+	if err != nil {
+		t.Fatalf("apply budget error: %v", err)
+	}
+	if result.CandidateTokens != 7 {
+		t.Fatalf("expected candidate tokens 7, got %d", result.CandidateTokens)
+	}
+	if result.PreBudgetTokens != 5 {
+		t.Fatalf("expected pre-budget tokens 5, got %d", result.PreBudgetTokens)
+	}
+	if result.TruncatedTokens != 2 {
+		t.Fatalf("expected truncated tokens 2, got %d", result.TruncatedTokens)
+	}
+	if result.DroppedTokens != 0 {
+		t.Fatalf("expected dropped tokens 0, got %d", result.DroppedTokens)
+	}
+	if result.SavedTokens != 2 {
+		t.Fatalf("expected saved tokens 2, got %d", result.SavedTokens)
 	}
 }
 

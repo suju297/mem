@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/config"
-	"mempack/internal/embed"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/embed"
+	"mem/internal/store"
 )
 
 func maybeEmbedMemory(cfg config.Config, st *store.Store, mem store.Memory) error {

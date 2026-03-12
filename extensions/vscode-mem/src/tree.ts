@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as fs from "fs/promises";
-import { LastMcpSpawn, MempackClient } from "./client";
+import { LastMcpSpawn, MemClient } from "./client";
 import { EmbedStatusResponse, RecentMemoryItem, SessionItem, ThreadItem, ThreadMemoryBrief } from "./types";
 import { getWorkspaceRoot } from "./workspace";
 import {
@@ -13,16 +13,16 @@ import {
   McpWritesMode
 } from "./config";
 
-const BRAND_COLOR = new vscode.ThemeColor("mempack.brand");
+const BRAND_COLOR = new vscode.ThemeColor("mem.brand");
 
 function brandIcon(name: string): vscode.ThemeIcon {
   return new vscode.ThemeIcon(name, BRAND_COLOR);
 }
 
-export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode> {
-  private client: MempackClient;
+export class MemTreeProvider implements vscode.TreeDataProvider<MemNode> {
+  private client: MemClient;
   private context: vscode.ExtensionContext;
-  private _onDidChangeTreeData = new vscode.EventEmitter<MempackNode | undefined>();
+  private _onDidChangeTreeData = new vscode.EventEmitter<MemNode | undefined>();
   readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
   private doctorCache?: { at: number; report: any };
@@ -41,7 +41,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
   private threadsCache?: { at: number; items: ThreadItem[] };
   private recentCache?: { at: number; items: RecentMemoryItem[] };
 
-  constructor(client: MempackClient, context: vscode.ExtensionContext) {
+  constructor(client: MemClient, context: vscode.ExtensionContext) {
     this.client = client;
     this.context = context;
   }
@@ -64,11 +64,11 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     this._onDidChangeTreeData.fire(undefined);
   }
 
-  getTreeItem(element: MempackNode): vscode.TreeItem {
+  getTreeItem(element: MemNode): vscode.TreeItem {
     return element;
   }
 
-  async getChildren(element?: MempackNode): Promise<MempackNode[]> {
+  async getChildren(element?: MemNode): Promise<MemNode[]> {
     const cwd = this.getCwd();
     if (!cwd) {
       return [new HealthNode("Health: Unavailable", "Mem needs a workspace")];
@@ -239,8 +239,8 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     }
   }
 
-  private getRepoChildren(node: RepoNode): MempackNode[] {
-    const items: MempackNode[] = [];
+  private getRepoChildren(node: RepoNode): MemNode[] {
+    const items: MemNode[] = [];
     items.push(new RepoDetailNode("Root", compactPath(node.info.repoRoot), "folder", node.info.repoRoot));
     if (node.info.repoID.trim() !== "") {
       items.push(new RepoDetailNode("ID", node.info.repoID, "tag"));
@@ -252,8 +252,8 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     return items;
   }
 
-  private getRepoMemoryChildren(node: RepoMemoryNode): MempackNode[] {
-    const items: MempackNode[] = [];
+  private getRepoMemoryChildren(node: RepoMemoryNode): MemNode[] {
+    const items: MemNode[] = [];
     const info = node.info;
 
     if (info.memoryDBPath && info.memoryDBPath.trim() !== "") {
@@ -340,7 +340,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
       daemonUnavailable = true;
       daemonMessage = formatErrorMessage(err);
     }
-    await vscode.commands.executeCommand("setContext", "mempack.mcpRunning", daemonRunning);
+    await vscode.commands.executeCommand("setContext", "mem.mcpRunning", daemonRunning);
 
     const manager = await this.client.mcpManagerStatus(cwd);
     const info: McpRuntimeInfo = {
@@ -361,9 +361,9 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     return node;
   }
 
-  private getMcpChildren(node: McpServerNode): MempackNode[] {
+  private getMcpChildren(node: McpServerNode): MemNode[] {
     const info = node.info;
-    const items: MempackNode[] = [];
+    const items: MemNode[] = [];
 
     items.push(new McpDetailNode("Daemon", info.daemonRunning ? "Running" : "Stopped", info.daemonRunning ? "check" : "circle-slash"));
     items.push(new McpDetailNode("Daemon PID", info.daemonPid ? String(info.daemonPid) : "N/A", "tag"));
@@ -430,7 +430,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     if (this.intentCaptureCache && now - this.intentCaptureCache.at < 5000) {
       return this.intentCaptureCache.node;
     }
-    const cfg = vscode.workspace.getConfiguration("mempack");
+    const cfg = vscode.workspace.getConfiguration("mem");
     const enabled = cfg.get<boolean>("autoSessionsEnabled", false);
     const node = new SessionsOnCommitNode(enabled);
     this.intentCaptureCache = { at: now, node };
@@ -489,7 +489,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
     if (this.workspaceCache && now - this.workspaceCache.at < 5000) {
       return this.workspaceCache.node;
     }
-    const value = vscode.workspace.getConfiguration("mempack").get<string>("workspace") || "";
+    const value = vscode.workspace.getConfiguration("mem").get<string>("workspace") || "";
     const node = new WorkspaceNode(value);
     this.workspaceCache = { at: now, node };
     return node;
@@ -501,7 +501,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
       return this.defaultThreadCache.node;
     }
     const value =
-      vscode.workspace.getConfiguration("mempack").get<string>("defaultThread") || "T-SESSION";
+      vscode.workspace.getConfiguration("mem").get<string>("defaultThread") || "T-SESSION";
     const node = new DefaultThreadNode(value);
     this.defaultThreadCache = { at: now, node };
     return node;
@@ -556,7 +556,7 @@ export class MempackTreeProvider implements vscode.TreeDataProvider<MempackNode>
   }
 }
 
-export type MempackNode =
+export type MemNode =
   | StatusRootNode
   | SettingsRootNode
   | SearchRootNode
@@ -608,7 +608,7 @@ type McpRuntimeInfo = {
 class StatusRootNode extends vscode.TreeItem {
   constructor() {
     super("Status", vscode.TreeItemCollapsibleState.Expanded);
-    this.contextValue = "mempackStatusRoot";
+    this.contextValue = "memStatusRoot";
     this.iconPath = brandIcon("pulse");
   }
 }
@@ -616,7 +616,7 @@ class StatusRootNode extends vscode.TreeItem {
 class SettingsRootNode extends vscode.TreeItem {
   constructor() {
     super("Settings", vscode.TreeItemCollapsibleState.Expanded);
-    this.contextValue = "mempackSettingsRoot";
+    this.contextValue = "memSettingsRoot";
     this.iconPath = brandIcon("gear");
   }
 }
@@ -624,7 +624,7 @@ class SettingsRootNode extends vscode.TreeItem {
 class SearchRootNode extends vscode.TreeItem {
   constructor() {
     super("Search", vscode.TreeItemCollapsibleState.Collapsed);
-    this.contextValue = "mempackSearchRoot";
+    this.contextValue = "memSearchRoot";
     this.iconPath = brandIcon("search");
   }
 }
@@ -632,9 +632,9 @@ class SearchRootNode extends vscode.TreeItem {
 class SearchContextNode extends vscode.TreeItem {
   constructor() {
     super("Get Context", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackSearchContext";
+    this.contextValue = "memSearchContext";
     this.iconPath = brandIcon("search");
-    this.command = { command: "mempack.getContext", title: "Get Context" };
+    this.command = { command: "mem.getContext", title: "Get Context" };
     this.tooltip = "Search memories and chunks to build agent context.";
   }
 }
@@ -642,9 +642,9 @@ class SearchContextNode extends vscode.TreeItem {
 class ExplainSearchNode extends vscode.TreeItem {
   constructor() {
     super("Explain Search", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackExplainSearch";
+    this.contextValue = "memExplainSearch";
     this.iconPath = brandIcon("debug");
-    this.command = { command: "mempack.explain", title: "Explain Search" };
+    this.command = { command: "mem.explain", title: "Explain Search" };
     this.tooltip = "Explain ranking and budget decisions for a query.";
   }
 }
@@ -652,8 +652,8 @@ class ExplainSearchNode extends vscode.TreeItem {
 class HealthNode extends vscode.TreeItem {
   constructor(label: string, detail?: string, checkedAt?: number) {
     super(label, vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackHealth";
-    this.command = { command: "mempack.doctor", title: "Doctor" };
+    this.contextValue = "memHealth";
+    this.command = { command: "mem.doctor", title: "Doctor" };
     this.description = detail || "";
     const iconName = label.toLowerCase().includes("ok")
       ? "check"
@@ -673,7 +673,7 @@ class RepoNode extends vscode.TreeItem {
     const name = basenameSafe(info.repoRoot);
     super(`Repo: ${name}`, vscode.TreeItemCollapsibleState.Collapsed);
     this.info = info;
-    this.contextValue = "mempackRepo";
+    this.contextValue = "memRepo";
     this.iconPath = brandIcon("repo");
     this.description = info.repoID ? info.repoID : "";
     const lines = [`Repo root: ${info.repoRoot}`];
@@ -701,7 +701,7 @@ class RepoMemoryNode extends vscode.TreeItem {
   constructor(info: RepoNodeInfo) {
     super("Memory", vscode.TreeItemCollapsibleState.Collapsed);
     this.info = info;
-    this.contextValue = "mempackRepoMemory";
+    this.contextValue = "memRepoMemory";
     this.iconPath = brandIcon("database");
 
     if (typeof info.memoryDBSizeBytes === "number") {
@@ -722,7 +722,7 @@ class RepoMemoryNode extends vscode.TreeItem {
 class RepoDetailNode extends vscode.TreeItem {
   constructor(label: string, value: string, iconName: string, tooltipValue?: string) {
     super(label, vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackRepoDetail";
+    this.contextValue = "memRepoDetail";
     this.description = value;
     this.iconPath = brandIcon(iconName);
     this.tooltip = `${label}: ${tooltipValue || value}`;
@@ -732,8 +732,8 @@ class RepoDetailNode extends vscode.TreeItem {
 class McpWritesNode extends vscode.TreeItem {
   constructor(mode: McpWritesMode | undefined, configPath: string, detail?: string) {
     super("MCP Writes", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackMcpWrites";
-    this.command = { command: "mempack.configureMcpWrites", title: "Configure MCP Writes" };
+    this.contextValue = "memMcpWrites";
+    this.command = { command: "mem.configureMcpWrites", title: "Configure MCP Writes" };
     if (!mode) {
       this.description = detail || "Unavailable";
       this.iconPath = new vscode.ThemeIcon("warning");
@@ -753,7 +753,7 @@ class McpServerNode extends vscode.TreeItem {
   constructor(info: McpRuntimeInfo) {
     super("Status", vscode.TreeItemCollapsibleState.Collapsed);
     this.info = info;
-    this.contextValue = "mempackMcpServer";
+    this.contextValue = "memMcpServer";
     if (info.daemonUnavailable) {
       this.description = "Unavailable";
       this.iconPath = new vscode.ThemeIcon("warning");
@@ -771,7 +771,7 @@ class McpServerNode extends vscode.TreeItem {
 class McpDetailNode extends vscode.TreeItem {
   constructor(label: string, value: string, iconName: string, tooltipValue?: string) {
     super(label, vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackMcpDetail";
+    this.contextValue = "memMcpDetail";
     this.description = value;
     this.iconPath = new vscode.ThemeIcon(iconName);
     this.tooltip = `${label}: ${tooltipValue || value}`;
@@ -783,8 +783,8 @@ class McpDetailNode extends vscode.TreeItem {
 class EmbeddingsNode extends vscode.TreeItem {
   constructor(status?: EmbedStatusResponse, error?: string) {
     super("Embeddings", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackEmbeddings";
-    this.command = { command: "mempack.configureEmbeddings", title: "Configure Embeddings" };
+    this.contextValue = "memEmbeddings";
+    this.command = { command: "mem.configureEmbeddings", title: "Configure Embeddings" };
     if (!status) {
       this.description = "Unavailable";
       this.iconPath = new vscode.ThemeIcon("warning");
@@ -824,8 +824,8 @@ class EmbeddingsNode extends vscode.TreeItem {
 class SessionsOnCommitNode extends vscode.TreeItem {
   constructor(enabled: boolean) {
     super("Auto Capture", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackSessionsOnCommit";
-    this.command = { command: "mempack.configureIntentCapture", title: "Configure Intent Capture" };
+    this.contextValue = "memSessionsOnCommit";
+    this.command = { command: "mem.configureIntentCapture", title: "Configure Intent Capture" };
     this.description = enabled ? "On" : "Off";
     this.iconPath = enabled ? brandIcon("record") : new vscode.ThemeIcon("circle-slash");
     this.tooltip = enabled
@@ -837,8 +837,8 @@ class SessionsOnCommitNode extends vscode.TreeItem {
 class TokenBudgetNode extends vscode.TreeItem {
   constructor(value: number | undefined, configPath: string, detail?: string) {
     super("Token Budget", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackTokenBudget";
-    this.command = { command: "mempack.configureTokenBudget", title: "Configure Token Budget" };
+    this.contextValue = "memTokenBudget";
+    this.command = { command: "mem.configureTokenBudget", title: "Configure Token Budget" };
     if (value === undefined) {
       this.description = detail || "Unavailable";
       this.iconPath = new vscode.ThemeIcon("warning");
@@ -858,14 +858,14 @@ class TokenBudgetNode extends vscode.TreeItem {
 class WorkspaceNode extends vscode.TreeItem {
   constructor(value: string) {
     super("Workspace", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackWorkspace";
-    this.command = { command: "mempack.configureWorkspace", title: "Configure Workspace" };
+    this.contextValue = "memWorkspace";
+    this.command = { command: "mem.configureWorkspace", title: "Configure Workspace" };
     const trimmed = value.trim();
     this.description = trimmed === "" ? "Default" : trimmed;
     this.iconPath = brandIcon("folder");
     this.tooltip =
       trimmed === ""
-        ? "Using mempack default workspace."
+        ? "Using mem default workspace."
         : `Using workspace: ${trimmed}`;
   }
 }
@@ -873,8 +873,8 @@ class WorkspaceNode extends vscode.TreeItem {
 class DefaultThreadNode extends vscode.TreeItem {
   constructor(value: string) {
     super("Default Thread", vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackDefaultThread";
-    this.command = { command: "mempack.configureDefaultThread", title: "Configure Default Thread" };
+    this.contextValue = "memDefaultThread";
+    this.command = { command: "mem.configureDefaultThread", title: "Configure Default Thread" };
     const trimmed = value.trim();
     this.description = trimmed === "" ? "T-SESSION" : trimmed;
     this.iconPath = brandIcon("tag");
@@ -885,16 +885,16 @@ class DefaultThreadNode extends vscode.TreeItem {
 class ThreadsRootNode extends vscode.TreeItem {
   constructor() {
     super("Memory Threads", vscode.TreeItemCollapsibleState.Collapsed);
-    this.contextValue = "mempackThreads";
+    this.contextValue = "memThreads";
     this.iconPath = brandIcon("comment-discussion");
-    this.command = { command: "mempack.openThreadsUI", title: "Open Threads UI" };
+    this.command = { command: "mem.openThreadsUI", title: "Open Threads UI" };
   }
 }
 
 class RecentSessionsRootNode extends vscode.TreeItem {
   constructor() {
     super("Recent Sessions", vscode.TreeItemCollapsibleState.Collapsed);
-    this.contextValue = "mempackRecentSessions";
+    this.contextValue = "memRecentSessions";
     this.iconPath = brandIcon("book");
   }
 }
@@ -902,16 +902,16 @@ class RecentSessionsRootNode extends vscode.TreeItem {
 class RecentRootNode extends vscode.TreeItem {
   constructor() {
     super("Recent", vscode.TreeItemCollapsibleState.Collapsed);
-    this.contextValue = "mempackRecent";
+    this.contextValue = "memRecent";
     this.iconPath = brandIcon("history");
-    this.command = { command: "mempack.openRecentUI", title: "Open Recent UI" };
+    this.command = { command: "mem.openRecentUI", title: "Open Recent UI" };
   }
 }
 
 class NeedsSummaryRootNode extends vscode.TreeItem {
   constructor(count: number) {
     super("Needs Summary", vscode.TreeItemCollapsibleState.Collapsed);
-    this.contextValue = "mempackNeedsSummary";
+    this.contextValue = "memNeedsSummary";
     this.description = count > 0 ? `${count}` : "";
     this.iconPath = brandIcon("checklist");
     this.tooltip =
@@ -925,7 +925,7 @@ class ThreadNode extends vscode.TreeItem {
     super(formatThreadLabel(thread), vscode.TreeItemCollapsibleState.Collapsed);
     this.thread = thread;
     this.description = thread.memory_count ? `${thread.memory_count}` : "";
-    this.contextValue = "mempackThread";
+    this.contextValue = "memThread";
     this.iconPath = brandIcon("comment");
   }
 }
@@ -933,7 +933,7 @@ class ThreadNode extends vscode.TreeItem {
 class MessageNode extends vscode.TreeItem {
   constructor(message: string, description?: string, iconName = "error") {
     super(message, vscode.TreeItemCollapsibleState.None);
-    this.contextValue = "mempackMessage";
+    this.contextValue = "memMessage";
     this.description = description || "";
     this.iconPath = new vscode.ThemeIcon(iconName);
   }
@@ -949,10 +949,10 @@ export class MemoryNode extends vscode.TreeItem {
     this.memory = memory;
     this.description = truncateSummary(memory.summary || "", 60);
     this.tooltip = buildMemoryTooltip(memory);
-    this.contextValue = "mempackMemory";
+    this.contextValue = "memMemory";
     this.iconPath = brandIcon("note");
     this.command = {
-      command: "mempack.openMemory",
+      command: "mem.openMemory",
       title: "Open Memory",
       arguments: [this]
     };
@@ -967,10 +967,10 @@ export class SessionNode extends vscode.TreeItem {
     this.session = session;
     this.description = formatSessionDescription(session);
     this.tooltip = buildSessionTooltip(session);
-    this.contextValue = "mempackSession";
+    this.contextValue = "memSession";
     this.iconPath = brandIcon("book");
     this.command = {
-      command: "mempack.openSessionDiff",
+      command: "mem.openSessionDiff",
       title: "Open Diff",
       arguments: [this]
     };
@@ -1044,7 +1044,7 @@ function inferErrorHint(message: string): string {
     return "Check mem binary path";
   }
   if (lower.includes("not found") && lower.includes("mem")) {
-    return "Set mempack.binaryPath";
+    return "Set mem.binaryPath";
   }
   return "See Output: Mem";
 }

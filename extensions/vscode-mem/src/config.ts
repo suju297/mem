@@ -1,3 +1,4 @@
+import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
@@ -31,17 +32,35 @@ export type RepoConfig = {
 };
 
 export function getConfigPath(): string {
-  const configHome = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
-  return path.join(configHome, "mempack", "config.toml");
+  const configHome =
+    process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return path.join(configHome, "mem", "config.toml");
+}
+
+export function getRepoSupportDirName(cwd: string): string {
+  const memDir = path.join(cwd, ".mem");
+  if (pathIsDirectory(memDir)) {
+    return ".mem";
+  }
+  const legacyDir = path.join(cwd, ".mempack");
+  if (pathIsDirectory(legacyDir)) {
+    return ".mempack";
+  }
+  return ".mem";
+}
+
+export function getRepoSupportDir(cwd: string): string {
+  return path.join(cwd, getRepoSupportDirName(cwd));
 }
 
 export function getRepoConfigPath(cwd: string): string {
-  return path.join(cwd, ".mempack", "config.json");
+  return path.join(getRepoSupportDir(cwd), "config.json");
 }
 
 export function parseEmbeddingConfig(content: string): EmbeddingConfig {
   const provider = readTomlString(content, "embedding_provider") || "auto";
-  const model = readTomlString(content, "embedding_model") || "nomic-embed-text";
+  const model =
+    readTomlString(content, "embedding_model") || "nomic-embed-text";
   return { provider, model };
 }
 
@@ -56,20 +75,25 @@ export function parseTokenBudgetConfig(content: string): number | undefined {
 export function parseMcpWritesConfig(content: string): McpWritesConfig {
   return {
     mcp_allow_write: readTomlBoolean(content, "mcp_allow_write"),
-    mcp_write_mode: readTomlString(content, "mcp_write_mode")
+    mcp_write_mode: readTomlString(content, "mcp_write_mode"),
   };
 }
 
 export function resolveMcpWrites(
   globalCfg: McpWritesConfig = {},
-  repoCfg: RepoConfig = {}
+  repoCfg: RepoConfig = {},
 ): EffectiveMcpWrites {
   const repoHasAllow = typeof repoCfg.mcp_allow_write === "boolean";
-  const repoModeRaw = typeof repoCfg.mcp_write_mode === "string" ? repoCfg.mcp_write_mode.trim() : "";
+  const repoModeRaw =
+    typeof repoCfg.mcp_write_mode === "string"
+      ? repoCfg.mcp_write_mode.trim()
+      : "";
   const repoHasMode = repoModeRaw !== "";
   const globalHasAllow = typeof globalCfg.mcp_allow_write === "boolean";
   const globalModeRaw =
-    typeof globalCfg.mcp_write_mode === "string" ? globalCfg.mcp_write_mode.trim() : "";
+    typeof globalCfg.mcp_write_mode === "string"
+      ? globalCfg.mcp_write_mode.trim()
+      : "";
   const globalHasMode = globalModeRaw !== "";
 
   const source: McpWritesSource =
@@ -85,7 +109,11 @@ export function resolveMcpWrites(
       ? globalCfg.mcp_allow_write === true
       : true;
 
-  const modeRaw = repoHasMode ? repoModeRaw : globalHasMode ? globalModeRaw : "ask";
+  const modeRaw = repoHasMode
+    ? repoModeRaw
+    : globalHasMode
+      ? globalModeRaw
+      : "ask";
   const configuredMode = normalizeMcpWriteMode(modeRaw);
   const invalidConfig = !allowWrite && configuredMode !== "off";
   const mode: McpWritesMode = invalidConfig
@@ -99,7 +127,7 @@ export function resolveMcpWrites(
     source,
     allowWrite,
     configuredMode,
-    invalidConfig
+    invalidConfig,
   };
 }
 
@@ -124,13 +152,19 @@ export function parseRepoConfig(content: string): RepoConfig {
   if (typeof data.embedding_model === "string") {
     cfg.embedding_model = data.embedding_model;
   }
-  if (typeof data.token_budget === "number" && Number.isFinite(data.token_budget)) {
+  if (
+    typeof data.token_budget === "number" &&
+    Number.isFinite(data.token_budget)
+  ) {
     cfg.token_budget = Math.floor(data.token_budget);
   }
   return cfg;
 }
 
-export function updateRepoConfig(content: string, updates: Partial<RepoConfig>): string {
+export function updateRepoConfig(
+  content: string,
+  updates: Partial<RepoConfig>,
+): string {
   const base = parseRepoConfig(content);
   const merged: RepoConfig = { ...base, ...updates };
   return serializeRepoConfig(merged);
@@ -156,45 +190,66 @@ function serializeRepoConfig(cfg: RepoConfig): string {
   return JSON.stringify(ordered, null, 2) + "\n";
 }
 
-export function setTomlString(content: string, key: string, value: string): string {
+export function setTomlString(
+  content: string,
+  key: string,
+  value: string,
+): string {
   const eol = content.includes("\r\n") ? "\r\n" : "\n";
   const hadTrailingEol = content.endsWith("\n") || content.endsWith("\r\n");
   const lines = content.split(/\r?\n/);
-  const filtered = lines.filter((line) => !new RegExp(`^\\s*${escapeRegex(key)}\\s*=`, "i").test(line));
+  const filtered = lines.filter(
+    (line) => !new RegExp(`^\\s*${escapeRegex(key)}\\s*=`, "i").test(line),
+  );
   filtered.push(`${key} = "${value}"`);
   const joined = filtered.join(eol);
   return hadTrailingEol ? joined + eol : joined;
 }
 
-export function setTomlNumber(content: string, key: string, value: number): string {
+export function setTomlNumber(
+  content: string,
+  key: string,
+  value: number,
+): string {
   const eol = content.includes("\r\n") ? "\r\n" : "\n";
   const hadTrailingEol = content.endsWith("\n") || content.endsWith("\r\n");
   const lines = content.split(/\r?\n/);
-  const filtered = lines.filter((line) => !new RegExp(`^\\s*${escapeRegex(key)}\\s*=`, "i").test(line));
+  const filtered = lines.filter(
+    (line) => !new RegExp(`^\\s*${escapeRegex(key)}\\s*=`, "i").test(line),
+  );
   filtered.push(`${key} = ${value}`);
   const joined = filtered.join(eol);
   return hadTrailingEol ? joined + eol : joined;
 }
 
-export function setTomlBoolean(content: string, key: string, value: boolean): string {
+export function setTomlBoolean(
+  content: string,
+  key: string,
+  value: boolean,
+): string {
   const eol = content.includes("\r\n") ? "\r\n" : "\n";
   const hadTrailingEol = content.endsWith("\n") || content.endsWith("\r\n");
   const lines = content.split(/\r?\n/);
-  const filtered = lines.filter((line) => !new RegExp(`^\\s*${escapeRegex(key)}\\s*=`, "i").test(line));
+  const filtered = lines.filter(
+    (line) => !new RegExp(`^\\s*${escapeRegex(key)}\\s*=`, "i").test(line),
+  );
   filtered.push(`${key} = ${value ? "true" : "false"}`);
   const joined = filtered.join(eol);
   return hadTrailingEol ? joined + eol : joined;
 }
 
 function readTomlString(content: string, key: string): string | undefined {
-  const pattern = new RegExp(`^\\s*${escapeRegex(key)}\\s*=\\s*(.+?)\\s*$`, "i");
+  const pattern = new RegExp(
+    `^\\s*${escapeRegex(key)}\\s*=\\s*(.+?)\\s*$`,
+    "i",
+  );
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(pattern);
     if (!match) {
       continue;
     }
     const raw = match[1].trim();
-    if (raw.startsWith("\"") && raw.endsWith("\"")) {
+    if (raw.startsWith('"') && raw.endsWith('"')) {
       return raw.slice(1, -1);
     }
     if (raw.startsWith("'") && raw.endsWith("'")) {
@@ -206,7 +261,10 @@ function readTomlString(content: string, key: string): string | undefined {
 }
 
 function readTomlNumber(content: string, key: string): number | undefined {
-  const pattern = new RegExp(`^\\s*${escapeRegex(key)}\\s*=\\s*(.+?)\\s*$`, "i");
+  const pattern = new RegExp(
+    `^\\s*${escapeRegex(key)}\\s*=\\s*(.+?)\\s*$`,
+    "i",
+  );
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(pattern);
     if (!match) {
@@ -222,7 +280,10 @@ function readTomlNumber(content: string, key: string): number | undefined {
 }
 
 function readTomlBoolean(content: string, key: string): boolean | undefined {
-  const pattern = new RegExp(`^\\s*${escapeRegex(key)}\\s*=\\s*(.+?)\\s*$`, "i");
+  const pattern = new RegExp(
+    `^\\s*${escapeRegex(key)}\\s*=\\s*(.+?)\\s*$`,
+    "i",
+  );
   for (const line of content.split(/\r?\n/)) {
     const match = line.match(pattern);
     if (!match) {
@@ -250,4 +311,12 @@ function normalizeMcpWriteMode(value: string): McpWritesMode {
 
 function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function pathIsDirectory(targetPath: string): boolean {
+  try {
+    return fs.statSync(targetPath).isDirectory();
+  } catch {
+    return false;
+  }
 }

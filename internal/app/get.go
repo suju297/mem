@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/pack"
-	"mempack/internal/store"
+	"mem/internal/pack"
+	"mem/internal/store"
 )
 
 type getTimings struct {
@@ -84,6 +84,9 @@ func runGet(args []string, out, errOut io.Writer) int {
 	if err != nil {
 		fmt.Fprintf(errOut, "%v\n", err)
 		return 1
+	}
+	if err := attachUsageSnapshot(&packJSON); err != nil {
+		fmt.Fprintf(errOut, "usage tracking warning: %v\n", err)
 	}
 
 	encodeStart := time.Now()

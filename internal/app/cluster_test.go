@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	"mempack/internal/pack"
+	"mem/internal/pack"
 )
 
 func TestClusterMemories(t *testing.T) {

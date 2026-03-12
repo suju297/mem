@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/pack"
-	"mempack/internal/repo"
-	"mempack/internal/store"
+	"mem/internal/pack"
+	"mem/internal/repo"
+	"mem/internal/store"
 )
 
 type RankedMemory struct {

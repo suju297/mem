@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"mempack/internal/config"
+	"mem/internal/config"
 )
 
 func resolveThread(cfg config.Config, thread string) (string, bool, error) {
@@ -14,7 +14,7 @@ func resolveThread(cfg config.Config, thread string) (string, bool, error) {
 	}
 	defaultThread := strings.TrimSpace(cfg.DefaultThread)
 	if defaultThread == "" {
-		return "", false, fmt.Errorf("missing thread (pass --thread or set default_thread in config.toml or .mempack/config.json)")
+		return "", false, fmt.Errorf("missing thread (pass --thread or set default_thread in config.toml or .mem/config.json or .mempack/config.json)")
 	}
 	return defaultThread, true, nil
 }

@@ -121,7 +121,7 @@ function execFileStrict(
   });
 }
 
-export class MempackClient {
+export class MemClient {
   private output: vscode.OutputChannel;
   private lastMcpSpawn?: LastMcpSpawn;
 
@@ -134,28 +134,28 @@ export class MempackClient {
   }
 
   get binaryPath(): string {
-    return vscode.workspace.getConfiguration("mempack").get<string>("binaryPath") || "mem";
+    return vscode.workspace.getConfiguration("mem").get<string>("binaryPath") || "mem";
   }
 
   get workspaceName(): string {
-    return vscode.workspace.getConfiguration("mempack").get<string>("workspace") || "";
+    return vscode.workspace.getConfiguration("mem").get<string>("workspace") || "";
   }
 
   get defaultThread(): string {
-    return vscode.workspace.getConfiguration("mempack").get<string>("defaultThread") || "T-SESSION";
+    return vscode.workspace.getConfiguration("mem").get<string>("defaultThread") || "T-SESSION";
   }
 
   get recentLimit(): number {
-    return vscode.workspace.getConfiguration("mempack").get<number>("recentLimit") || 10;
+    return vscode.workspace.getConfiguration("mem").get<number>("recentLimit") || 10;
   }
 
   get timeoutMs(): number {
-    return vscode.workspace.getConfiguration("mempack").get<number>("commandTimeoutMs") || 10000;
+    return vscode.workspace.getConfiguration("mem").get<number>("commandTimeoutMs") || 10000;
   }
 
   get writeTransport(): "mcp_first" | "cli" {
     const mode = vscode.workspace
-      .getConfiguration("mempack")
+      .getConfiguration("mem")
       .get<string>("writeTransport", "mcp_first")
       .trim()
       .toLowerCase();

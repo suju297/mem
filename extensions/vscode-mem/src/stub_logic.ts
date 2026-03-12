@@ -1,5 +1,5 @@
-export const MARKER_START = "<!-- mempack:start -->";
-export const MARKER_END = "<!-- mempack:end -->";
+export const MARKER_START = "<!-- mem:start -->";
+export const MARKER_END = "<!-- mem:end -->";
 
 export const STUB_BLOCK = `${MARKER_START}
 Use Mem:
@@ -15,14 +15,17 @@ Before starting any task, fetch repo memory:
 If MCP is unavailable, ask the user to run:
 \`mem get "<task>" --format prompt\`
 
-Full instructions: \`.mempack/MEMORY.md\`
+Full instructions: \`.mem/MEMORY.md\` (legacy repos may still use \`.mempack/MEMORY.md\`)
 `;
 
 export function hasStub(content: string): boolean {
   return content.includes(MARKER_START) && content.includes(MARKER_END);
 }
 
-export function appendStub(existing: string): { updated: string; changed: boolean } {
+export function appendStub(existing: string): {
+  updated: string;
+  changed: boolean;
+} {
   if (hasStub(existing)) {
     return { updated: existing, changed: false };
   }

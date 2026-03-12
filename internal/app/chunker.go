@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode"
 
-	memtoken "mempack/internal/token"
+	memtoken "mem/internal/token"
 )
 
 // SemanticChunk represents a chunk with optional semantic metadata.

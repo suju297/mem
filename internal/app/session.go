@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"mempack/internal/store"
-	"mempack/internal/token"
+	"mem/internal/store"
+	"mem/internal/token"
 )
 
 type sessionUpsertResponse struct {

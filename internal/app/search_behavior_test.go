@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"mempack/internal/config"
-	"mempack/internal/pack"
-	"mempack/internal/store"
+	"mem/internal/config"
+	"mem/internal/pack"
+	"mem/internal/store"
 )
 
 func TestQueryRewriteDigits(t *testing.T) {
