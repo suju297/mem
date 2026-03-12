@@ -45,4 +45,9 @@ sandbox/
 .mempack/config.json
 
 # Local writing drafts
-substack-artcile.md
+ARCHITECTURE.pdf
+docs/diagrams/substack-exports/
+substack-artcile*.md
+substack-artcile*.pdf
+medium-article*.md
+medium-article*.pdf
