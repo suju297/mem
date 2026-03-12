@@ -200,6 +200,7 @@ func registerMCPTools(srv *server.MCPServer, writeCfg mcpWriteConfig, requireRep
 		mcp.WithDestructiveHintAnnotation(false),
 		mcp.WithIdempotentHintAnnotation(true),
 		mcp.WithString("repo", mcp.Description("Repo id or path override")),
+		mcp.WithBoolean("me", mcp.Description("Show profile-wide usage totals")),
 	)
 	srv.AddTool(usageTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return handleUsage(ctx, request, requireRepo)
@@ -422,18 +423,34 @@ func handleGetContext(_ context.Context, request mcp.CallToolRequest, requireRep
 
 func handleUsage(_ context.Context, request mcp.CallToolRequest, requireRepo bool) (*mcp.CallToolResult, error) {
 	repo := strings.TrimSpace(request.GetString("repo", ""))
-	report, err := loadUsageReport(repo, requireRepo)
+	profile := request.GetBool("me", false)
+	if profile && repo != "" {
+		return mcp.NewToolResultError("cannot combine me with repo"), nil
+	}
+
+	var (
+		report usageResponse
+		err    error
+	)
+	if profile {
+		report, err = loadProfileUsageReport()
+	} else {
+		report, err = loadUsageReport(repo, true)
+	}
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	summary := fmt.Sprintf(
-		"Usage report: repo=%s repo_saved_tokens=%d overall_saved_tokens=%d requests=%d",
-		report.RepoID,
-		report.Repo.SavedTokens,
-		report.Overall.SavedTokens,
-		report.Overall.RequestCount,
-	)
+	summary := fmt.Sprintf("Usage report: overall_saved_tokens=%d requests=%d", report.Overall.SavedTokens, report.Overall.RequestCount)
+	if report.Repo != nil {
+		summary = fmt.Sprintf(
+			"Usage report: repo=%s repo_saved_tokens=%d overall_saved_tokens=%d requests=%d",
+			report.RepoID,
+			report.Repo.SavedTokens,
+			report.Overall.SavedTokens,
+			report.Overall.RequestCount,
+		)
+	}
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{
 			mcp.TextContent{Type: "text", Text: summary},

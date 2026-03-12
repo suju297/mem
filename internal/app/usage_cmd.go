@@ -10,9 +10,10 @@ import (
 )
 
 type usageResponse struct {
-	RepoID  string           `json:"repo_id"`
-	Repo    pack.UsageTotals `json:"repo"`
-	Overall pack.UsageTotals `json:"overall"`
+	Scope   string            `json:"scope"`
+	RepoID  string            `json:"repo_id,omitempty"`
+	Repo    *pack.UsageTotals `json:"repo,omitempty"`
+	Overall pack.UsageTotals  `json:"overall"`
 }
 
 func runUsage(args []string, out, errOut io.Writer) int {
@@ -20,6 +21,7 @@ func runUsage(args []string, out, errOut io.Writer) int {
 	fs.SetOutput(errOut)
 	format := fs.String("format", "json", "Output format: json")
 	repoOverride := fs.String("repo", "", "Override repo id or path")
+	profile := fs.Bool("me", false, "Show profile-wide usage totals")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
@@ -31,8 +33,20 @@ func runUsage(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "unsupported format: %s\n", *format)
 		return 2
 	}
+	if *profile && strings.TrimSpace(*repoOverride) != "" {
+		fmt.Fprintln(errOut, "cannot combine --me with --repo")
+		return 2
+	}
 
-	report, err := loadUsageReport(strings.TrimSpace(*repoOverride), false)
+	var (
+		report usageResponse
+		err    error
+	)
+	if *profile {
+		report, err = loadProfileUsageReport()
+	} else {
+		report, err = loadUsageReport(strings.TrimSpace(*repoOverride), true)
+	}
 	if err != nil {
 		fmt.Fprintf(errOut, "%v\n", err)
 		return 1

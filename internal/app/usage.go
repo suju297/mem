@@ -43,7 +43,8 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, "  mem init\n")
 	io.WriteString(w, "  mem add --title \"Auth plan\" --summary \"Use middleware\"\n")
 	io.WriteString(w, "  mem get \"auth plan\" --format prompt\n")
-	io.WriteString(w, "  mem usage --format json\n")
+	io.WriteString(w, "  mem usage\n")
+	io.WriteString(w, "  mem usage --me\n")
 	io.WriteString(w, "  mem doctor --json\n")
 
 	io.WriteString(w, "\n"+notes+"\n")

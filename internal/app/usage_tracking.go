@@ -80,9 +80,33 @@ func loadUsageReport(repoOverride string, requireRepo bool) (usageResponse, erro
 
 	packSnapshot := usageSnapshotToPack(snapshot)
 	return usageResponse{
+		Scope:   "repo",
 		RepoID:  repoInfo.ID,
-		Repo:    packSnapshot.Repo,
+		Repo:    &packSnapshot.Repo,
 		Overall: packSnapshot.Overall,
+	}, nil
+}
+
+func loadProfileUsageReport() (usageResponse, error) {
+	cfg, err := loadConfig()
+	if err != nil {
+		return usageResponse{}, fmt.Errorf("config error: %v", err)
+	}
+
+	st, release, err := openUsageStore(cfg)
+	if err != nil {
+		return usageResponse{}, fmt.Errorf("usage store error: %v", err)
+	}
+	defer release()
+
+	overall, err := st.GetUsageRollup(store.UsageScopeOverall, "")
+	if err != nil {
+		return usageResponse{}, fmt.Errorf("usage snapshot error: %v", err)
+	}
+
+	return usageResponse{
+		Scope:   "profile",
+		Overall: usageTotalsToPack(overall),
 	}, nil
 }
 

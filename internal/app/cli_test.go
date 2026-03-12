@@ -97,9 +97,10 @@ type usageTotalsResp struct {
 }
 
 type usageReportResp struct {
-	RepoID  string          `json:"repo_id"`
-	Repo    usageTotalsResp `json:"repo"`
-	Overall usageTotalsResp `json:"overall"`
+	Scope   string           `json:"scope"`
+	RepoID  string           `json:"repo_id"`
+	Repo    *usageTotalsResp `json:"repo"`
+	Overall usageTotalsResp  `json:"overall"`
 }
 
 type sessionUpsertResp struct {
@@ -712,6 +713,12 @@ func TestCLIUsageTracksContextRequests(t *testing.T) {
 	if usage.RepoID != info.ID {
 		t.Fatalf("expected repo_id %s, got %s", info.ID, usage.RepoID)
 	}
+	if usage.Scope != "repo" {
+		t.Fatalf("expected scope repo, got %s", usage.Scope)
+	}
+	if usage.Repo == nil {
+		t.Fatalf("expected repo usage details")
+	}
 	if usage.Repo.RequestCount != 2 {
 		t.Fatalf("expected repo request_count 2, got %d", usage.Repo.RequestCount)
 	}
@@ -740,6 +747,12 @@ func TestCLIUsageRepoFilter(t *testing.T) {
 	if err := json.Unmarshal(usageOut, &usage); err != nil {
 		t.Fatalf("decode usage response: %v", err)
 	}
+	if usage.Scope != "repo" {
+		t.Fatalf("expected scope repo, got %s", usage.Scope)
+	}
+	if usage.Repo == nil {
+		t.Fatalf("expected repo usage details")
+	}
 	if usage.Repo.RequestCount != 1 {
 		t.Fatalf("expected repo request_count 1 for repo A, got %d", usage.Repo.RequestCount)
 	}
@@ -767,11 +780,45 @@ func TestCLIUsageIgnoresFailedGet(t *testing.T) {
 	if err := json.Unmarshal(usageOut, &usage); err != nil {
 		t.Fatalf("decode usage response: %v", err)
 	}
+	if usage.Repo == nil {
+		t.Fatalf("expected repo usage details")
+	}
 	if usage.Repo.RequestCount != 0 {
 		t.Fatalf("expected repo request_count 0, got %d", usage.Repo.RequestCount)
 	}
 	if usage.Overall.RequestCount != 0 {
 		t.Fatalf("expected overall request_count 0, got %d", usage.Overall.RequestCount)
+	}
+}
+
+func TestCLIUsageProfileTotals(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoADir := setupRepo(t, filepath.Join(base, "a"))
+	repoBDir := setupRepo(t, filepath.Join(base, "b"))
+
+	withCwd(t, repoADir)
+	_ = runCLI(t, "add", "--title", "A", "--summary", "Alpha summary")
+	_ = runCLI(t, "get", "alpha")
+
+	withCwd(t, repoBDir)
+	_ = runCLI(t, "add", "--title", "B", "--summary", "Beta summary")
+	_ = runCLI(t, "get", "beta")
+
+	usageOut := runCLI(t, "usage", "--me")
+	var usage usageReportResp
+	if err := json.Unmarshal(usageOut, &usage); err != nil {
+		t.Fatalf("decode usage response: %v", err)
+	}
+	if usage.Scope != "profile" {
+		t.Fatalf("expected scope profile, got %s", usage.Scope)
+	}
+	if usage.Repo != nil {
+		t.Fatalf("expected repo usage to be omitted for profile totals")
+	}
+	if usage.Overall.RequestCount != 2 {
+		t.Fatalf("expected overall request_count 2, got %d", usage.Overall.RequestCount)
 	}
 }
 
