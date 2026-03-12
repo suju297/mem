@@ -822,6 +822,24 @@ func TestCLIUsageProfileTotals(t *testing.T) {
 	}
 }
 
+func TestCLIUsageOutsideRepoShowsGuidance(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+	withCwd(t, base)
+
+	var out bytes.Buffer
+	var errOut bytes.Buffer
+	code := Run([]string{"usage"}, &out, &errOut)
+	if code == 0 {
+		t.Fatalf("expected usage outside repo to fail")
+	}
+	got := strings.TrimSpace(errOut.String())
+	want := "current directory is not inside a repo. Run 'mem usage --repo /path/to/repo' for repo usage, or 'mem usage --me' for profile totals."
+	if got != want {
+		t.Fatalf("unexpected usage guidance:\nwant: %s\ngot:  %s", want, got)
+	}
+}
+
 func TestCLICheckpointRegistersRepoOnFirstWrite(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)

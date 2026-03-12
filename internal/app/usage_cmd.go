@@ -48,8 +48,21 @@ func runUsage(args []string, out, errOut io.Writer) int {
 		report, err = loadUsageReport(strings.TrimSpace(*repoOverride), true)
 	}
 	if err != nil {
-		fmt.Fprintf(errOut, "%v\n", err)
+		fmt.Fprintf(errOut, "%s\n", formatUsageError(err, strings.TrimSpace(*repoOverride), *profile))
 		return 1
 	}
 	return writeJSON(out, errOut, report)
+}
+
+func formatUsageError(err error, repoOverride string, profile bool) string {
+	if err == nil {
+		return ""
+	}
+	if profile {
+		return err.Error()
+	}
+	if strings.TrimSpace(repoOverride) == "" && strings.Contains(err.Error(), "repo not specified and could not detect repo from current directory") {
+		return "current directory is not inside a repo. Run 'mem usage --repo /path/to/repo' for repo usage, or 'mem usage --me' for profile totals."
+	}
+	return err.Error()
 }
