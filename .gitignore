@@ -46,7 +46,11 @@ sandbox/
 
 # Local writing drafts
 ARCHITECTURE.pdf
-docs/diagrams/substack-exports/
+docs/diagrams/substack-exports/*
+!docs/diagrams/substack-exports/from-ai-amnesia-to-portable-context-colorful-icons.png
+!docs/diagrams/substack-exports/from-ai-amnesia-to-portable-context-colorful-icons.svg
+!docs/diagrams/substack-exports/mem-system-architecture-colorful-icons.png
+!docs/diagrams/substack-exports/mem-system-architecture-colorful-icons.svg
 substack-artcile*.md
 substack-artcile*.pdf
 medium-article*.md

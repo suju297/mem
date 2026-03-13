@@ -1,0 +1,51 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": { "curve": "linear", "htmlLabels": true, "nodeSpacing": 40, "rankSpacing": 42 },
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, sans-serif",
+    "lineColor": "#4B5563",
+    "primaryTextColor": "#1F2937",
+    "fontSize": "16px",
+    "clusterBkg": "#F3EFC6",
+    "clusterBorder": "#C7BA5B"
+  }
+}}%%
+flowchart LR
+  classDef actor fill:#F7E7C7,stroke:#C96A1B,stroke-width:2px,color:#6B3F0C
+  classDef client fill:#A9C7DE,stroke:#3E7BB6,stroke-width:2px,color:#183B63
+  classDef runtime fill:#BFE8C8,stroke:#4B9A74,stroke-width:2px,color:#214E36
+  classDef data fill:#D9CCF3,stroke:#7A5AC7,stroke-width:2px,color:#362A61
+  classDef external fill:#F6D6D6,stroke:#E25241,stroke-width:2px,color:#6C1D18
+  classDef infra fill:#F4D39A,stroke:#D58B34,stroke-width:2px,color:#6B4015
+
+  U["Developer"]:::actor
+  C["AI Clients + IDEs<br/>Cursor | VS Code | Claude<br/>Code | Copilot"]:::client
+  GIT["Local Git Repository"]:::external
+  OLLAMA["Ollama Embeddings<br/>(Optional)"]:::infra
+
+  subgraph RUNTIME["Mem Runtime (Local,<br/>Repo-Scoped)"]
+    direction LR
+    CLI["mem CLI"]:::runtime
+    MCP["MCP Server<br/>stdio | daemon | manager"]:::runtime
+    ORCH["Retrieval Orchestrator<br/>repo resolve -> state -><br/>FTS -> vector -> rank -><br/>budget"]:::runtime
+  end
+
+  subgraph DATA["Local Data Layer"]
+    direction LR
+    DB["SQLite per repo<br/>(data_dir)/repos/(repo_id)/memory.db"]:::data
+    FTS["FTS5 Indexes<br/>memories_fts | chunks_fts"]:::data
+    EMBQ["Embeddings<br/>embeddings | embedding_queue"]:::data
+    STATE["State<br/>state_current | state_history"]:::data
+  end
+
+  U -->|"Uses"| C
+  U -->|"Runs commands"| CLI
+  C -->|"Calls mem_* tools"| MCP
+  CLI -->|"Dispatches commands"| ORCH
+  MCP -->|"Dispatches tools"| ORCH
+  ORCH -->|"Reads and writes"| DB
+  DB -->|"Maintains indexes"| FTS
+  DB -->|"Stores vectors"| EMBQ
+  DB -->|"Stores authoritative state"| STATE
+  ORCH -->|"Reads repo root + HEAD"| GIT
+  ORCH -.->|"Computes/query vectors"| OLLAMA

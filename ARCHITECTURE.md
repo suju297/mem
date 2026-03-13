@@ -32,6 +32,7 @@ Per-repo persistent data location:
 - Relationship arrows are labeled with actions.
 - Mermaid sources are version-controlled under `docs/diagrams/src/`.
 - Rendered diagram assets live under `docs/diagrams/`.
+- Article/presentation exports live under `docs/diagrams/substack-exports/`.
 
 Legend:
 - `Person` actor/user
@@ -95,6 +96,27 @@ Scope: data root layout, SQLite logical model, and artifact paths.
 Source: `docs/diagrams/src/l3-storage-birds-eye.mmd`
 
 Detailed table/column and artifact reference: `docs/storage.md`
+
+## 5b) Article/Presentation Exports
+
+Audience: article writing, demos, and external explainers.
+Scope: higher-polish PNG exports generated from Mermaid sources for publication-oriented docs.
+
+<p align="center">
+  <a href="docs/diagrams/substack-exports/from-ai-amnesia-to-portable-context-colorful-icons.png">
+    <img src="docs/diagrams/substack-exports/from-ai-amnesia-to-portable-context-colorful-icons.png" alt="From AI amnesia to portable context" width="960" />
+  </a>
+</p>
+
+Source: `docs/diagrams/src/substack-from-ai-amnesia-to-portable-context-colorful-icons.mmd`
+
+<p align="center">
+  <a href="docs/diagrams/substack-exports/mem-system-architecture-colorful-icons.png">
+    <img src="docs/diagrams/substack-exports/mem-system-architecture-colorful-icons.png" alt="Mem system architecture colorful export" width="960" />
+  </a>
+</p>
+
+Source: `docs/diagrams/src/substack-mem-system-architecture-colorful-icons.mmd`
 
 ## 6) Runtime Modes and Network Behavior
 

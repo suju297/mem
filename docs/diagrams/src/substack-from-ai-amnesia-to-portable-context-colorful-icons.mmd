@@ -1,0 +1,41 @@
+%%{init: {
+  "theme": "base",
+  "flowchart": { "curve": "linear", "htmlLabels": true, "nodeSpacing": 42, "rankSpacing": 48 },
+  "themeVariables": {
+    "fontFamily": "Inter, Segoe UI, sans-serif",
+    "lineColor": "#4B5563",
+    "primaryTextColor": "#1F2937",
+    "fontSize": "16px",
+    "clusterBkg": "#F3EFC6",
+    "clusterBorder": "#C7BA5B"
+  }
+}}%%
+flowchart LR
+  classDef cycle fill:#F7E7C7,stroke:#C96A1B,stroke-width:2px,color:#6B3F0C
+  classDef pain fill:#F6D6D6,stroke:#E25241,stroke-width:2px,color:#6C1D18
+  classDef mem fill:#BFE8C8,stroke:#4B9A74,stroke-width:2px,color:#214E36
+  classDef outcome fill:#A9C7DE,stroke:#3E7BB6,stroke-width:2px,color:#183B63
+
+  A["Long Coding Session<br/>Context gets built"]:::cycle
+  B["Rate Limit / Reset /<br/>Tool Switch"]:::pain
+  C["Context Loss<br/>New session starts from zero"]:::pain
+  D["Re-onboarding Tax<br/>Re-explain architecture +<br/>failed attempts"]:::pain
+  E["Portable Repo Context<br/>Continue work across tools"]:::outcome
+
+  subgraph MEM["Mem Layer"]
+    direction LR
+    M1["Capture Knowledge<br/>State + Memories +<br/>Evidence"]:::mem
+    M2["Retrieve Intelligently<br/>FTS + Vectors + RRF +<br/>Budget"]:::mem
+    M3["Serve Anywhere<br/>MCP tools across clients"]:::mem
+  end
+
+  A -->|"Session grows"| B
+  B -->|"Without memory"| C
+  C -->|"Forces"| D
+  D -->|"Slows delivery"| A
+
+  B -->|"With Mem"| M1
+  M1 -->|"Indexed locally"| M2
+  M2 -->|"Context pack"| M3
+  M3 -->|"Hydrates next session"| E
+  E -->|"Resume with continuity"| A
