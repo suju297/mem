@@ -10,6 +10,7 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"mem/internal/config"
 	"mem/internal/store"
 	"mem/internal/token"
 )
@@ -18,6 +19,10 @@ type mcpWriteConfig struct {
 	Allowed bool
 	Mode    string
 	Source  string
+
+	ResolvePerRequest bool
+	AllowWriteFlag    bool
+	WriteModeFlag     string
 }
 
 const (
@@ -25,6 +30,14 @@ const (
 	writeModeAsk  = "ask"
 	writeModeAuto = "auto"
 )
+
+func newMCPWriteStartupConfig(allowWrite bool, writeMode string) mcpWriteConfig {
+	return mcpWriteConfig{
+		ResolvePerRequest: true,
+		AllowWriteFlag:    allowWrite,
+		WriteModeFlag:     strings.TrimSpace(writeMode),
+	}
+}
 
 func parseWriteConfig(allowWrite bool, repoOptIn bool, modeFlag string) (mcpWriteConfig, error) {
 	mode := strings.ToLower(strings.TrimSpace(modeFlag))
@@ -56,11 +69,37 @@ func parseWriteConfig(allowWrite bool, repoOptIn bool, modeFlag string) (mcpWrit
 	return mcpWriteConfig{Allowed: allowed, Mode: mode, Source: source}, nil
 }
 
-func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
-	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
+func resolveMCPWriteConfig(cfg config.Config, repoRoot string, writeCfg mcpWriteConfig) (mcpWriteConfig, error) {
+	if !writeCfg.ResolvePerRequest {
+		return writeCfg, nil
 	}
 
+	repoOptIn := repoAllowsWrite(repoRoot)
+	allowWriteEffective := writeCfg.AllowWriteFlag
+	if !allowWriteEffective && cfg.MCPAllowWrite {
+		allowWriteEffective = true
+	}
+
+	writeModeEffective := strings.TrimSpace(writeCfg.WriteModeFlag)
+	if writeModeEffective == "" && strings.TrimSpace(cfg.MCPWriteMode) != "" && (allowWriteEffective || repoOptIn) {
+		writeModeEffective = cfg.MCPWriteMode
+	}
+
+	return parseWriteConfig(allowWriteEffective, repoOptIn, writeModeEffective)
+}
+
+func formatMCPWriteModeLabel(writeCfg mcpWriteConfig, detached bool) string {
+	label := "write=disabled"
+	if writeCfg.Allowed {
+		label = "write-mode=" + writeCfg.Mode
+	}
+	if detached {
+		return "default " + label
+	}
+	return label
+}
+
+func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
 	title := strings.TrimSpace(request.GetString("title", ""))
 	summary := strings.TrimSpace(request.GetString("summary", ""))
 	tags := strings.TrimSpace(request.GetString("tags", ""))
@@ -70,9 +109,6 @@ func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mc
 
 	if title == "" {
 		return mcp.NewToolResultError("missing title"), nil
-	}
-	if err := requireWriteConfirmation(request, writeCfg); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
 	}
 	if pattern, ok := detectSensitive(title); ok {
 		return mcp.NewToolResultError(fmt.Sprintf("potential secret detected (%s); redact and retry", pattern)), nil
@@ -100,6 +136,16 @@ func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mc
 	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+	writeCfg, err = resolveMCPWriteConfig(cfg, repoInfo.GitRoot, writeCfg)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if !writeCfg.Allowed {
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
+	}
+	if err := requireWriteConfirmation(request, writeCfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 	threadUsed, threadDefaulted, err := resolveThread(cfg, strings.TrimSpace(request.GetString("thread", "")))
 	if err != nil {
@@ -169,10 +215,6 @@ func handleAddMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mc
 }
 
 func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
-	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
-	}
-
 	id := strings.TrimSpace(request.GetString("id", ""))
 	if id == "" {
 		return mcp.NewToolResultError("missing id"), nil
@@ -181,10 +223,6 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 	flags := updateFieldFlagsFromMCPRequest(request)
 	if !flags.Any() {
 		return mcp.NewToolResultError("no update fields provided"), nil
-	}
-
-	if err := requireWriteConfirmation(request, writeCfg); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	title := strings.TrimSpace(request.GetString("title", ""))
@@ -222,6 +260,16 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+	writeCfg, err = resolveMCPWriteConfig(cfg, repoInfo.GitRoot, writeCfg)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if !writeCfg.Allowed {
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
+	}
+	if err := requireWriteConfirmation(request, writeCfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
@@ -276,10 +324,6 @@ func handleUpdateMemory(_ context.Context, request mcp.CallToolRequest, writeCfg
 }
 
 func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
-	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
-	}
-
 	fromID := strings.TrimSpace(request.GetString("from_id", ""))
 	toID := strings.TrimSpace(request.GetString("to_id", ""))
 	relRaw := request.GetString("rel", "")
@@ -299,9 +343,6 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("invalid rel: %v", err)), nil
 	}
-	if err := requireWriteConfirmation(request, writeCfg); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -314,6 +355,16 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+	writeCfg, err = resolveMCPWriteConfig(cfg, repoInfo.GitRoot, writeCfg)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if !writeCfg.Allowed {
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
+	}
+	if err := requireWriteConfirmation(request, writeCfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 
 	st, releaseStore, err := openStoreForRequest(cfg, repoInfo.ID)
@@ -375,10 +426,6 @@ func handleLinkMemories(_ context.Context, request mcp.CallToolRequest, writeCfg
 }
 
 func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg mcpWriteConfig, requireRepo bool) (*mcp.CallToolResult, error) {
-	if !writeCfg.Allowed {
-		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
-	}
-
 	reason := strings.TrimSpace(request.GetString("reason", ""))
 	stateJSON := strings.TrimSpace(request.GetString("state_json", ""))
 	workspace := strings.TrimSpace(request.GetString("workspace", ""))
@@ -392,9 +439,6 @@ func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg m
 	}
 	if !json.Valid([]byte(stateJSON)) {
 		return mcp.NewToolResultError("state_json must be valid JSON"), nil
-	}
-	if err := requireWriteConfirmation(request, writeCfg); err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
 	}
 	if pattern, ok := detectSensitive(stateJSON); ok {
 		return mcp.NewToolResultError(fmt.Sprintf("potential secret detected (%s); redact and retry", pattern)), nil
@@ -424,6 +468,16 @@ func handleCheckpoint(_ context.Context, request mcp.CallToolRequest, writeCfg m
 	})
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("repo detection error: %v", err)), nil
+	}
+	writeCfg, err = resolveMCPWriteConfig(cfg, repoInfo.GitRoot, writeCfg)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if !writeCfg.Allowed {
+		return mcp.NewToolResultError("write tools disabled (use --allow-write or set mcp_allow_write in config or .mem/config.json or .mempack/config.json)"), nil
+	}
+	if err := requireWriteConfirmation(request, writeCfg); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
 	}
 	threadUsed, threadDefaulted, err := resolveThread(cfg, strings.TrimSpace(request.GetString("thread", "")))
 	if err != nil {

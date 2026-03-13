@@ -81,6 +81,7 @@ codex mcp list
 5. MCP runtime modes:
 
 - `mem mcp` runs the stdio server for a directly attached MCP client.
+- With `--require-repo`, stdio startup is handshake-safe even if the host launches outside a repo; tool calls must still pass `repo=<workspace root>` in that case.
 - `mem mcp start|status|stop` manage the local background daemon.
 - `mem mcp manager` remains a separate control-plane process.
 

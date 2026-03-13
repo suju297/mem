@@ -633,6 +633,237 @@ func TestMCPGetContextRequireRepoRejectsActiveRepoFallback(t *testing.T) {
 	}
 }
 
+func TestMCPGetContextRequireRepoSucceedsWithExplicitRepoOutsideRepoCwd(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	seedMemory(t, "decision", "Decision summary")
+
+	nonRepoDir := filepath.Join(base, "non-repo")
+	if err := os.MkdirAll(nonRepoDir, 0o755); err != nil {
+		t.Fatalf("mkdir non-repo: %v", err)
+	}
+	withCwd(t, nonRepoDir)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "mem_get_context",
+			Arguments: map[string]any{
+				"query":  "decision",
+				"format": "json",
+				"repo":   repoDir,
+			},
+		},
+	}
+	res, err := handleGetContext(context.Background(), req, true)
+	if err != nil {
+		t.Fatalf("get_context error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected get_context to succeed with explicit repo outside repo cwd")
+	}
+}
+
+func TestMCPInitialContextRequireRepoOutsideRepoCwd(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	seedMemory(t, "decision", "Decision summary")
+
+	nonRepoDir := filepath.Join(base, "non-repo")
+	if err := os.MkdirAll(nonRepoDir, 0o755); err != nil {
+		t.Fatalf("mkdir non-repo: %v", err)
+	}
+	withCwd(t, nonRepoDir)
+
+	reqNoRepo := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "mem_get_initial_context",
+			Arguments: map[string]any{},
+		},
+	}
+	res, err := handleGetInitialContext(context.Background(), reqNoRepo, true)
+	if err != nil {
+		t.Fatalf("get_initial_context error: %v", err)
+	}
+	if res == nil || !res.IsError {
+		t.Fatalf("expected get_initial_context to require repo outside repo cwd")
+	}
+
+	reqWithRepo := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name:      "mem_get_initial_context",
+			Arguments: map[string]any{"repo": repoDir},
+		},
+	}
+	res, err = handleGetInitialContext(context.Background(), reqWithRepo, true)
+	if err != nil {
+		t.Fatalf("get_initial_context with repo error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected get_initial_context to succeed with explicit repo outside repo cwd")
+	}
+}
+
+func TestMCPWriteHandlersRequireRepoWhenDetached(t *testing.T) {
+	type writeHandler func(context.Context, mcp.CallToolRequest, mcpWriteConfig, bool) (*mcp.CallToolResult, error)
+
+	cases := []struct {
+		name    string
+		handler writeHandler
+		args    map[string]any
+		prepare func(testing.TB)
+	}{
+		{
+			name:    "add_memory",
+			handler: handleAddMemory,
+			args: map[string]any{
+				"title":     "Detached add",
+				"summary":   "Saved via explicit repo",
+				"confirmed": true,
+			},
+		},
+		{
+			name:    "update_memory",
+			handler: handleUpdateMemory,
+			prepare: func(t testing.TB) {
+				seedMemory(t, "Decision", "Old summary")
+			},
+			args: map[string]any{
+				"id":        "M-TEST",
+				"summary":   "Updated summary",
+				"confirmed": true,
+			},
+		},
+		{
+			name:    "link_memories",
+			handler: handleLinkMemories,
+			prepare: func(t testing.TB) {
+				seedMemoryWithID(t, "M-ONE", "Memory one", "First")
+				seedMemoryWithID(t, "M-TWO", "Memory two", "Second")
+			},
+			args: map[string]any{
+				"from_id":   "M-ONE",
+				"rel":       "depends_on",
+				"to_id":     "M-TWO",
+				"confirmed": true,
+			},
+		},
+		{
+			name:    "checkpoint",
+			handler: handleCheckpoint,
+			args: map[string]any{
+				"reason":     "checkpoint reason",
+				"state_json": `{"goal":"ship"}`,
+				"confirmed":  true,
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			base := t.TempDir()
+			setXDGEnv(t, base)
+
+			repoDir := setupRepo(t, base)
+			withCwd(t, repoDir)
+			if tc.prepare != nil {
+				tc.prepare(t)
+			}
+
+			nonRepoDir := filepath.Join(base, "non-repo")
+			if err := os.MkdirAll(nonRepoDir, 0o755); err != nil {
+				t.Fatalf("mkdir non-repo: %v", err)
+			}
+			withCwd(t, nonRepoDir)
+
+			reqNoRepo := mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name:      tc.name,
+					Arguments: cloneArgs(tc.args),
+				},
+			}
+			res, err := tc.handler(context.Background(), reqNoRepo, newMCPWriteStartupConfig(false, ""), true)
+			if err != nil {
+				t.Fatalf("handler without repo error: %v", err)
+			}
+			if res == nil || !res.IsError {
+				t.Fatalf("expected %s to require repo outside repo cwd", tc.name)
+			}
+
+			argsWithRepo := cloneArgs(tc.args)
+			argsWithRepo["repo"] = repoDir
+			reqWithRepo := mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name:      tc.name,
+					Arguments: argsWithRepo,
+				},
+			}
+			res, err = tc.handler(context.Background(), reqWithRepo, newMCPWriteStartupConfig(false, ""), true)
+			if err != nil {
+				t.Fatalf("handler with repo error: %v", err)
+			}
+			if res == nil || res.IsError {
+				t.Fatalf("expected %s to succeed with explicit repo outside repo cwd", tc.name)
+			}
+		})
+	}
+}
+
+func TestMCPAddMemoryUsesRepoWriteOptInWhenResolvedPerRequest(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	cfg, err := loadConfig()
+	if err != nil {
+		t.Fatalf("config error: %v", err)
+	}
+	cfg.MCPAllowWrite = false
+	cfg.MCPWriteMode = writeModeAsk
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(repoDir, ".mem"), 0o755); err != nil {
+		t.Fatalf("mkdir .mem: %v", err)
+	}
+	writeFile(t, repoDir, ".mem/config.json", `{"mcp_allow_write":true}`)
+
+	nonRepoDir := filepath.Join(base, "non-repo")
+	if err := os.MkdirAll(nonRepoDir, 0o755); err != nil {
+		t.Fatalf("mkdir non-repo: %v", err)
+	}
+	withCwd(t, nonRepoDir)
+
+	req := mcp.CallToolRequest{
+		Params: mcp.CallToolParams{
+			Name: "mem_add_memory",
+			Arguments: map[string]any{
+				"title":     "Repo opt-in",
+				"summary":   "Enabled after repo resolution",
+				"repo":      repoDir,
+				"confirmed": true,
+			},
+		},
+	}
+	res, err := handleAddMemory(context.Background(), req, newMCPWriteStartupConfig(false, ""), true)
+	if err != nil {
+		t.Fatalf("add_memory error: %v", err)
+	}
+	if res == nil || res.IsError {
+		t.Fatalf("expected repo-local write opt-in to allow add_memory after repo resolution")
+	}
+}
+
 func TestMCPUpdateMemoryRequiresConfirmation(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)
@@ -1055,7 +1286,66 @@ func TestShouldServeMCPStdio(t *testing.T) {
 	}
 }
 
+func TestDecideMCPStartupDetachedStrict(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	nonRepoDir := filepath.Join(base, "non-repo")
+	if err := os.MkdirAll(nonRepoDir, 0o755); err != nil {
+		t.Fatalf("mkdir non-repo: %v", err)
+	}
+	withCwd(t, nonRepoDir)
+
+	decision, err := decideMCPStartup("", false, true, false)
+	if err != nil {
+		t.Fatalf("decide startup error: %v", err)
+	}
+	if !decision.Detached {
+		t.Fatalf("expected detached startup when require_repo=true and cwd is not a repo")
+	}
+}
+
+func TestDecideMCPStartupRejectsExplicitInvalidRepo(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+	withCwd(t, base)
+
+	decision, err := decideMCPStartup(filepath.Join(base, "missing-repo"), false, true, false)
+	if err == nil {
+		t.Fatalf("expected explicit invalid repo to fail startup")
+	}
+	if decision.Detached {
+		t.Fatalf("did not expect explicit invalid repo to enter detached startup")
+	}
+}
+
+func TestDecideMCPStartupResolvedRepo(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	seedMemory(t, "decision", "Decision summary")
+
+	decision, err := decideMCPStartup("", false, true, false)
+	if err != nil {
+		t.Fatalf("decide startup error: %v", err)
+	}
+	if decision.Detached {
+		t.Fatalf("did not expect resolved repo startup to detach")
+	}
+	if !decision.Report.OK {
+		t.Fatalf("expected startup health report to be ok")
+	}
+}
+
 func seedMemory(t testing.TB, title, summary string) {
+	t.Helper()
+	seedMemoryWithID(t, "M-TEST", title, summary)
+}
+
+func seedMemoryWithID(t testing.TB, id, title, summary string) {
 	t.Helper()
 	cfg, err := loadConfig()
 	if err != nil {
@@ -1076,7 +1366,7 @@ func seedMemory(t testing.TB, title, summary string) {
 
 	createdAt := time.Unix(0, 0)
 	_, err = st.AddMemory(store.AddMemoryInput{
-		ID:            "M-TEST",
+		ID:            id,
 		RepoID:        repoInfo.ID,
 		Workspace:     "default",
 		ThreadID:      "T-TEST",
@@ -1093,4 +1383,12 @@ func seedMemory(t testing.TB, title, summary string) {
 	if err != nil {
 		t.Fatalf("add memory: %v", err)
 	}
+}
+
+func cloneArgs(args map[string]any) map[string]any {
+	cloned := make(map[string]any, len(args))
+	for key, value := range args {
+		cloned[key] = value
+	}
+	return cloned
 }

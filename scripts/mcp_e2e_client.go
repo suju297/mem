@@ -23,6 +23,15 @@ func main() {
 	if query == "" {
 		query = "decision"
 	}
+	startWithoutRepo := os.Getenv("START_WITHOUT_REPO") == "1"
+	toolRepo := repoDir
+	if v := os.Getenv("TOOL_REPO_DIR"); v != "" {
+		toolRepo = v
+	}
+	serverCwd := repoDir
+	if v := os.Getenv("SERVER_CWD"); v != "" {
+		serverCwd = v
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
@@ -44,15 +53,17 @@ func main() {
 		env = append(env, "XDG_CACHE_HOME="+v)
 	}
 
-	cmdArgs := []string{"mcp", "--allow-write", "--write-mode", "ask"}
-	cmdArgs = append(cmdArgs, "--require-repo", "--repo", repoDir)
+	cmdArgs := []string{"mcp", "--allow-write", "--write-mode", "ask", "--require-repo"}
+	if !startWithoutRepo {
+		cmdArgs = append(cmdArgs, "--repo", repoDir)
+	}
 	stdio := transport.NewStdioWithOptions(
 		memBin,
 		env,
 		cmdArgs,
 		transport.WithCommandFunc(func(ctx context.Context, command string, env []string, args []string) (*exec.Cmd, error) {
 			cmd := exec.CommandContext(ctx, command, args...)
-			cmd.Dir = repoDir
+			cmd.Dir = serverCwd
 			cmd.Env = append(os.Environ(), env...)
 			return cmd, nil
 		}),
@@ -100,8 +111,37 @@ func main() {
 	requireTool(toolsRes.Tools, "mem_link_memories")
 	requireTool(toolsRes.Tools, "mem_checkpoint")
 
+	if startWithoutRepo {
+		initCtxNoRepoRes, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{Name: "mem_get_initial_context", Arguments: map[string]any{}},
+		})
+		if err != nil {
+			fail("get_initial_context without repo", err)
+		}
+		if !initCtxNoRepoRes.IsError {
+			fail("get_initial_context without repo", fmt.Errorf("expected tool error without repo"))
+		}
+
+		ctxNoRepoRes, err := c.CallTool(ctx, mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name:      "mem_get_context",
+				Arguments: map[string]any{"query": query, "format": "json"},
+			},
+		})
+		if err != nil {
+			fail("get_context without repo", err)
+		}
+		if !ctxNoRepoRes.IsError {
+			fail("get_context without repo", fmt.Errorf("expected tool error without repo"))
+		}
+	}
+
+	initArgs := map[string]any{}
+	if toolRepo != "" {
+		initArgs["repo"] = toolRepo
+	}
 	initCtxRes, err := c.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{Name: "mem_get_initial_context", Arguments: map[string]any{"repo": repoDir}},
+		Params: mcp.CallToolParams{Name: "mem_get_initial_context", Arguments: initArgs},
 	})
 	if err != nil {
 		fail("get_initial_context", err)
@@ -114,10 +154,14 @@ func main() {
 		fail("get_initial_context", fmt.Errorf("missing repo_id"))
 	}
 
+	ctxArgs := map[string]any{"query": query, "format": "json"}
+	if toolRepo != "" {
+		ctxArgs["repo"] = toolRepo
+	}
 	ctxRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "mem_get_context",
-			Arguments: map[string]any{"query": query, "format": "json", "repo": repoDir},
+			Arguments: ctxArgs,
 		},
 	})
 	if err != nil {
@@ -131,8 +175,12 @@ func main() {
 		fail("get_context", fmt.Errorf("missing top_memories"))
 	}
 
+	explainArgs := map[string]any{"query": query}
+	if toolRepo != "" {
+		explainArgs["repo"] = toolRepo
+	}
 	explainRes, err := c.CallTool(ctx, mcp.CallToolRequest{
-		Params: mcp.CallToolParams{Name: "mem_explain", Arguments: map[string]any{"query": query, "repo": repoDir}},
+		Params: mcp.CallToolParams{Name: "mem_explain", Arguments: explainArgs},
 	})
 	if err != nil {
 		fail("explain", err)
@@ -141,17 +189,20 @@ func main() {
 		fail("explain", fmt.Errorf("tool error"))
 	}
 
+	addArgs := map[string]any{
+		"thread":    "T-E2E",
+		"title":     "MCP E2E",
+		"summary":   "MCP tool write test",
+		"entities":  "file_src_old_ts,ext_ts",
+		"confirmed": true,
+	}
+	if toolRepo != "" {
+		addArgs["repo"] = toolRepo
+	}
 	addRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "mem_add_memory",
-			Arguments: map[string]any{
-				"thread":    "T-E2E",
-				"title":     "MCP E2E",
-				"summary":   "MCP tool write test",
-				"entities":  "file_src_old_ts,ext_ts",
-				"repo":      repoDir,
-				"confirmed": true,
-			},
+			Name:      "mem_add_memory",
+			Arguments: addArgs,
 		},
 	})
 	if err != nil {
@@ -169,7 +220,7 @@ func main() {
 	oldQueryRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "mem_get_context",
-			Arguments: map[string]any{"query": "file_src_old_ts", "format": "json", "repo": repoDir},
+			Arguments: map[string]any{"query": "file_src_old_ts", "format": "json", "repo": toolRepo},
 		},
 	})
 	if err != nil {
@@ -188,7 +239,7 @@ func main() {
 			Arguments: map[string]any{
 				"id":        id,
 				"entities":  "file_src_new_ts,ext_ts",
-				"repo":      repoDir,
+				"repo":      toolRepo,
 				"confirmed": true,
 			},
 		},
@@ -208,7 +259,7 @@ func main() {
 	oldAfterUpdateRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "mem_get_context",
-			Arguments: map[string]any{"query": "file_src_old_ts", "format": "json", "repo": repoDir},
+			Arguments: map[string]any{"query": "file_src_old_ts", "format": "json", "repo": toolRepo},
 		},
 	})
 	if err != nil {
@@ -224,7 +275,7 @@ func main() {
 	newAfterUpdateRes, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
 			Name:      "mem_get_context",
-			Arguments: map[string]any{"query": "file_src_new_ts", "format": "json", "repo": repoDir},
+			Arguments: map[string]any{"query": "file_src_new_ts", "format": "json", "repo": toolRepo},
 		},
 	})
 	if err != nil {
@@ -245,7 +296,7 @@ func main() {
 				"title":     "MCP E2E Related",
 				"summary":   "Linked memory target",
 				"entities":  "file_src_support_ts",
-				"repo":      repoDir,
+				"repo":      toolRepo,
 				"confirmed": true,
 			},
 		},
@@ -269,7 +320,7 @@ func main() {
 				"from_id":   id,
 				"rel":       "supersedes",
 				"to_id":     relatedID,
-				"repo":      repoDir,
+				"repo":      toolRepo,
 				"confirmed": true,
 			},
 		},
@@ -290,11 +341,17 @@ func main() {
 	if err != nil {
 		fail("get_context unscoped", err)
 	}
-	if unscopedRes.IsError {
-		fail("get_context unscoped", fmt.Errorf("expected unscoped call in current repo to succeed"))
-	}
-	if !containsMemoryID(asMap(unscopedRes.StructuredContent), id) {
-		fail("get_context unscoped", fmt.Errorf("expected unscoped call to return memory %s", id))
+	if startWithoutRepo {
+		if !unscopedRes.IsError {
+			fail("get_context unscoped", fmt.Errorf("expected detached strict unscoped call to fail"))
+		}
+	} else {
+		if unscopedRes.IsError {
+			fail("get_context unscoped", fmt.Errorf("expected unscoped call in current repo to succeed"))
+		}
+		if !containsMemoryID(asMap(unscopedRes.StructuredContent), id) {
+			fail("get_context unscoped", fmt.Errorf("expected unscoped call to return memory %s", id))
+		}
 	}
 
 	ckRes, err := c.CallTool(ctx, mcp.CallToolRequest{
@@ -304,7 +361,7 @@ func main() {
 				"reason":     "MCP E2E",
 				"state_json": "{\"goal\":\"ship\"}",
 				"thread":     "T-E2E",
-				"repo":       repoDir,
+				"repo":       toolRepo,
 				"confirmed":  true,
 			},
 		},

@@ -20,6 +20,13 @@ import (
 	"mem/internal/store"
 )
 
+const detachedMCPStartupError = "repo not specified and could not detect repo from current directory"
+
+type mcpStartupDecision struct {
+	Detached bool
+	Report   health.Report
+}
+
 func runMCP(args []string, out, errOut io.Writer) int {
 	if len(args) > 0 {
 		switch strings.ToLower(strings.TrimSpace(args[0])) {
@@ -69,36 +76,26 @@ func runMCP(args []string, out, errOut io.Writer) int {
 		requireRepoEffective = true
 	}
 
-	report, err := checkMCPHealth(strings.TrimSpace(*repoOverride), autoRepair, requireRepoEffective)
+	startupDecision, err := decideMCPStartup(strings.TrimSpace(*repoOverride), autoRepair, requireRepoEffective, *daemonMode)
 	if err != nil {
-		fmt.Fprintf(errOut, "error: %s\n", formatMCPHealthError(report, err))
+		fmt.Fprintf(errOut, "error: %s\n", formatMCPHealthError(startupDecision.Report, err))
 		if *debug {
-			if encoded, encErr := json.MarshalIndent(report, "", "  "); encErr == nil {
+			if encoded, encErr := json.MarshalIndent(startupDecision.Report, "", "  "); encErr == nil {
 				fmt.Fprintln(errOut, string(encoded))
 			}
 		}
 		return 1
 	}
 
-	if cfgErr == nil {
-		if err := config.ApplyRepoOverrides(&cfg, report.Repo.GitRoot); err != nil {
+	if cfgErr == nil && !startupDecision.Detached {
+		if err := config.ApplyRepoOverrides(&cfg, startupDecision.Report.Repo.GitRoot); err != nil {
 			fmt.Fprintf(errOut, "config error: %v\n", err)
 			return 1
 		}
 	}
 
-	repoOptIn := repoAllowsWrite(report.Repo.GitRoot)
-	allowWriteEffective := *allowWrite
-	writeModeEffective := *writeModeFlag
-	if cfgErr == nil {
-		if !allowWriteEffective && cfg.MCPAllowWrite {
-			allowWriteEffective = true
-		}
-		if writeModeEffective == "" && strings.TrimSpace(cfg.MCPWriteMode) != "" && (allowWriteEffective || repoOptIn) {
-			writeModeEffective = cfg.MCPWriteMode
-		}
-	}
-	writeCfg, err := parseWriteConfig(allowWriteEffective, repoOptIn, writeModeEffective)
+	startupWriteCfg := newMCPWriteStartupConfig(*allowWrite, *writeModeFlag)
+	writeCfg, err := resolveMCPWriteConfig(cfg, startupDecision.Report.Repo.GitRoot, startupWriteCfg)
 	if err != nil {
 		fmt.Fprintln(errOut, err.Error())
 		return 2
@@ -113,21 +110,18 @@ func runMCP(args []string, out, errOut io.Writer) int {
 			_ = rt.close()
 		}()
 	}
-	modeLabel := "write=disabled"
-	if writeCfg.Allowed {
-		modeLabel = "write-mode=" + writeCfg.Mode
-	}
+	modeLabel := formatMCPWriteModeLabel(writeCfg, startupDecision.Detached)
 	if *daemonMode {
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
-		if cfgErr == nil {
-			startEmbeddingWorker(ctx, cfg, report.Repo.ID)
+		if cfgErr == nil && !startupDecision.Detached {
+			startEmbeddingWorker(ctx, cfg, startupDecision.Report.Repo.ID)
 		}
-		return runMCPDaemon(ctx, errOut, report, modeLabel)
+		return runMCPDaemon(ctx, errOut, startupDecision.Report, modeLabel)
 	}
 
 	srv := server.NewMCPServer(*name, *version, server.WithToolCapabilities(false))
-	tools := registerMCPTools(srv, writeCfg, requireRepoEffective)
+	tools := registerMCPTools(srv, startupWriteCfg, requireRepoEffective)
 	if !shouldServeMCPStdio(*forceStdio, isInteractiveTerminal(os.Stdin), isInteractiveTerminal(os.Stdout)) {
 		fmt.Fprintln(errOut, "mcp stdio expects a JSON-RPC client, not an interactive terminal.")
 		fmt.Fprintln(errOut, "Use one of:")
@@ -138,13 +132,18 @@ func runMCP(args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "  mem mcp --stdio")
 		return 2
 	}
-	fmt.Fprintf(errOut, "mem mcp: repo=%s db=%s schema=v%d fts=ok tools=%d (%s)\n",
-		report.Repo.ID, report.DB.Path, report.Schema.UserVersion, tools, modeLabel)
+	if startupDecision.Detached {
+		fmt.Fprintf(errOut, "mem mcp: strict mode active; startup repo unresolved; tools=%d (%s)\n", tools, modeLabel)
+		fmt.Fprintln(errOut, "mem mcp: pass repo=<workspace root> on each tool call")
+	} else {
+		fmt.Fprintf(errOut, "mem mcp: repo=%s db=%s schema=v%d fts=ok tools=%d (%s)\n",
+			startupDecision.Report.Repo.ID, startupDecision.Report.DB.Path, startupDecision.Report.Schema.UserVersion, tools, modeLabel)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	if cfgErr == nil {
-		startEmbeddingWorker(ctx, cfg, report.Repo.ID)
+	if cfgErr == nil && !startupDecision.Detached {
+		startEmbeddingWorker(ctx, cfg, startupDecision.Report.Repo.ID)
 	}
 
 	if err := server.ServeStdio(srv); err != nil {
@@ -307,6 +306,24 @@ func checkMCPHealth(repoOverride string, repair bool, requireRepo bool) (health.
 		Repair:       repair,
 		RequireRepo:  requireRepo,
 	})
+}
+
+func decideMCPStartup(repoOverride string, repair bool, requireRepo bool, daemonMode bool) (mcpStartupDecision, error) {
+	report, err := checkMCPHealth(repoOverride, repair, requireRepo)
+	if err != nil {
+		if shouldDetachMCPStartup(repoOverride, requireRepo, daemonMode, report, err) {
+			return mcpStartupDecision{Detached: true}, nil
+		}
+		return mcpStartupDecision{Report: report}, err
+	}
+	return mcpStartupDecision{Report: report}, nil
+}
+
+func shouldDetachMCPStartup(repoOverride string, requireRepo bool, daemonMode bool, report health.Report, err error) bool {
+	if err == nil || daemonMode || !requireRepo || strings.TrimSpace(repoOverride) != "" {
+		return false
+	}
+	return strings.TrimSpace(report.Error) == detachedMCPStartupError
 }
 
 func formatMCPHealthError(report health.Report, err error) string {

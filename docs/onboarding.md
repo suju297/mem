@@ -71,6 +71,8 @@ codex mcp list
 mem mcp
 ```
 
+If the host launches outside the repo, `--require-repo` still allows MCP startup; pass `repo=<workspace root>` on tool calls until the repo is resolved.
+
 Background daemon lifecycle is separate:
 
 ```bash

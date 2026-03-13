@@ -112,6 +112,7 @@ Repo resolution order is:
 3. `active_repo` fallback
 
 When `--require-repo` is enabled for MCP, the `active_repo` fallback is disabled.
+The stdio server still completes MCP startup outside a repo, but each tool call must pass `repo` until a repo is explicitly provided.
 
 Automation guidance:
 - prefer `--repo <path>` when a script may run outside the target repo root
