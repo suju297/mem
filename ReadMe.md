@@ -1,29 +1,56 @@
-# Mem: Repo-Scoped Memory for Coding Agents
+<div align="center">
 
-Mem is a local-first memory system for coding workflows.
+# Mem
+
+**Repo-scoped memory for coding agents**
+
+<p>
+  Local-first memory for coding workflows.<br />
+  Capture <strong>State</strong>, <strong>Memories</strong>, and <strong>Evidence</strong> per repo, then serve it to any MCP client.
+</p>
+
+<p>
+  <a href="https://github.com/suju297/mem/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/suju297/mem/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/suju297/mem/releases"><img alt="Release" src="https://img.shields.io/github/v/release/suju297/mem?display_name=tag"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="docs/homebrew.md"><img alt="Homebrew" src="https://img.shields.io/badge/homebrew-mem--cli-FBB040?logo=homebrew&logoColor=white"></a>
+</p>
+
+<p>
+  <a href="#quick-start">Quick Start</a> •
+  <a href="#documentation-map">Documentation</a> •
+  <a href="#cli-reference">CLI</a> •
+  <a href="#mcp-tool-surface">MCP Tools</a> •
+  <a href="#architecture">Architecture</a>
+</p>
+
+</div>
+
+---
+
+> [!NOTE]
+> Mem stores repo context locally in SQLite under your configured `data_dir` and keeps it reusable across MCP-compatible clients.
 
 It stores three things per repo:
 - State: current project context.
 - Memories: short durable decisions.
 - Evidence: indexed code/document chunks.
 
-Data is persisted in local SQLite under your configured `data_dir`.
-
 ## Documentation Map
 
 Task-first:
-- First-time setup + troubleshooting: `docs/onboarding.md`
-- Common workflows and copy-pasteable examples: `docs/cookbook.md`
-- Automation, CI, and shell integration: `docs/scripting.md`
+- [First-time setup + troubleshooting](docs/onboarding.md)
+- [Common workflows and copy-pasteable examples](docs/cookbook.md)
+- [Automation, CI, and shell integration](docs/scripting.md)
 
 Reference:
-- Full CLI syntax reference: `docs/cli.md`
-- Homebrew install and tap maintenance: `docs/homebrew.md`
-- Terminal UI guidance for CLI output: `docs/terminal-ui.md`
-- Storage layout, schema, and artifacts: `docs/storage.md`
-- Architecture + runtime diagrams: `ARCHITECTURE.md`
-- Sandbox evaluation/testing process: `docs/memory-testing-process.md`
-- VS Code/Cursor extension: `extensions/vscode-mem/README.md`
+- [Full CLI syntax reference](docs/cli.md)
+- [Homebrew install and tap maintenance](docs/homebrew.md)
+- [Terminal UI guidance for CLI output](docs/terminal-ui.md)
+- [Storage layout, schema, and artifacts](docs/storage.md)
+- [Architecture + runtime diagrams](ARCHITECTURE.md)
+- [Sandbox evaluation/testing process](docs/memory-testing-process.md)
+- [VS Code/Cursor extension](extensions/vscode-mem/README.md)
 
 ## Quick Start
 
@@ -140,7 +167,7 @@ Command groups:
 | Writes | `add`, `update`, `supersede`, `link`, `checkpoint`, `forget` |
 | Ingest/Embed | `ingest`, `ingest-artifact`, `embed` |
 | Session/Share | `session upsert`, `share export`, `share import` |
-| MCP | `mcp`, `mcp start|stop|status`, `mcp manager`, `mcp manager status` |
+| MCP | `mcp`, `mcp start`, `mcp stop`, `mcp status`, `mcp manager`, `mcp manager status` |
 | Templates | `template` |
 
 Common options:
