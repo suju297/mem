@@ -114,3 +114,66 @@ jobs:
             dist/${{ github.ref_name }}/mem_*.tar.gz
             dist/${{ github.ref_name }}/mem_*.zip
             dist/${{ github.ref_name }}/checksums.txt
+
+  homebrew_tap:
+    name: Update Homebrew tap
+    runs-on: ubuntu-latest
+    needs: release
+    env:
+      HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+      HOMEBREW_TAP_REPO: suju297/homebrew-mem
+    steps:
+      - name: Skip when tap token is not configured
+        if: ${{ env.HOMEBREW_TAP_GITHUB_TOKEN == '' }}
+        run: echo "HOMEBREW_TAP_GITHUB_TOKEN is not set; skipping Homebrew tap update."
+
+      - name: Checkout source
+        if: ${{ env.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
+        uses: actions/checkout@v4
+
+      - name: Checkout Homebrew tap
+        if: ${{ env.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.HOMEBREW_TAP_REPO }}
+          token: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          path: homebrew-tap
+
+      - name: Render Homebrew formula
+        if: ${{ env.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
+        shell: bash
+        run: |
+          set -eo pipefail
+          VERSION="${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+          COMMIT="$(printf '%s' "${GITHUB_SHA:-dev}" | cut -c1-7)"
+          TARBALL_URL="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/${VERSION}.tar.gz"
+
+          curl -fsSL "${TARBALL_URL}" -o /tmp/mem-homebrew-src.tar.gz
+          SHA256="$(sha256sum /tmp/mem-homebrew-src.tar.gz | awk '{print $1}')"
+
+          ./scripts/render_homebrew_formula.sh \
+            --version "${VERSION}" \
+            --commit "${COMMIT}" \
+            --sha256 "${SHA256}" \
+            --output "homebrew-tap/Formula/mem-cli.rb" \
+            --readme "homebrew-tap/README.md"
+
+      - name: Commit and push tap update
+        if: ${{ env.HOMEBREW_TAP_GITHUB_TOKEN != '' }}
+        working-directory: homebrew-tap
+        shell: bash
+        run: |
+          set -eo pipefail
+          VERSION="${GITHUB_REF_NAME:-${GITHUB_REF#refs/tags/}}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/mem-cli.rb README.md
+
+          if git diff --cached --quiet; then
+            echo "No Homebrew tap changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update mem-cli formula for ${VERSION}"
+          git push origin HEAD:main

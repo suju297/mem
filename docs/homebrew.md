@@ -8,17 +8,31 @@ Recommended layout:
 - Tap repo: `https://github.com/suju297/homebrew-mem`
 - Formula name: `mem-cli`
 
-## Current release
+The tap-ready formula example for the most recently prepared release lives at
+`packaging/homebrew/Formula/mem-cli.rb`.
 
-- Version: `v0.2.42`
-- Source tarball: `https://github.com/suju297/mem/archive/refs/tags/v0.2.42.tar.gz`
-- Source sha256: `e39434b3736d308766565b26c73b4494565efa3c4437a6419aff04e1cfcd2938`
-- Commit: `4906386`
-- Release page: `https://github.com/suju297/mem/releases/tag/v0.2.42`
+## Release automation
 
-The tap-ready formula for this release lives at `packaging/homebrew/Formula/mem-cli.rb`.
+Tagged releases can update the tap automatically through `.github/workflows/release.yml`.
+The workflow:
 
-## Create the tap
+- downloads the GitHub tag source tarball
+- computes the source `sha256`
+- regenerates `Formula/mem-cli.rb`
+- updates the tap README's `Current packaged release` line
+- commits and pushes the change to `suju297/homebrew-mem`
+
+To enable this, add a repository secret in `suju297/mem`:
+
+- Name: `HOMEBREW_TAP_GITHUB_TOKEN`
+- Scope: token with `contents:write` access to `suju297/homebrew-mem`
+
+If the secret is missing, the release still succeeds and the Homebrew update job
+logs a skip message instead of failing the release.
+
+The workflow uses `scripts/render_homebrew_formula.sh` to render the formula.
+
+## Create the tap manually
 
 Create a separate repo named `homebrew-mem`, then add the formula under `Formula/mem-cli.rb`.
 
@@ -31,7 +45,7 @@ cd ~/code/homebrew-mem
 git init
 git remote add origin git@github.com:suju297/homebrew-mem.git
 git add Formula/mem-cli.rb
-git commit -m "Add mem-cli formula for v0.2.42"
+git commit -m "Add mem-cli formula for vX.Y.Z"
 git push -u origin main
 ```
 
@@ -53,12 +67,13 @@ brew test mem-cli
 
 ```bash
 export HOMEBREW_NO_INSTALL_FROM_API=1
-brew audit --strict --formula ./Formula/mem-cli.rb
+brew audit --strict --new suju297/mem/mem-cli
 ```
 
 ## Update for the next release
 
-For each new release:
+If automation is configured, tagged releases update the tap automatically.
+If you need to update it manually:
 
 1. Change `url` to the new tag tarball.
 2. Recompute `sha256` from the source tarball.
