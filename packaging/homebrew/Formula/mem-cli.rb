@@ -15,7 +15,7 @@ class MemCli < Formula
       -X mem/internal/app.Commit=#{commit}
     ]
 
-    system "go", "build", *std_go_args(ldflags: ldflags), "./cmd/mem"
+    system "go", "build", *std_go_args(output: bin/"mem", ldflags: ldflags), "./cmd/mem"
   end
 
   test do
