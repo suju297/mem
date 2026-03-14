@@ -28,22 +28,31 @@ Who it’s not for:
 
 1. Install `mem`:
 
-macOS/Linux:
+Homebrew (macOS):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release>
+brew tap suju297/mem
+brew install suju297/mem/mem-cli
+```
+
+The Homebrew formula is named `mem-cli`; the installed binary is still `mem`.
+
+GitHub Releases installer (macOS/Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/suju297/mem/main/scripts/install.sh | sh -s -- --repo suju297/mem
 ```
 
 Add PATH automatically during install (macOS/Linux):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.sh | sh -s -- --repo <owner>/<repo> --version <release> --add-to-path
+curl -fsSL https://raw.githubusercontent.com/suju297/mem/main/scripts/install.sh | sh -s -- --repo suju297/mem --add-to-path
 ```
 
 Windows (PowerShell):
 
 ```powershell
-iwr https://raw.githubusercontent.com/<owner>/<repo>/<release>/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo <owner>/<repo> -Version <release>
+iwr https://raw.githubusercontent.com/suju297/mem/main/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo suju297/mem
 ```
 
 Windows PATH behavior:

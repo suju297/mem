@@ -4,6 +4,7 @@ This page is the exact syntax reference for the CLI.
 
 Use a different page if you need:
 - setup and first troubleshooting: `docs/onboarding.md`
+- Homebrew install and tap details: `docs/homebrew.md`
 - task-first examples: `docs/cookbook.md`
 - automation, CI, and shell behavior: `docs/scripting.md`
 
@@ -14,6 +15,29 @@ mem [global-flags] <command> [args] [flags]
 mem <command> --help
 mem --version
 ```
+
+## Install
+
+Homebrew (macOS):
+
+```bash
+brew tap suju297/mem
+brew install suju297/mem/mem-cli
+```
+
+GitHub Releases installer (macOS/Linux):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/suju297/mem/main/scripts/install.sh | sh -s -- --repo suju297/mem
+```
+
+Windows (PowerShell):
+
+```powershell
+iwr https://raw.githubusercontent.com/suju297/mem/main/scripts/install.ps1 -OutFile $env:TEMP\\mem-install.ps1; & $env:TEMP\\mem-install.ps1 -Repo suju297/mem
+```
+
+The Homebrew formula is `mem-cli`, but the installed executable is `mem`.
 
 ## Behavioral Conventions
 
@@ -134,6 +158,7 @@ mem mcp manager status [--json]
 `[mcp-runtime]` = `[--repo <id|path>] [--require-repo[=true|false]] [--debug] [--repair]`
 `[mcp-write]` = `[--allow-write] [--write-mode ask|auto|off]`
 `mem mcp` serves stdio for an attached MCP client.
+Typical Codex registration: `codex mcp add mem -- mem mcp --require-repo`
 With `--require-repo`, stdio startup still succeeds outside a repo, but MCP tool calls must pass `repo=<workspace root>` until the repo is known.
 `mem mcp start|stop|status` manage the local background daemon.
 `mem mcp manager` is a separate control-plane runtime.

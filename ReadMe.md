@@ -18,6 +18,7 @@ Task-first:
 
 Reference:
 - Full CLI syntax reference: `docs/cli.md`
+- Homebrew install and tap maintenance: `docs/homebrew.md`
 - Terminal UI guidance for CLI output: `docs/terminal-ui.md`
 - Storage layout, schema, and artifacts: `docs/storage.md`
 - Architecture + runtime diagrams: `ARCHITECTURE.md`
@@ -26,9 +27,18 @@ Reference:
 
 ## Quick Start
 
-1. Install CLI from GitHub Releases:
+1. Install CLI:
 
-macOS/Linux:
+Homebrew (macOS):
+
+```bash
+brew tap suju297/mem
+brew install suju297/mem/mem-cli
+```
+
+The Homebrew formula is named `mem-cli`; the installed binary is still `mem`.
+
+GitHub Releases installer (macOS/Linux):
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/suju297/mem/main/scripts/install.sh | sh -s -- --repo suju297/mem
