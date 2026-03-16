@@ -108,11 +108,15 @@ mem add --thread T-setup --title "Mem ready" --summary "Initialized memory for t
 mem get "Mem ready" --format prompt
 ```
 
-4. Connect Codex MCP:
+4. Connect an MCP client:
 
 ```bash
+# Codex
 codex mcp add mem -- mem mcp --require-repo
 codex mcp list
+
+# Claude Code
+claude mcp add --transport stdio mem -- mem mcp --require-repo
 ```
 
 5. MCP runtime modes:

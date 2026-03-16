@@ -67,11 +67,15 @@ If release assets are unavailable, installers fall back to source build (Go tool
 mem init
 ```
 
-3. Connect Codex to MCP:
+3. Connect an MCP client to Mem:
 
 ```bash
+# Codex
 codex mcp add mem -- mem mcp --require-repo
 codex mcp list
+
+# Claude Code
+claude mcp add --transport stdio mem -- mem mcp --require-repo
 ```
 
 4. Start MCP stdio:
@@ -131,7 +135,12 @@ Common tasks:
 Task: Use MCP with your agent
 Command:
 ```
+# Codex
 codex mcp add mem -- mem mcp --require-repo
+
+# Claude Code
+claude mcp add --transport stdio mem -- mem mcp --require-repo
+
 mem mcp
 ```
 What happens:

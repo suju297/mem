@@ -185,7 +185,12 @@ Use this when:
 Commands:
 
 ```bash
+# Codex
 codex mcp add mem -- mem mcp --require-repo
+
+# Claude Code
+claude mcp add --transport stdio mem -- mem mcp --require-repo
+
 mem mcp
 ```
 

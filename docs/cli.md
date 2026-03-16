@@ -158,7 +158,9 @@ mem mcp manager status [--json]
 `[mcp-runtime]` = `[--repo <id|path>] [--require-repo[=true|false]] [--debug] [--repair]`
 `[mcp-write]` = `[--allow-write] [--write-mode ask|auto|off]`
 `mem mcp` serves stdio for an attached MCP client.
-Typical Codex registration: `codex mcp add mem -- mem mcp --require-repo`
+Typical client registrations:
+- `codex mcp add mem -- mem mcp --require-repo`
+- `claude mcp add --transport stdio mem -- mem mcp --require-repo`
 With `--require-repo`, stdio startup still succeeds outside a repo, but MCP tool calls must pass `repo=<workspace root>` until the repo is known.
 `mem mcp start|stop|status` manage the local background daemon.
 `mem mcp manager` is a separate control-plane runtime.
