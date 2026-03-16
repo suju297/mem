@@ -114,6 +114,9 @@ func runInit(args []string, out, errOut io.Writer) int {
 		return 1
 	}
 
+	writeMemLogo(out)
+	fmt.Fprintln(out)
+	fmt.Fprintln(out)
 	fmt.Fprintf(out, "Initialized memory for repo: %s\n", repoInfo.ID)
 	fmt.Fprintf(out, "Root: %s\n\n", repoInfo.GitRoot)
 	fmt.Fprintln(out, "Try these commands:")

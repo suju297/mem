@@ -16,7 +16,8 @@ func writeUsage(w io.Writer) {
 	examples := colorize(useColor, "Examples")
 	notes := colorize(useColor, "Notes")
 
-	io.WriteString(w, title+" "+subtitle+"\n\n")
+	writeMemLogo(w)
+	io.WriteString(w, "\n\n"+title+" "+subtitle+"\n\n")
 	io.WriteString(w, usage+"\n")
 	io.WriteString(w, "  mem [--data-dir <path>] <command> [options]\n\n")
 	io.WriteString(w, colorize(useColor, "Global Options")+"\n")

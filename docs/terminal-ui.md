@@ -113,6 +113,10 @@ Examples of good defaults:
 - `mem doctor`: plain status summary, stable field order, explicit remediation text
 - long-running ingest or embedding work: progress with counts or phases, not constant spinner noise
 
+Branding should stay restrained:
+- If Mem uses an ASCII logo, reserve it for entry surfaces such as top-level help and successful `init`.
+- Keep the mark compact enough that command context and next steps still remain the primary content.
+
 ## Evidence Base
 
 This guidance is informed by a mix of usability, accessibility, readability, and visualization research rather than a single terminal-specific standard.
