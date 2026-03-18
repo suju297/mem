@@ -41,14 +41,14 @@ func TestInitDoesNotOverwriteAgents(t *testing.T) {
 	}
 }
 
-func TestInitWithAssistantsAllCreatesCompatibilityFiles(t *testing.T) {
+func TestInitWithAllCreatesCompatibilityFiles(t *testing.T) {
 	base := t.TempDir()
 	setXDGEnv(t, base)
 
 	repoDir := setupRepo(t, base)
 	withCwd(t, repoDir)
 
-	_ = runCLI(t, "init", "--assistants", "all")
+	_ = runCLI(t, "init", "--all")
 
 	if _, err := os.Stat(filepath.Join(repoDir, "AGENTS.md")); err != nil {
 		t.Fatalf("expected AGENTS.md to exist: %v", err)
@@ -58,6 +58,46 @@ func TestInitWithAssistantsAllCreatesCompatibilityFiles(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repoDir, "GEMINI.md")); err != nil {
 		t.Fatalf("expected GEMINI.md to exist: %v", err)
+	}
+}
+
+func TestInitWithClaudeOnlyCreatesClaudeStub(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	_ = runCLI(t, "init", "--claude")
+
+	if _, err := os.Stat(filepath.Join(repoDir, "CLAUDE.md")); err != nil {
+		t.Fatalf("expected CLAUDE.md to exist: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected AGENTS.md to be absent when only --claude is selected")
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, "GEMINI.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected GEMINI.md to be absent when only --claude is selected")
+	}
+}
+
+func TestInitWithAgentsOnlyCreatesAgentsStub(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	_ = runCLI(t, "init", "--agents")
+
+	if _, err := os.Stat(filepath.Join(repoDir, "AGENTS.md")); err != nil {
+		t.Fatalf("expected AGENTS.md to exist: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, "CLAUDE.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected CLAUDE.md to be absent when only --agents is selected")
+	}
+	if _, err := os.Stat(filepath.Join(repoDir, "GEMINI.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected GEMINI.md to be absent when only --agents is selected")
 	}
 }
 
@@ -73,7 +113,7 @@ func TestInitDoesNotOverwriteClaudeAndGeminiWhenSelected(t *testing.T) {
 	writeFile(t, repoDir, "CLAUDE.md", claudeSentinel)
 	writeFile(t, repoDir, "GEMINI.md", geminiSentinel)
 
-	_ = runCLI(t, "init", "--assistants", "claude,gemini")
+	_ = runCLI(t, "init", "--claude", "--gemini")
 
 	claudeData, err := os.ReadFile(filepath.Join(repoDir, "CLAUDE.md"))
 	if err != nil {
@@ -89,6 +129,10 @@ func TestInitDoesNotOverwriteClaudeAndGeminiWhenSelected(t *testing.T) {
 	}
 	if strings.TrimSpace(string(geminiData)) != geminiSentinel {
 		t.Fatalf("GEMINI.md was modified unexpectedly")
+	}
+
+	if _, err := os.Stat(filepath.Join(repoDir, "AGENTS.md")); !os.IsNotExist(err) {
+		t.Fatalf("expected AGENTS.md to be absent when only --claude and --gemini are selected")
 	}
 }
 

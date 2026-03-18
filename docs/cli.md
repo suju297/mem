@@ -93,12 +93,14 @@ Data directory precedence is:
 ### ![Setup](https://img.shields.io/badge/-0EA5E9?style=flat-square) Setup
 
 ```text
-mem init [--no-agents] [--assistants agents|claude|gemini|all]
+mem init [--no-agents] [--agents] [--claude] [--gemini] [--all]
 mem doctor [--repo <id|path>] [--json] [--repair] [--verbose]
 mem repos [--format table|json] [--full-paths]
 mem use <repo_id|path>
 mem version | mem --version | mem -v
 ```
+
+`mem init` defaults to writing the repo memory instructions plus `AGENTS.md`. Use `--claude`, `--agents`, `--gemini`, or `--all` to choose the stub files explicitly, or `--no-agents` to skip repo files entirely.
 
 ### ![Retrieval](https://img.shields.io/badge/-4F46E5?style=flat-square) Retrieval
 

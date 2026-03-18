@@ -22,19 +22,17 @@ func runInit(args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("init", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	noAgents := fs.Bool("no-agents", false, "Skip writing repo MEMORY.md and assistant stub files")
-	assistantsFlag := fs.String("assistants", "agents", "Comma-separated assistant stubs to write: agents,claude,gemini,all")
+	agentsFlag := fs.Bool("agents", false, "Write AGENTS.md")
+	claudeFlag := fs.Bool("claude", false, "Write CLAUDE.md")
+	geminiFlag := fs.Bool("gemini", false, "Write GEMINI.md")
+	allFlag := fs.Bool("all", false, "Write AGENTS.md, CLAUDE.md, and GEMINI.md")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 
 	targets := []assistantStubTarget{assistantTargetAgents}
 	if !*noAgents {
-		var err error
-		targets, err = parseAssistantStubTargets(*assistantsFlag)
-		if err != nil {
-			fmt.Fprintf(errOut, "invalid --assistants: %v\n", err)
-			return 2
-		}
+		targets = selectedInitAssistantTargets(*agentsFlag, *claudeFlag, *geminiFlag, *allFlag)
 	}
 
 	cfg, err := loadConfig()
@@ -221,6 +219,34 @@ func assistantStubTargetsLabel(targets []assistantStubTarget) string {
 		return "none"
 	}
 	return strings.Join(labels, ", ")
+}
+
+func selectedInitAssistantTargets(includeAgents, includeClaude, includeGemini, includeAll bool) []assistantStubTarget {
+	if includeAll {
+		return append([]assistantStubTarget(nil), assistantTargetOrder...)
+	}
+
+	selected := map[assistantStubTarget]bool{}
+	if includeAgents {
+		selected[assistantTargetAgents] = true
+	}
+	if includeClaude {
+		selected[assistantTargetClaude] = true
+	}
+	if includeGemini {
+		selected[assistantTargetGemini] = true
+	}
+	if len(selected) == 0 {
+		return []assistantStubTarget{assistantTargetAgents}
+	}
+
+	targets := make([]assistantStubTarget, 0, len(selected))
+	for _, target := range assistantTargetOrder {
+		if selected[target] {
+			targets = append(targets, target)
+		}
+	}
+	return targets
 }
 
 func writeAgentFiles(root string, targets []assistantStubTarget, includeMemory bool) (agentFilesResult, error) {

@@ -21,6 +21,8 @@ MCP write settings follow CLI config precedence: `.mem/config.json` (repo overri
 - `mem` binary installed and on PATH (or set `mem.binaryPath`).
 - A git repo with `mem init` run at least once.
 
+`mem init` supports `--agents`, `--claude`, `--gemini`, and `--all` when you want to choose which assistant stub files are written during setup.
+
 ## Commands
 
 - Mem: Save Selection as Memory

@@ -602,7 +602,20 @@ export class MemClient {
     if (noAgents) {
       args.push("--no-agents");
     } else if (assistants.length > 0) {
-      args.push("--assistants", assistants.join(","));
+      const normalized = new Set(assistants.map((item) => item.trim().toLowerCase()));
+      if (normalized.has("all")) {
+        args.push("--all");
+      } else {
+        if (normalized.has("agents")) {
+          args.push("--agents");
+        }
+        if (normalized.has("claude")) {
+          args.push("--claude");
+        }
+        if (normalized.has("gemini")) {
+          args.push("--gemini");
+        }
+      }
     }
     const stdout = await this.runText(args, cwd);
     if (stdout.trim() !== "") {

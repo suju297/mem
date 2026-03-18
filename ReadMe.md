@@ -101,6 +101,8 @@ mem --version
 mem init
 ```
 
+Use `mem init --agents`, `mem init --claude`, `mem init --gemini`, or `mem init --all` to choose which assistant stub files are written during setup.
+
 3. Save and retrieve one memory:
 
 ```bash

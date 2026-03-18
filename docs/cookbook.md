@@ -30,7 +30,9 @@ mem doctor --json
 
 What it does:
 - `mem init` creates repo-scoped storage, seeds a welcome memory, and sets the active repo.
+- By default, `mem init` writes the repo memory instructions plus `AGENTS.md` when those files are missing.
 - `mem doctor --json` verifies repo detection, the SQLite database, schema version, and FTS tables.
+- Use `mem init --agents`, `mem init --claude`, `mem init --gemini`, or `mem init --all` to choose which assistant stub files are written.
 
 Sample output:
 
@@ -63,6 +65,10 @@ Try these commands:
 
 Common variations:
 - Skip assistant stubs: `mem init --no-agents`
+- Write only `AGENTS.md`: `mem init --agents`
+- Write only `CLAUDE.md`: `mem init --claude`
+- Write only `GEMINI.md`: `mem init --gemini`
+- Write all supported stub files: `mem init --all`
 - Attempt repairs while checking health: `mem doctor --repair`
 
 If it fails:

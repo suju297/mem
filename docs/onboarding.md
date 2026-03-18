@@ -67,6 +67,9 @@ If release assets are unavailable, installers fall back to source build (Go tool
 mem init
 ```
 
+By default, `mem init` writes the repo memory instructions plus `AGENTS.md` when those files are missing.
+Use `mem init --agents`, `mem init --claude`, `mem init --gemini`, or `mem init --all` when you want to choose which assistant stub files are created.
+
 3. Connect an MCP client to Mem:
 
 ```bash
