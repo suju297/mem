@@ -27,6 +27,7 @@ func writeUsage(w io.Writer) {
 	io.WriteString(w, sections+"\n")
 	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
 	fmt.Fprintln(tw, "  init\tInitialize memory in current repo")
+	fmt.Fprintln(tw, "  delete\tRemove Mem setup and repo DB for current repo")
 	fmt.Fprintln(tw, "  get\tRetrieve context by query")
 	fmt.Fprintln(tw, "  usage\tShow cumulative token usage and savings")
 	fmt.Fprintln(tw, "  add\tSave a memory")
@@ -42,6 +43,7 @@ func writeUsage(w io.Writer) {
 
 	io.WriteString(w, "\n"+examples+"\n")
 	io.WriteString(w, "  mem init\n")
+	io.WriteString(w, "  mem delete --yes\n")
 	io.WriteString(w, "  mem add --title \"Auth plan\" --summary \"Use middleware\"\n")
 	io.WriteString(w, "  mem get \"auth plan\" --format prompt\n")
 	io.WriteString(w, "  mem usage\n")

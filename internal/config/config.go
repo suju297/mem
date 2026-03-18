@@ -30,6 +30,7 @@ type Config struct {
 	EmbeddingProvider      string            `toml:"embedding_provider"`
 	EmbeddingModel         string            `toml:"embedding_model"`
 	EmbeddingMinSimilarity float64           `toml:"embedding_min_similarity"`
+	EmbeddingSetupComplete bool              `toml:"embedding_setup_complete"`
 }
 
 var dataDirOverride string
@@ -67,9 +68,10 @@ func Default() (Config, error) {
 		MCPRequireRepo:         false,
 		DefaultWorkspace:       "default",
 		DefaultThread:          "T-SESSION",
-		EmbeddingProvider:      "auto",
+		EmbeddingProvider:      "none",
 		EmbeddingModel:         "nomic-embed-text",
 		EmbeddingMinSimilarity: 0.6,
+		EmbeddingSetupComplete: false,
 	}, nil
 }
 
@@ -151,6 +153,37 @@ func (c Config) SaveRepoState() error {
 
 	persisted.ActiveRepo = c.ActiveRepo
 	persisted.RepoCache = mergeRepoCache(persisted.RepoCache, c.RepoCache)
+	return writeConfigFile(path, persisted)
+}
+
+// SaveEmbeddingState persists only global embedding preferences while preserving
+// all other persisted settings and avoiding leakage of runtime-only overrides
+// such as --data-dir / MEM_DATA_DIR into config.toml.
+func (c Config) SaveEmbeddingState() error {
+	if err := os.MkdirAll(c.ConfigDir, 0o755); err != nil {
+		return err
+	}
+	path := filepath.Join(c.ConfigDir, "config.toml")
+
+	persisted, err := Default()
+	if err != nil {
+		return err
+	}
+	persisted.ConfigDir = c.ConfigDir
+
+	if _, err := os.Stat(path); err == nil {
+		if _, err := toml.DecodeFile(path, &persisted); err != nil {
+			return err
+		}
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	persisted.EmbeddingProvider = c.EmbeddingProvider
+	if strings.TrimSpace(c.EmbeddingModel) != "" {
+		persisted.EmbeddingModel = c.EmbeddingModel
+	}
+	persisted.EmbeddingSetupComplete = c.EmbeddingSetupComplete
 	return writeConfigFile(path, persisted)
 }
 

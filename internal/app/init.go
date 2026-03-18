@@ -44,6 +44,10 @@ func runInit(args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "config error: %v\n", err)
 		return 1
 	}
+	configExisted := false
+	if _, err := os.Stat(filepath.Join(cfg.ConfigDir, "config.toml")); err == nil {
+		configExisted = true
+	}
 	workspaceName := resolveWorkspace(cfg, "")
 
 	// Detect current repo
@@ -137,6 +141,8 @@ func runInit(args []string, out, errOut io.Writer) int {
 			}
 		}
 	}
+
+	maybeRunInitEmbeddingSetup(&cfg, out, errOut, configExisted)
 
 	return 0
 }

@@ -31,6 +31,7 @@ mem doctor --json
 What it does:
 - `mem init` creates repo-scoped storage, seeds a welcome memory, and sets the active repo.
 - By default, `mem init` writes the repo memory instructions plus `AGENTS.md` when those files are missing.
+- On the first interactive run, `mem init` also asks whether you want local embeddings. If you opt in, it can offer an Ollama install and let you choose a recommended model.
 - `mem doctor --json` verifies repo detection, the SQLite database, schema version, and FTS tables.
 - Use `mem init --agents`, `mem init --claude`, `mem init --gemini`, or `mem init --all` to choose which assistant stub files are written.
 
@@ -70,10 +71,33 @@ Common variations:
 - Write only `GEMINI.md`: `mem init --gemini`
 - Write all supported stub files: `mem init --all`
 - Attempt repairs while checking health: `mem doctor --repair`
+- Remove Mem setup and repo data later: `mem delete --yes`
 
 If it fails:
 - `repo detection error`: run inside a Git repo, or `cd` to the repo root first.
 - `config error`: fix the syntax in `~/.config/mem/config.toml`.
+
+## 1b. Remove Mem from a Repo
+
+Use this when:
+- you initialized the wrong repo
+- you want to remove the repo DB and Mem-generated setup files
+
+Command:
+
+```bash
+mem delete --yes
+```
+
+What it does:
+- Deletes the repo-scoped Mem database for the current repo.
+- Deletes `.mem/` or `.mempack/` for that repo.
+- Deletes root `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` only when they still match Mem-managed stub content.
+- Clears `active_repo` / `repo_cache` entries that point at that repo.
+
+If it fails:
+- `refusing to delete ... without --yes`: add `--yes` in scripts and non-interactive runs.
+- A root stub remains: it was not recognized as Mem-managed, so remove it manually if you still want it gone.
 
 ## 2. Save a Decision and Retrieve It
 

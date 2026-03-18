@@ -38,6 +38,8 @@ func Run(args []string, out, errOut io.Writer) int {
 	switch cmd {
 	case "init":
 		return runInit(args[1:], out, errOut)
+	case "delete":
+		return runDelete(args[1:], out, errOut)
 	case "get":
 		return runGet(args[1:], out, errOut)
 	case "usage":

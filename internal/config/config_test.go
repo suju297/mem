@@ -41,14 +41,17 @@ func TestLoadSave(t *testing.T) {
 	if cfg.DefaultThread != "T-SESSION" {
 		t.Errorf("Expected default thread T-SESSION, got %s", cfg.DefaultThread)
 	}
-	if cfg.EmbeddingProvider != "auto" {
-		t.Errorf("Expected default embedding provider auto, got %s", cfg.EmbeddingProvider)
+	if cfg.EmbeddingProvider != "none" {
+		t.Errorf("Expected default embedding provider none, got %s", cfg.EmbeddingProvider)
 	}
 	if cfg.EmbeddingModel != "nomic-embed-text" {
 		t.Errorf("Expected default embedding model nomic-embed-text, got %s", cfg.EmbeddingModel)
 	}
 	if cfg.EmbeddingMinSimilarity != 0.6 {
 		t.Errorf("Expected default embedding min similarity 0.6, got %v", cfg.EmbeddingMinSimilarity)
+	}
+	if cfg.EmbeddingSetupComplete {
+		t.Errorf("Expected embedding setup incomplete by default, got true")
 	}
 
 	// Modify and Save
@@ -62,6 +65,7 @@ func TestLoadSave(t *testing.T) {
 	cfg.EmbeddingProvider = "ollama"
 	cfg.EmbeddingModel = "nomic-embed-text"
 	cfg.EmbeddingMinSimilarity = 0.7
+	cfg.EmbeddingSetupComplete = true
 	if err := cfg.Save(); err != nil {
 		t.Fatalf("Save failed: %v", err)
 	}
@@ -100,6 +104,9 @@ func TestLoadSave(t *testing.T) {
 	}
 	if cfg2.EmbeddingMinSimilarity != 0.7 {
 		t.Errorf("Expected embedding min similarity 0.7, got %v", cfg2.EmbeddingMinSimilarity)
+	}
+	if !cfg2.EmbeddingSetupComplete {
+		t.Errorf("Expected embedding setup complete true, got false")
 	}
 
 	// Edge Case: Missing config dir should be created on Save
@@ -165,6 +172,68 @@ func TestSaveRepoStateDoesNotPersistDataDirOverride(t *testing.T) {
 	}
 	if !strings.Contains(text, `active_repo = "repo-after"`) {
 		t.Fatalf("expected active_repo to be persisted by SaveRepoState")
+	}
+}
+
+func TestSaveEmbeddingStateDoesNotPersistDataDirOverride(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "mem-test-config-embedding-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmpDir, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(tmpDir, "data"))
+	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmpDir, "cache"))
+
+	SetDataDirOverride("")
+	defer SetDataDirOverride("")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	persistedDataDir := filepath.Join(tmpDir, "persisted-data")
+	cfg.DataDir = persistedDataDir
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save failed: %v", err)
+	}
+
+	overrideDir := filepath.Join(tmpDir, "override-data")
+	SetDataDirOverride(overrideDir)
+
+	cfg2, err := Load()
+	if err != nil {
+		t.Fatalf("Reload with override failed: %v", err)
+	}
+	cfg2.EmbeddingProvider = "ollama"
+	cfg2.EmbeddingModel = "mxbai-embed-large"
+	cfg2.EmbeddingSetupComplete = true
+	if err := cfg2.SaveEmbeddingState(); err != nil {
+		t.Fatalf("SaveEmbeddingState failed: %v", err)
+	}
+
+	configPath := filepath.Join(cfg2.ConfigDir, "config.toml")
+	raw, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("Read config failed: %v", err)
+	}
+	text := string(raw)
+	if !strings.Contains(text, `data_dir = "`+persistedDataDir+`"`) {
+		t.Fatalf("expected persisted data_dir %q in config.toml", persistedDataDir)
+	}
+	if strings.Contains(text, overrideDir) {
+		t.Fatalf("runtime override data_dir %q leaked into config.toml", overrideDir)
+	}
+	if !strings.Contains(text, `embedding_provider = "ollama"`) {
+		t.Fatalf("expected embedding_provider to be persisted by SaveEmbeddingState")
+	}
+	if !strings.Contains(text, `embedding_model = "mxbai-embed-large"`) {
+		t.Fatalf("expected embedding_model to be persisted by SaveEmbeddingState")
+	}
+	if !strings.Contains(text, `embedding_setup_complete = true`) {
+		t.Fatalf("expected embedding_setup_complete to be persisted by SaveEmbeddingState")
 	}
 }
 

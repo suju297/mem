@@ -69,6 +69,8 @@ mem init
 
 By default, `mem init` writes the repo memory instructions plus `AGENTS.md` when those files are missing.
 Use `mem init --agents`, `mem init --claude`, `mem init --gemini`, or `mem init --all` when you want to choose which assistant stub files are created.
+On the first interactive `mem init`, Mem also asks whether you want local embeddings. If you opt in, it can offer an Ollama install and then prompt for a recommended embedding model.
+If you need to undo repo setup later, run `mem delete --yes`.
 
 3. Connect an MCP client to Mem:
 
@@ -224,9 +226,9 @@ Common mistakes:
 
 `embedding_provider`
 - Type: string
-- Default: `auto`
-- Description: Enables embeddings when available, falls back to keyword search.
-- When to change it: Set explicitly if you run a specific embedding stack.
+- Default: `none`
+- Description: Keeps keyword search as the baseline. Set to `ollama` when you want local vector search.
+- When to change it: Use the first interactive `mem init` prompt, or set it explicitly if you run a specific embedding stack.
 
 `embedding_model`
 - Type: string

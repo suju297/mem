@@ -51,6 +51,10 @@ func checkOllamaAvailable(model string) (bool, string) {
 	return available, errMsg
 }
 
+func CheckOllamaAvailable(model string) (bool, string) {
+	return checkOllamaAvailable(model)
+}
+
 func probeOllama(model string) (bool, string) {
 	baseURL := strings.TrimRight(resolveOllamaURL(), "/")
 	url := baseURL + "/api/tags"

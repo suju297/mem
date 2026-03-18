@@ -83,6 +83,10 @@ Some write commands prompt in an interactive terminal if required arguments are 
 - `mem link`
 - `mem session upsert`
 
+`mem init` is also interactive on the first terminal run after install or upgrade if the user has not completed embedding setup yet. Non-interactive runs skip that prompt and leave the embedding choice for a later interactive `mem init`.
+
+`mem delete` is destructive and refuses to run in non-interactive mode unless `--yes` is passed.
+
 Script rule:
 - always pass required flags and positional arguments explicitly
 - do not rely on prompts in CI or background jobs

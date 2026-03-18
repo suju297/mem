@@ -101,6 +101,9 @@ mem --version
 mem init
 ```
 
+On the first interactive `mem init`, Mem also asks whether you want local embeddings. If you opt in, it can walk you through installing Ollama and choosing a recommended embedding model.
+To remove Mem setup from a repo later, run `mem delete --yes`.
+
 Use `mem init --agents`, `mem init --claude`, `mem init --gemini`, or `mem init --all` to choose which assistant stub files are written during setup.
 
 3. Save and retrieve one memory:
@@ -168,7 +171,7 @@ Command groups:
 
 | Group | Commands |
 |---|---|
-| Setup | `init`, `doctor`, `repos`, `use`, `version` |
+| Setup | `init`, `delete`, `doctor`, `repos`, `use`, `version` |
 | Retrieval | `get`, `explain`, `show`, `threads`, `thread`, `recent`, `sessions` |
 | Writes | `add`, `update`, `supersede`, `link`, `checkpoint`, `forget` |
 | Ingest/Embed | `ingest`, `ingest-artifact`, `embed` |
@@ -186,6 +189,7 @@ Examples:
 
 ```bash
 mem get "auth middleware" --format json
+mem delete --yes
 mem add --title "Auth plan" --summary "Use middleware"
 mem mcp status
 ```
@@ -231,9 +235,11 @@ default_thread = "T-SESSION"
 mcp_allow_write = true
 mcp_write_mode = "ask"
 mcp_require_repo = true
-embedding_provider = "auto"
+embedding_provider = "none"
 embedding_model = "nomic-embed-text"
 ```
+
+`embedding_provider = "none"` keeps keyword search as the default. The first interactive `mem init` can switch this to `ollama` after the user opts in.
 
 ## Architecture
 

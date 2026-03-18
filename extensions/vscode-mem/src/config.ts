@@ -58,7 +58,7 @@ export function getRepoConfigPath(cwd: string): string {
 }
 
 export function parseEmbeddingConfig(content: string): EmbeddingConfig {
-  const provider = readTomlString(content, "embedding_provider") || "auto";
+  const provider = readTomlString(content, "embedding_provider") || "none";
   const model =
     readTomlString(content, "embedding_model") || "nomic-embed-text";
   return { provider, model };

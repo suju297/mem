@@ -94,13 +94,16 @@ Data directory precedence is:
 
 ```text
 mem init [--no-agents] [--agents] [--claude] [--gemini] [--all]
+mem delete [--repo <id|path>] [--yes]
 mem doctor [--repo <id|path>] [--json] [--repair] [--verbose]
 mem repos [--format table|json] [--full-paths]
 mem use <repo_id|path>
 mem version | mem --version | mem -v
 ```
 
-`mem init` defaults to writing the repo memory instructions plus `AGENTS.md`. Use `--claude`, `--agents`, `--gemini`, or `--all` to choose the stub files explicitly, or `--no-agents` to skip repo files entirely.
+`mem init` defaults to writing the repo memory instructions plus `AGENTS.md`. On the first interactive run, it also prompts for optional local embedding setup. Use `--claude`, `--agents`, `--gemini`, or `--all` to choose the stub files explicitly, or `--no-agents` to skip repo files entirely.
+
+`mem delete` removes the repo-scoped Mem database plus repo setup files for the resolved repo. It deletes root assistant stubs only when they still match Mem-managed content, and it requires `--yes` in non-interactive runs.
 
 ### ![Retrieval](https://img.shields.io/badge/-4F46E5?style=flat-square) Retrieval
 

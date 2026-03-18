@@ -9,7 +9,7 @@ import (
 )
 
 func promptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) (bool, error) {
-	reader := bufio.NewReader(in)
+	reader := promptReader(in)
 	suffix := "[y/N]"
 	if defaultYes {
 		suffix = "[Y/n]"
@@ -39,7 +39,7 @@ func promptYesNo(in io.Reader, out io.Writer, question string, defaultYes bool) 
 }
 
 func promptText(in io.Reader, out io.Writer, question string, allowEmpty bool) (string, error) {
-	reader := bufio.NewReader(in)
+	reader := promptReader(in)
 	for {
 		fmt.Fprintf(out, "%s: ", question)
 		line, err := reader.ReadString('\n')
@@ -57,4 +57,11 @@ func promptText(in io.Reader, out io.Writer, question string, allowEmpty bool) (
 			return "", nil
 		}
 	}
+}
+
+func promptReader(in io.Reader) *bufio.Reader {
+	if reader, ok := in.(*bufio.Reader); ok {
+		return reader
+	}
+	return bufio.NewReader(in)
 }

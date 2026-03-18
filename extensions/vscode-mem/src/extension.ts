@@ -623,7 +623,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
       const currentProvider =
-        repoCfg.embedding_provider || globalCfg?.provider || "auto";
+        repoCfg.embedding_provider || globalCfg?.provider || "none";
       const currentModel =
         repoCfg.embedding_model || globalCfg?.model || "nomic-embed-text";
       const enabled = currentProvider.toLowerCase() !== "none";
@@ -638,7 +638,7 @@ export function activate(context: vscode.ExtensionContext): void {
             value: "toggle",
             description: enabled
               ? "Set embedding_provider = none"
-              : "Set embedding_provider = auto",
+              : "Set embedding_provider = ollama",
           },
           {
             label: "Choose embedding model",
@@ -655,7 +655,7 @@ export function activate(context: vscode.ExtensionContext): void {
       let next = repoContent || "{}";
       if (choice.value === "toggle") {
         next = updateRepoConfig(next, {
-          embedding_provider: enabled ? "none" : "auto",
+          embedding_provider: enabled ? "none" : "ollama",
           embedding_model: currentModel,
         });
       }
@@ -665,9 +665,7 @@ export function activate(context: vscode.ExtensionContext): void {
           [
             { label: "nomic-embed-text", description: "Default (balanced)" },
             { label: "mxbai-embed-large", description: "High quality" },
-            { label: "bge-small-en", description: "Fast, smaller" },
-            { label: "bge-base-en", description: "Balanced" },
-            { label: "bge-large-en", description: "High quality" },
+            { label: "all-minilm", description: "Fast, smaller" },
             { label: "Custom...", description: "Enter a model name" },
           ],
           { placeHolder: "Select embedding model" },
@@ -689,7 +687,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
         next = updateRepoConfig(next, {
           embedding_model: model,
-          embedding_provider: "auto",
+          embedding_provider: "ollama",
         });
       }
 

@@ -1,10 +1,13 @@
 package app
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"mem/internal/config"
 )
 
 func TestInitDoesNotOverwriteAgents(t *testing.T) {
@@ -185,5 +188,136 @@ func TestTemplateAgentsNoMemoryWritesSelectedTargetsOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(repoDir, ".mem", "MEMORY.md")); !os.IsNotExist(err) {
 		t.Fatalf("expected .mem/MEMORY.md to be absent")
+	}
+}
+
+func TestInitFirstRunEmbeddingSetupCanDisableEmbeddings(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	origInteractive := initEmbeddingPromptInteractive
+	initEmbeddingPromptInteractive = func() bool { return true }
+	t.Cleanup(func() {
+		initEmbeddingPromptInteractive = origInteractive
+	})
+
+	_ = runCLIWithInput(t, "n\n", "init", "--no-agents")
+
+	configPath := filepath.Join(base, "config", "mem", "config.toml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, `embedding_provider = "none"`) {
+		t.Fatalf("expected embedding_provider none in config, got:\n%s", text)
+	}
+	if !strings.Contains(text, `embedding_setup_complete = true`) {
+		t.Fatalf("expected embedding_setup_complete true in config, got:\n%s", text)
+	}
+}
+
+func TestInitFirstRunEmbeddingSetupEnablesOllamaModel(t *testing.T) {
+	base := t.TempDir()
+	setXDGEnv(t, base)
+
+	repoDir := setupRepo(t, base)
+	withCwd(t, repoDir)
+
+	origInteractive := initEmbeddingPromptInteractive
+	origLookPath := initEmbeddingLookPath
+	origCheck := initEmbeddingCheckOllamaAvailable
+	origPull := initEmbeddingPullModel
+	initEmbeddingPromptInteractive = func() bool { return true }
+	initEmbeddingLookPath = func(file string) (string, error) { return "/usr/bin/ollama", nil }
+	initEmbeddingCheckOllamaAvailable = func(model string) (bool, string) { return true, "" }
+	pulledModel := ""
+	initEmbeddingPullModel = func(model string, out io.Writer) error {
+		pulledModel = model
+		return nil
+	}
+	t.Cleanup(func() {
+		initEmbeddingPromptInteractive = origInteractive
+		initEmbeddingLookPath = origLookPath
+		initEmbeddingCheckOllamaAvailable = origCheck
+		initEmbeddingPullModel = origPull
+	})
+
+	_ = runCLIWithInput(t, "y\n1\ny\n", "init", "--no-agents")
+
+	configPath := filepath.Join(base, "config", "mem", "config.toml")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read config.toml: %v", err)
+	}
+	text := string(data)
+	if !strings.Contains(text, `embedding_provider = "ollama"`) {
+		t.Fatalf("expected embedding_provider ollama in config, got:\n%s", text)
+	}
+	if !strings.Contains(text, `embedding_model = "nomic-embed-text"`) {
+		t.Fatalf("expected embedding_model nomic-embed-text in config, got:\n%s", text)
+	}
+	if !strings.Contains(text, `embedding_setup_complete = true`) {
+		t.Fatalf("expected embedding_setup_complete true in config, got:\n%s", text)
+	}
+	if pulledModel != "nomic-embed-text" {
+		t.Fatalf("expected pulled model nomic-embed-text, got %q", pulledModel)
+	}
+}
+
+func TestShouldPromptForEmbeddingSetup(t *testing.T) {
+	tests := []struct {
+		name         string
+		cfg          config.Config
+		configExists bool
+		want         bool
+	}{
+		{
+			name: "new install default prompts",
+			cfg: config.Config{
+				EmbeddingProvider:      "none",
+				EmbeddingSetupComplete: false,
+			},
+			configExists: false,
+			want:         true,
+		},
+		{
+			name: "completed setup skips",
+			cfg: config.Config{
+				EmbeddingProvider:      "none",
+				EmbeddingSetupComplete: true,
+			},
+			configExists: true,
+			want:         false,
+		},
+		{
+			name: "legacy auto config skips",
+			cfg: config.Config{
+				EmbeddingProvider:      "auto",
+				EmbeddingSetupComplete: false,
+			},
+			configExists: true,
+			want:         false,
+		},
+		{
+			name: "existing none config still prompts until answered",
+			cfg: config.Config{
+				EmbeddingProvider:      "none",
+				EmbeddingSetupComplete: false,
+			},
+			configExists: true,
+			want:         true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := shouldPromptForEmbeddingSetup(tc.cfg, tc.configExists); got != tc.want {
+				t.Fatalf("shouldPromptForEmbeddingSetup() = %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
